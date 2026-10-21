@@ -58,6 +58,8 @@ function sanitize<T>(obj: T): T {
  * Entrega o lead. Lança se a entrega ao servidor falhar, para a UI poder
  * oferecer o WhatsApp como saída em vez de fingir sucesso.
  */
+import { supabase } from './supabase';
+
 export async function createLead(input: LeadInput): Promise<string> {
   // O pixel passa a mandar nome/telefone no advanced matching a partir daqui, e
   // o external_id segue no payload para o CRM guardar: é ele que vai identificar
@@ -67,23 +69,39 @@ export async function createLead(input: LeadInput): Promise<string> {
   const payload = sanitize({
     ...input,
     status: 'new',
-    source: 'Qualificador Manos Web App',
+    source: 'Site DG Automóveis',
     atribuicao: getAttribution(),
     external_id: idDoVisitante(),
     timestamp: new Date().toISOString(),
   });
 
-  const response = await fetch('/api/leads', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Falha ao entregar o lead (${response.status})`);
+  // 1. Gravação direta no CRM DGAUTOS (Supabase)
+  try {
+    await supabase.from('oportunidades_crm_DGAUTOS').insert([{
+      nome_lead: input.name,
+      telefone: input.phone,
+      email: (input.details as any)?.email || '',
+      origem: 'SITE_OFICIAL',
+      estagio: 'pendente',
+      veiculo_interesse: (input.details as any)?.veiculo_interesse || input.lead_type || 'Interesse pelo Site',
+      valor_proposta: Number((input.details as any)?.valor_proposta || 0),
+      etiquetas: ['LEAD_SITE', 'Quente'],
+      created_at: new Date().toISOString()
+    }]);
+  } catch (errSupabase) {
+    console.warn('[leads] Gravação no Supabase CRM DGAUTOS falhou:', errSupabase);
   }
 
-  // Gravação secundária. Nunca bloqueia e nunca derruba a entrega acima.
+  // 2. Tenta entrega para webhook / API local se disponível
+  try {
+    await fetch('/api/leads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  } catch {}
+
+  // 3. Gravação secundária Firestore (best-effort)
   void addDoc(collection(db, 'leads_manos_crm'), {
     ...payload,
     created_at: serverTimestamp(),

@@ -2,7 +2,20 @@ import { useEffect, useState } from 'react';
 import { Building2, Users, ShieldCheck, Plus, Trash2, Save } from 'lucide-react';
 import { getConfig, saveConfigLoja, createUsuario, deleteUsuario } from '../store';
 
-export default function Configuracoes() {
+export default function Configuracoes({ user }) {
+  const emailAtual = (user?.email || '').trim().toLowerCase();
+  if (emailAtual !== 'admin@dgautos.com.br') {
+    return (
+      <div className="card" style={{ padding: 40, textAlign: 'center', maxWidth: 600, margin: '40px auto' }}>
+        <h2 style={{ color: '#ef4444', marginBottom: 12 }}>Acesso Restrito ao Administrador Geral</h2>
+        <p style={{ color: 'var(--muted)', lineHeight: 1.6 }}>
+          Esta área contém dados fiscais, razão social e gerenciamento de equipe da empresa. 
+          O acesso é restrito exclusivamente ao login oficial <strong>admin@dgautos.com.br</strong>.
+        </p>
+      </div>
+    );
+  }
+
   const [aba, setAba] = useState('loja'); // loja | usuarios | auditoria
   const [loja, setLoja] = useState({
     razao_social: 'DG Automóveis Comércio de Veículos Ltda',

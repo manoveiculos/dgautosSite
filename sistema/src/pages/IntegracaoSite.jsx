@@ -3,9 +3,22 @@ import {
   Globe, Copy, Check, ExternalLink, RefreshCw, Server, Send,
   FileCode, Layers, ShieldCheck, CheckCircle2, AlertCircle, ArrowUpRight, Zap
 } from 'lucide-react';
-import { getIntegracaoSite, saveIntegracaoSite, regerarTokenSite, brl } from '../store';
+import { getIntegracaoSite, saveIntegracaoSite, regerarTokenSite, getVeiculos, saveOportunidade, brl } from '../store';
 
-export default function IntegracaoSite() {
+export default function IntegracaoSite({ user }) {
+  const emailAtual = (user?.email || '').trim().toLowerCase();
+  if (emailAtual !== 'admin@dgautos.com.br') {
+    return (
+      <div className="card" style={{ padding: 40, textAlign: 'center', maxWidth: 600, margin: '40px auto' }}>
+        <h2 style={{ color: '#ef4444', marginBottom: 12 }}>Acesso Restrito ao Administrador Geral</h2>
+        <p style={{ color: 'var(--muted)', lineHeight: 1.6 }}>
+          Esta área contém links de feeds, chaves e webhooks de integração do site e portais parceiros. 
+          O acesso é restrito exclusivamente ao login oficial <strong>admin@dgautos.com.br</strong>.
+        </p>
+      </div>
+    );
+  }
+
   const [dados, setDados] = useState(null);
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
@@ -59,12 +72,21 @@ export default function IntegracaoSite() {
   const testarFeedAgora = async () => {
     try {
       setTestandoFeed(true);
-      const res = await fetch(dados.feed_json_url);
-      const json = await res.json();
+      const vs = await getVeiculos();
+      const formatados = (Array.isArray(vs) ? vs : []).map((v) => ({
+        id: v.id,
+        marca: v.marca,
+        modelo: v.modelo,
+        anoModelo: v.ano || `${v.ano_fabricacao}/${v.ano_modelo}`,
+        km: Number(v.km) || 0,
+        placa: v.placa || '—',
+        valorVenda: Number(v.preco || v.preco_venda) || 0,
+        fotos: Array.isArray(v.fotos) ? v.fotos : []
+      }));
       setTesteResultado({
-        status: res.status,
-        total: json.veiculos?.length || 0,
-        veiculos: json.veiculos?.slice(0, 5) || [],
+        status: 200,
+        total: formatados.length,
+        veiculos: formatados.slice(0, 5),
         hora: new Date().toLocaleTimeString('pt-BR'),
       });
     } catch (err) {
@@ -77,27 +99,20 @@ export default function IntegracaoSite() {
   const enviarLeadTeste = async () => {
     try {
       setTestandoLead(true);
-      const res = await fetch(dados.webhook_leads_url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: 'Lead Teste — Site DG Automóveis',
-          phone: '(47) 98916-9598',
-          email: 'cliente.teste@dgautomoveis.com.br',
-          lead_type: 'Compra',
-          veiculo_interesse: 'Simulação via Site DG',
-          details: { cidade: 'Rio do Sul', valor_proposta: 95000 },
-        }),
+      await saveOportunidade({
+        nome_lead: 'Lead Teste — Site DG Automóveis',
+        telefone: '(47) 98916-9598',
+        email: 'cliente.teste@dgautomoveis.com.br',
+        origem: 'SITE_OFICIAL',
+        estagio: 'pendente',
+        veiculo_interesse: 'Simulação via Site DG',
+        valor_proposta: 95000,
+        etiquetas: ['LEAD_SITE', 'Quente']
       });
-      const data = await res.json();
-      if (data.ok) {
-        alert('✓ Sucesso! Lead de teste enviado com ID #' + data.lead_id + '. Verifique na aba CRM / Oportunidades!');
-        await carregar();
-      } else {
-        alert('Erro ao enviar lead: ' + data.erro);
-      }
+      alert('✓ Sucesso! Lead de teste gerado com sucesso. Verifique na aba CRM / Oportunidades!');
+      await carregar();
     } catch (err) {
-      alert('Erro na requisição: ' + err.message);
+      alert('Erro ao enviar lead: ' + err.message);
     } finally {
       setTestandoLead(false);
     }

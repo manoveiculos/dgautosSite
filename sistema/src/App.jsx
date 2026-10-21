@@ -34,6 +34,8 @@ function Shell({ user, onLogout }) {
     }
   };
 
+  const isAdminMaster = (user?.email || '').trim().toLowerCase() === 'admin@dgautos.com.br';
+
   return (
     <div className={`altimus-wrapper ${collapsed ? 'sidebar-collapsed' : ''}`}>
       {/* TOPBAR FIXA PADRÃO AUTOS 360 · MOTRIZ */}
@@ -149,10 +151,12 @@ function Shell({ user, onLogout }) {
             <Contact size={18} />
             <span className="nav-label">Clientes / Fornecedores</span>
           </NavLink>
-          <NavLink to="/integracao-site" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-            <Globe size={18} />
-            <span className="nav-label">Integração Site</span>
-          </NavLink>
+          {isAdminMaster && (
+            <NavLink to="/integracao-site" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+              <Globe size={18} />
+              <span className="nav-label">Integração Site</span>
+            </NavLink>
+          )}
 
           <div className="nav-group-label">Gestão & Fiscal</div>
           <NavLink to="/financeiro" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
@@ -163,10 +167,12 @@ function Shell({ user, onLogout }) {
             <FileText size={18} />
             <span className="nav-label">Minutas e Contratos</span>
           </NavLink>
-          <NavLink to="/configuracoes" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-            <Settings size={18} />
-            <span className="nav-label">Configurações</span>
-          </NavLink>
+          {isAdminMaster && (
+            <NavLink to="/configuracoes" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+              <Settings size={18} />
+              <span className="nav-label">Configurações</span>
+            </NavLink>
+          )}
         </nav>
 
         <div className="sidebar-footer-text" style={{ padding: '12px', borderTop: '1px solid var(--border)', fontSize: '.75rem', color: 'var(--muted)' }}>
@@ -183,10 +189,10 @@ function Shell({ user, onLogout }) {
           <Route path="/crm" element={<Crm user={user} />} />
           <Route path="/clientes" element={<Clientes user={user} />} />
           <Route path="/negociacoes" element={<Negociacoes user={user} />} />
-          <Route path="/integracao-site" element={<IntegracaoSite user={user} />} />
+          <Route path="/integracao-site" element={isAdminMaster ? <IntegracaoSite user={user} /> : <Navigate to="/" replace />} />
           <Route path="/financeiro" element={<Financeiro user={user} />} />
           <Route path="/documentos" element={<Documentos user={user} />} />
-          <Route path="/configuracoes" element={<Configuracoes />} />
+          <Route path="/configuracoes" element={isAdminMaster ? <Configuracoes user={user} /> : <Navigate to="/" replace />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </main>

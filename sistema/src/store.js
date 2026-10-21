@@ -672,14 +672,35 @@ export async function deleteUsuario(id) {
 // 8. INTEGRAÇÃO SITE
 // ==============================================================================
 export async function getIntegracaoSite() {
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://dgautos-site.vercel.app';
+  const token = '20706bbe-4a09-4a03-8e2a-1f47e73d7a14';
+
+  let total_veiculos = 0;
+  let publicados_site = 0;
+  let destaques_site = 0;
+  let leads_site_total = 0;
+
+  try {
+    const [vs, crm] = await Promise.all([getVeiculos(), getOportunidades()]);
+    const listaV = Array.isArray(vs) ? vs : [];
+    const listaCrm = Array.isArray(crm) ? crm : [];
+    total_veiculos = listaV.length;
+    publicados_site = listaV.filter((v) => v.publicar_site !== false).length;
+    destaques_site = listaV.filter((v) => v.destaque === true || v.destaque === 'true' || v.destaque === 1).length;
+    leads_site_total = listaCrm.length;
+  } catch {}
+
   return {
-    token: '20706bbe-4a09-4a03-8e2a-1f47e73d7a14',
-    url_site: 'https://dgautomoveis.com.br',
-    auto_publicar: true,
-    total_estoque: 12,
-    publicados_site: 10,
-    link_json: 'https://dgautomoveis.com.br/api/estoquejson?estoque=20706bbe-4a09-4a03-8e2a-1f47e73d7a14',
-    link_xml: 'https://dgautomoveis.com.br/api/estoquexml?estoque=20706bbe-4a09-4a03-8e2a-1f47e73d7a14'
+    token,
+    url_site: 'https://dgautos-site.vercel.app',
+    auto_publicar_site: true,
+    total_veiculos,
+    publicados_site,
+    destaques_site,
+    leads_site_total,
+    feed_json_url: `${origin}/api/stock`,
+    feed_xml_url: `${origin}/api/estoquexml?estoque=${token}`,
+    webhook_leads_url: `${origin}/api/leads`
   };
 }
 
