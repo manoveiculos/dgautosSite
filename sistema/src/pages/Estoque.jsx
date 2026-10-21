@@ -3,7 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Plus, Search, Car, X, Trash2, Gauge, Fuel, Calendar, LayoutGrid, List,
   CheckCircle2, AlertTriangle, Wrench, FileText, Image, BookmarkCheck,
-  Sparkles, Printer, Handshake, ExternalLink, ShieldCheck, Edit3, ArrowLeft, ArrowRight, Globe
+  Sparkles, Printer, Handshake, ExternalLink, ShieldCheck, Edit3, ArrowLeft, ArrowRight, Globe,
+  Download, Eye, Upload, Settings, ShieldAlert, FileDown, ChevronDown, GripVertical
 } from 'lucide-react';
 import {
   getVeiculos, saveVeiculo, deleteVeiculo, getClientes,
@@ -134,7 +135,7 @@ const diasEmEstoque = (entrada, venda) => {
   return Math.max(0, Math.round((fim - new Date(entrada || Date.now())) / 86400000));
 };
 
-export default function Estoque() {
+export default function Estoque({ user }) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [lista, setLista] = useState([]);
@@ -146,6 +147,8 @@ export default function Estoque() {
   const [cambio, setCambio] = useState('');
   const [editando, setEditando] = useState(null);
   const [fichaImpressao, setFichaImpressao] = useState(null);
+  const [modalEntrada, setModalEntrada] = useState(false);
+  const [menuAbertoId, setMenuAbertoId] = useState(null);
 
   const recarregar = async () => {
     try {
@@ -158,6 +161,17 @@ export default function Estoque() {
       }
     } catch (e) {
       alert(e.message);
+    }
+  };
+
+  const handleTogglePublicarSite = async (v, e) => {
+    if (e) e.stopPropagation();
+    const novoStatus = v.publicar_site === false ? true : false;
+    try {
+      const atualizados = await saveVeiculo({ ...v, publicar_site: novoStatus });
+      setLista(atualizados);
+    } catch (err) {
+      alert('Erro ao atualizar status do site: ' + err.message);
     }
   };
 
@@ -246,16 +260,28 @@ export default function Estoque() {
       <VeiculoModal
         inicial={editando}
         clientes={clientes}
+        user={user}
         onClose={() => setEditando(null)}
         onSave={async (v) => {
           const r = await saveVeiculo(v);
           setLista(r);
           setEditando(null);
         }}
-        onDelete={async (id) => {
-          const r = await deleteVeiculo(id);
+        onCancelarVeiculo={async (v, motivo) => {
+          if (user?.perfil !== 'admin') {
+            alert('Ação bloqueada: Por compliance legal, a exclusão de veículos e contratos é estritamente proibida. Apenas administradores podem cancelar um veículo mediante distrato formal de contrato.');
+            return;
+          }
+          const veicCancelado = {
+            ...v,
+            status: 'cancelado',
+            situacao_patio: `Cancelado / Contrato Distratado (${motivo || 'Sem motivo informado'})`,
+            observacao_interna: `${v.observacao_interna || ''}\n[CANCELADO POR ADMIN em ${new Date().toLocaleString('pt-BR')} - Motivo: ${motivo}]`.trim()
+          };
+          const r = await saveVeiculo(veicCancelado);
           setLista(r);
           setEditando(null);
+          alert('Veículo cancelado com sucesso no estoque. O registro e contrato foram mantidos no histórico para fins fiscais.');
         }}
         onRefresh={recarregar}
         onImprimirFicha={(v) => {
@@ -275,7 +301,7 @@ export default function Estoque() {
       <header className="topbar">
         <div>
           <h1>Estoque de Veículos</h1>
-          <p>{filtrados.length} veículo(s) listado(s) · Gestão completa em 9 abas com FIPE, Custos, Pendências e Reservas.</p>
+          <p>{filtrados.length} veículo(s) listado(s) · Entrada rigorosa por Contrato (Compra / Consignação), FIPE e Consulta DETRAN-SC.</p>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <div className="tabs">
@@ -286,11 +312,157 @@ export default function Estoque() {
               <List size={15} />Tabela Detalhada
             </button>
           </div>
-          <button id="btn-novo-veiculo" className="btn btn-primary" onClick={() => setEditando(EMPTY_VEICULO)}>
-            <Plus size={16} />Novo veículo
+          <button
+            id="btn-novo-veiculo-contrato"
+            className="btn btn-primary"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontWeight: 700 }}
+            onClick={() => setModalEntrada(true)}
+          >
+            <FileText size={16} />+ Entrada por Contrato
           </button>
         </div>
       </header>
+
+      {/* MODAL DE ENTRADA OBRIGATÓRIA VIA CONTRATO */}
+      {modalEntrada && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: 16
+          }}
+          onClick={() => setModalEntrada(false)}
+        >
+          <div
+            className="card"
+            style={{
+              maxWidth: 580,
+              width: '100%',
+              background: '#ffffff',
+              borderRadius: 14,
+              padding: 24,
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+              border: '1px solid var(--border)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <ShieldCheck size={22} color="var(--primary)" />
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0 }}>Entrada de Veículo no Estoque</h3>
+              </div>
+              <button type="button" className="btn btn-icon" onClick={() => setModalEntrada(false)}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <p style={{ fontSize: '.88rem', color: 'var(--muted)', marginBottom: 18, lineHeight: 1.5 }}>
+              Por conformidade jurídica e fiscal, <strong>nenhum veículo ingressa no estoque sem contrato formal</strong>. Selecione a operação de entrada correspondente:
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {/* Opção 1: Compra para Estoque */}
+              <button
+                type="button"
+                className="card"
+                style={{
+                  textAlign: 'left',
+                  padding: 16,
+                  cursor: 'pointer',
+                  border: '2px solid var(--border)',
+                  borderRadius: 10,
+                  transition: 'all .2s ease',
+                  background: 'var(--color-neutral-80)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 14
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--primary)')}
+                onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--border)')}
+                onClick={() => {
+                  setModalEntrada(false);
+                  navigate('/negociacoes?novo=1&tipo=compra');
+                }}
+              >
+                <div style={{ background: 'var(--primary)', color: '#fff', padding: 12, borderRadius: 8 }}>
+                  <Handshake size={22} />
+                </div>
+                <div>
+                  <strong style={{ fontSize: '1rem', display: 'block', color: 'var(--text)' }}>
+                    1. Contrato de Compra para Estoque (Aquisição Loja)
+                  </strong>
+                  <span style={{ fontSize: '.82rem', color: 'var(--muted)' }}>
+                    Aquisição de veículo próprio pela DG Automóveis (com minuta de 9 cláusulas e quitação).
+                  </span>
+                </div>
+              </button>
+
+              {/* Opção 2: Consignação */}
+              <button
+                type="button"
+                className="card"
+                style={{
+                  textAlign: 'left',
+                  padding: 16,
+                  cursor: 'pointer',
+                  border: '2px solid var(--border)',
+                  borderRadius: 10,
+                  transition: 'all .2s ease',
+                  background: 'var(--color-neutral-80)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 14
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--primary)')}
+                onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--border)')}
+                onClick={() => {
+                  setModalEntrada(false);
+                  navigate('/negociacoes?novo=1&tipo=consignacao');
+                }}
+              >
+                <div style={{ background: '#059669', color: '#fff', padding: 12, borderRadius: 8 }}>
+                  <FileText size={22} />
+                </div>
+                <div>
+                  <strong style={{ fontSize: '1rem', display: 'block', color: 'var(--text)' }}>
+                    2. Contrato de Consignação (Veículo de Terceiro)
+                  </strong>
+                  <span style={{ fontSize: '.82rem', color: 'var(--muted)' }}>
+                    Veículo de cliente consignado para venda (com tabela de despesas e autorização de pátio).
+                  </span>
+                </div>
+              </button>
+
+              {/* Opção 3: Cadastro Direto (Apenas Administrador) */}
+              <div style={{ marginTop: 6, paddingTop: 10, borderTop: '1px dashed var(--border)' }}>
+                {user?.perfil === 'admin' ? (
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    style={{ width: '100%', justifyContent: 'center', color: 'var(--muted)' }}
+                    onClick={() => {
+                      setModalEntrada(false);
+                      setEditando(EMPTY_VEICULO);
+                    }}
+                  >
+                    ⚡ Cadastro Direto / Inventário Inicial (Exclusivo Administrador)
+                  </button>
+                ) : (
+                  <div style={{ fontSize: '.76rem', color: 'var(--muted)', textAlign: 'center' }}>
+                    🔒 O cadastro manual direto é restrito a administradores. Vendedores devem cadastrar via Contrato de Compra ou Consignação.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <section className="stats">
         <div className="card stat">
@@ -351,12 +523,42 @@ export default function Estoque() {
                 <div className="vehicle-photo">
                   {v.foto ? <img src={v.foto} alt={`${v.marca} ${v.modelo}`} /> : <Car size={48} strokeWidth={1.2} />}
                   <span className={`badge badge-${v.status}`}>{STATUS[v.status]}</span>
+                  
+                  {/* TOGGLE PUBLICAR / RETIRAR DO SITE COM 1 CLIQUE */}
+                  <button
+                    type="button"
+                    onClick={(e) => handleTogglePublicarSite(v, e)}
+                    title={v.publicar_site !== false ? 'Veículo PUBLICADO no site DG. Clique para RETIRAR do site.' : 'Veículo OCULTO. Clique para PUBLICAR no site DG agora.'}
+                    style={{
+                      position: 'absolute',
+                      top: 10,
+                      right: 10,
+                      background: v.publicar_site !== false ? 'hsla(142, 70%, 42%, .95)' : 'rgba(15, 23, 42, .88)',
+                      color: '#ffffff',
+                      border: '1px solid rgba(255,255,255,.25)',
+                      borderRadius: 20,
+                      padding: '4px 10px',
+                      fontSize: '.72rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      boxShadow: '0 4px 12px rgba(0,0,0,.35)',
+                      zIndex: 3,
+                      transition: 'all .15s ease'
+                    }}
+                  >
+                    <Globe size={12} />
+                    {v.publicar_site !== false ? 'Site: Publicado' : 'Site: Oculto'}
+                  </button>
+
                   {pendAbertas > 0 && (
                     <span
                       title={`${pendAbertas} pendência(s) em aberto`}
-                      style={{ position: 'absolute', top: 12, right: 12, background: 'hsla(38, 95%, 55%, .95)', color: '#111', padding: '4px 9px', borderRadius: 99, fontSize: '.72rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 4, boxShadow: '0 4px 10px rgba(0,0,0,.35)' }}
+                      style={{ position: 'absolute', top: 44, right: 10, background: 'hsla(38, 95%, 55%, .95)', color: '#111', padding: '3px 8px', borderRadius: 99, fontSize: '.70rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 4, boxShadow: '0 4px 10px rgba(0,0,0,.35)', zIndex: 2 }}
                     >
-                      <AlertTriangle size={12} /> {pendAbertas} pendência(s)
+                      <AlertTriangle size={11} /> {pendAbertas} pendência(s)
                     </span>
                   )}
                   {v.placa && (
@@ -410,17 +612,149 @@ export default function Estoque() {
                     </div>
                   </div>
 
-                  <div className="vehicle-actions" onClick={(e) => e.stopPropagation()}>
+                  <div className="vehicle-actions" onClick={(e) => e.stopPropagation()} style={{ position: 'relative' }}>
                     <button type="button" className="btn btn-sm" onClick={() => setEditando(v)}>
                       <Edit3 size={13} /> Abrir Ficha
                     </button>
-                    <button type="button" className="btn btn-sm" title="Imprimir Folha de Parabrisa A4" onClick={() => setFichaImpressao(v)}>
-                      <Printer size={13} /> Parabrisa
-                    </button>
+                    {v.placa && v.renavam && (
+                      <button
+                        type="button"
+                        className="btn btn-sm"
+                        title="Consulta Dossiê DETRAN-SC"
+                        onClick={() => {
+                          const urlDetran = `https://servicos.detran.sc.gov.br/consulta-dossie-veiculo?placa=${encodeURIComponent(v.placa.trim().toUpperCase())}&renavam=${encodeURIComponent(v.renavam.trim())}`;
+                          window.open(urlDetran, '_blank', 'noopener,noreferrer');
+                        }}
+                      >
+                        <Search size={13} /> DETRAN
+                      </button>
+                    )}
                     {v.status !== 'vendido' && (
                       <button type="button" className="btn btn-sm btn-primary" onClick={() => navigate('/negociacoes?novo=1')}>
                         <Handshake size={13} /> Vender
                       </button>
+                    )}
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      title="Menu de Opções do Veículo"
+                      onClick={() => setMenuAbertoId(menuAbertoId === v.id ? null : v.id)}
+                    >
+                      <Settings size={14} />
+                    </button>
+
+                    {menuAbertoId === v.id && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          right: 0,
+                          bottom: '100%',
+                          marginBottom: 8,
+                          background: '#ffffff',
+                          borderRadius: 10,
+                          boxShadow: '0 10px 25px rgba(0,0,0,.25)',
+                          border: '1px solid var(--border)',
+                          padding: 6,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 4,
+                          zIndex: 100,
+                          minWidth: 210
+                        }}
+                      >
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          style={{ justifyContent: 'flex-start' }}
+                          onClick={() => {
+                            setMenuAbertoId(null);
+                            setFichaImpressao(v);
+                          }}
+                        >
+                          <Printer size={13} /> Ficha de Parabrisa A4
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          style={{ justifyContent: 'flex-start' }}
+                          onClick={() => {
+                            setMenuAbertoId(null);
+                            navigate(`/negociacoes?busca=${encodeURIComponent(v.placa || v.modelo)}`);
+                          }}
+                        >
+                          <Handshake size={13} /> Negociações Associadas
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          style={{ justifyContent: 'flex-start' }}
+                          onClick={() => {
+                            setMenuAbertoId(null);
+                            navigate(`/crm?busca=${encodeURIComponent(v.modelo)}`);
+                          }}
+                        >
+                          <Car size={13} /> Oportunidades do CRM
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          style={{ justifyContent: 'flex-start' }}
+                          onClick={() => {
+                            setMenuAbertoId(null);
+                            navigate('/documentos');
+                          }}
+                        >
+                          <FileText size={13} /> Minutas & Contratos
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          style={{ justifyContent: 'flex-start' }}
+                          onClick={(e) => {
+                            setMenuAbertoId(null);
+                            handleTogglePublicarSite(v, e);
+                          }}
+                        >
+                          <Globe size={13} /> {v.publicar_site !== false ? 'Retirar do Site DG' : 'Publicar no Site DG'}
+                        </button>
+                        {v.placa && v.renavam && (
+                          <button
+                            type="button"
+                            className="btn btn-sm"
+                            style={{ justifyContent: 'flex-start' }}
+                            onClick={() => {
+                              setMenuAbertoId(null);
+                              const urlDetran = `https://servicos.detran.sc.gov.br/consulta-dossie-veiculo?placa=${encodeURIComponent(v.placa.trim().toUpperCase())}&renavam=${encodeURIComponent(v.renavam.trim())}`;
+                              window.open(urlDetran, '_blank', 'noopener,noreferrer');
+                            }}
+                          >
+                            <Search size={13} /> Consulta DETRAN-SC
+                          </button>
+                        )}
+                        {user?.perfil === 'admin' && v.status !== 'cancelado' && (
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-danger"
+                            style={{ justifyContent: 'flex-start' }}
+                            onClick={() => {
+                              setMenuAbertoId(null);
+                              const motivo = prompt(`Informe o motivo do cancelamento formal do veículo #${v.id} (${v.marca} ${v.modelo}):`);
+                              if (!motivo) return;
+                              saveVeiculo({
+                                ...v,
+                                status: 'cancelado',
+                                situacao_patio: `Cancelado / Contrato Distratado (${motivo})`,
+                                observacao_interna: `${v.observacao_interna || ''}\n[CANCELADO POR ADMIN em ${new Date().toLocaleString('pt-BR')} - Motivo: ${motivo}]`.trim()
+                              }).then((atualizados) => {
+                                setLista(atualizados);
+                                alert('Veículo cancelado com sucesso no estoque. Histórico mantido para auditoria fiscal.');
+                              });
+                            }}
+                          >
+                            <Trash2 size={13} /> Cancelar Veículo (Admin)
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -443,6 +777,7 @@ export default function Estoque() {
                 <th>FIPE</th>
                 <th>Margem Líq.</th>
                 <th>Posição</th>
+                <th>Site DG</th>
                 <th>Ações</th>
               </tr>
             </thead>
@@ -479,10 +814,141 @@ export default function Estoque() {
                       <strong style={{ color: margem >= 0 ? 'var(--success)' : 'var(--danger)' }}>{brl(margem)}</strong>
                     </td>
                     <td><span className={`badge badge-${v.status}`}>{STATUS[v.status]}</span></td>
-                    <td onClick={(e) => e.stopPropagation()} style={{ display: 'flex', gap: 6 }}>
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        className={`badge ${v.publicar_site !== false ? 'badge-disponivel' : 'badge-vendido'}`}
+                        style={{ cursor: 'pointer', border: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 8px', fontSize: '.72rem' }}
+                        title={v.publicar_site !== false ? 'Publicado no site DG. Clique para Ocultar.' : 'Oculto do site. Clique para Publicar.'}
+                        onClick={(e) => handleTogglePublicarSite(v, e)}
+                      >
+                        <Globe size={11} />
+                        {v.publicar_site !== false ? 'Publicado' : 'Oculto'}
+                      </button>
+                    </td>
+                    <td onClick={(e) => e.stopPropagation()} style={{ display: 'flex', gap: 6, position: 'relative' }}>
                       <button className="btn btn-sm" title="Imprimir Ficha de Pátio" onClick={() => setFichaImpressao(v)}>
                         <Printer size={13} />
                       </button>
+                      {v.placa && v.renavam && (
+                        <button
+                          className="btn btn-sm"
+                          title="Consulta Dossiê DETRAN-SC"
+                          onClick={() => {
+                            const urlDetran = `https://servicos.detran.sc.gov.br/consulta-dossie-veiculo?placa=${encodeURIComponent(v.placa.trim().toUpperCase())}&renavam=${encodeURIComponent(v.renavam.trim())}`;
+                            window.open(urlDetran, '_blank', 'noopener,noreferrer');
+                          }}
+                        >
+                          <Search size={13} />
+                        </button>
+                      )}
+                      <button
+                        className="btn btn-sm"
+                        title="Opções do Veículo"
+                        onClick={() => setMenuAbertoId(menuAbertoId === v.id ? null : v.id)}
+                      >
+                        <Settings size={13} />
+                      </button>
+
+                      {menuAbertoId === v.id && (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            right: 0,
+                            top: '100%',
+                            marginTop: 4,
+                            background: '#ffffff',
+                            borderRadius: 10,
+                            boxShadow: '0 10px 25px rgba(0,0,0,.25)',
+                            border: '1px solid var(--border)',
+                            padding: 6,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 4,
+                            zIndex: 100,
+                            minWidth: 200
+                          }}
+                        >
+                          <button
+                            type="button"
+                            className="btn btn-sm"
+                            style={{ justifyContent: 'flex-start' }}
+                            onClick={() => {
+                              setMenuAbertoId(null);
+                              setEditando(v);
+                            }}
+                          >
+                            <Edit3 size={13} /> Abrir Ficha
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-sm"
+                            style={{ justifyContent: 'flex-start' }}
+                            onClick={() => {
+                              setMenuAbertoId(null);
+                              navigate(`/negociacoes?busca=${encodeURIComponent(v.placa || v.modelo)}`);
+                            }}
+                          >
+                            <Handshake size={13} /> Negociações
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-sm"
+                            style={{ justifyContent: 'flex-start' }}
+                            onClick={() => {
+                              setMenuAbertoId(null);
+                              navigate(`/crm?busca=${encodeURIComponent(v.modelo)}`);
+                            }}
+                          >
+                            <Car size={13} /> CRM / Leads
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-sm"
+                            style={{ justifyContent: 'flex-start' }}
+                            onClick={() => {
+                              setMenuAbertoId(null);
+                              navigate('/documentos');
+                            }}
+                          >
+                            <FileText size={13} /> Contratos
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-sm"
+                            style={{ justifyContent: 'flex-start' }}
+                            onClick={(e) => {
+                              setMenuAbertoId(null);
+                              handleTogglePublicarSite(v, e);
+                            }}
+                          >
+                            <Globe size={13} /> {v.publicar_site !== false ? 'Retirar do Site DG' : 'Publicar no Site DG'}
+                          </button>
+                          {user?.perfil === 'admin' && v.status !== 'cancelado' && (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-danger"
+                              style={{ justifyContent: 'flex-start' }}
+                              onClick={() => {
+                                setMenuAbertoId(null);
+                                const motivo = prompt(`Informe o motivo do cancelamento formal do veículo #${v.id}:`);
+                                if (!motivo) return;
+                                saveVeiculo({
+                                  ...v,
+                                  status: 'cancelado',
+                                  situacao_patio: `Cancelado / Contrato Distratado (${motivo})`,
+                                  observacao_interna: `${v.observacao_interna || ''}\n[CANCELADO POR ADMIN em ${new Date().toLocaleString('pt-BR')} - Motivo: ${motivo}]`.trim()
+                                }).then((atualizados) => {
+                                  setLista(atualizados);
+                                  alert('Veículo cancelado com sucesso no estoque.');
+                                });
+                              }}
+                            >
+                              <Trash2 size={13} /> Cancelar Veículo (Admin)
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </td>
                   </tr>
                 );
@@ -495,7 +961,7 @@ export default function Estoque() {
   );
 }
 
-function VeiculoModal({ inicial, clientes, onClose, onSave, onDelete, onRefresh, onImprimirFicha, onIrNegociacao }) {
+function VeiculoModal({ inicial, clientes, onClose, onSave, onCancelarVeiculo, onRefresh, onImprimirFicha, onIrNegociacao, user }) {
   const [aba, setAba] = useState('principal');
   const [f, setF] = useState(() => {
     const [aFab, aMod] = String(inicial.ano || '2023/2024').split('/');
@@ -586,6 +1052,16 @@ function VeiculoModal({ inicial, clientes, onClose, onSave, onDelete, onRefresh,
     });
   };
 
+  const [arrastandoIdx, setArrastandoIdx] = useState(null);
+
+  const moverFoto = (origem, destino) => {
+    if (origem === destino || destino < 0 || destino >= (f.fotos || []).length) return;
+    const novas = [...(f.fotos || [])];
+    const [removido] = novas.splice(origem, 1);
+    novas.splice(destino, 0, removido);
+    setF({ ...f, fotos: novas, foto: novas[0] });
+  };
+
   const lancarDespesaDireta = async () => {
     if (!f.id) return alert('Salve o veículo primeiro antes de lançar despesas vinculadas.');
     if (!novaDespesa.descricao || !novaDespesa.valor) return alert('Informe a descrição e o valor da despesa.');
@@ -667,155 +1143,204 @@ function VeiculoModal({ inicial, clientes, onClose, onSave, onDelete, onRefresh,
           ))}
         </div>
 
-        {/* ABA 1: PRINCIPAL */}
+        {/* ABA 1: PRINCIPAL - RESUMO DIRETO & CONSULTA DETRAN-SC */}
         {aba === 'principal' && (
-          <div className="form-grid">
-            <div className="field">
-              <label>Posição no Estoque</label>
-              <select className="select" value={f.status} onChange={set('status')}>
-                {Object.entries(STATUS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-              </select>
-            </div>
-            <div className="field">
-              <label>Propriedade do Veículo</label>
-              <select className="select" value={f.propriedade || 'PROPRIO'} onChange={set('propriedade')}>
-                {Object.entries(PROPRIEDADES).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-              </select>
-            </div>
-            <div className="field">
-              <label>Estado de Conservação</label>
-              <select className="select" value={f.estado_conservacao || 'USADO'} onChange={set('estado_conservacao')}>
-                <option value="USADO">Veículo Usado / Seminovo</option>
-                <option value="NOVO">Veículo Zero KM (0 KM)</option>
-              </select>
-            </div>
-
-            <div className="field">
-              <label>Placa (Mercosul / Antiga)</label>
-              <input className="input" maxLength={7} style={{ textTransform: 'uppercase', fontWeight: 700 }} value={f.placa ?? ''} onChange={set('placa')} placeholder="ABC1D23" />
-            </div>
-            <div className="field">
-              <label>Chassi (17 dígitos — Final: {finalChassi})</label>
-              <input className="input" maxLength={17} style={{ textTransform: 'uppercase' }} value={f.chassi ?? ''} onChange={set('chassi')} />
-            </div>
-            <div className="field">
-              <label>Renavam</label>
-              <input className="input" maxLength={11} value={f.renavam ?? ''} onChange={set('renavam')} />
-            </div>
-
-            <div className="field">
-              <label>Marca *</label>
-              <input className="input" required value={f.marca ?? ''} onChange={set('marca')} placeholder="Ex.: Toyota, Honda, Jeep…" />
-            </div>
-            <div className="field">
-              <label>Modelo *</label>
-              <input className="input" required value={f.modelo ?? ''} onChange={set('modelo')} placeholder="Ex.: Corolla XEi 2.0" />
-            </div>
-            <div className="field">
-              <label>Complemento / Versão</label>
-              <input className="input" value={f.modelo_complemento ?? ''} onChange={set('modelo_complemento')} placeholder="Ex.: 16V Flex Aut." />
-            </div>
-
-            <div className="field">
-              <label>Ano Fabricação *</label>
-              <input className="input" type="number" required value={f.ano_fabricacao ?? ''} onChange={set('ano_fabricacao')} />
-            </div>
-            <div className="field">
-              <label>Ano Modelo *</label>
-              <input className="input" type="number" required value={f.ano_modelo ?? ''} onChange={set('ano_modelo')} />
-            </div>
-            <div className="field">
-              <label>KM Atual / Entrada</label>
-              <input className="input" type="number" min={0} value={f.km ?? 0} onChange={set('km')} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* CARD CONSULTA DETRAN-SC */}
+            <div
+              className="card"
+              style={{
+                background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+                color: '#ffffff',
+                borderRadius: 12,
+                padding: '16px 20px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: 14,
+                boxShadow: '0 4px 15px rgba(0,0,0,0.15)'
+              }}
+            >
+              <div>
+                <span style={{ fontSize: '.76rem', textTransform: 'uppercase', letterSpacing: '.08em', color: '#94a3b8', fontWeight: 700, display: 'block' }}>
+                  Consulta Oficial de Procedência e Débitos
+                </span>
+                <strong style={{ fontSize: '1.15rem', color: '#ffffff' }}>
+                  Dossiê Completo do Veículo no DETRAN-SC
+                </strong>
+                <div style={{ fontSize: '.84rem', color: '#cbd5e1', marginTop: 3 }}>
+                  Placa: <strong>{f.placa || 'Não informada'}</strong> · Renavam: <strong>{f.renavam || 'Não informado'}</strong>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn"
+                style={{
+                  background: '#2563eb',
+                  color: '#ffffff',
+                  fontWeight: 700,
+                  border: 'none',
+                  padding: '10px 20px',
+                  borderRadius: 8,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 14px rgba(37,99,235,.4)'
+                }}
+                onClick={() => {
+                  if (!f.placa || !f.renavam) {
+                    alert('Por favor, informe a Placa e o Renavam do veículo para abrir a consulta oficial no DETRAN-SC.');
+                    return;
+                  }
+                  const urlDetran = `https://servicos.detran.sc.gov.br/consulta-dossie-veiculo?placa=${encodeURIComponent(f.placa.trim().toUpperCase())}&renavam=${encodeURIComponent(f.renavam.trim())}`;
+                  window.open(urlDetran, '_blank', 'noopener,noreferrer');
+                }}
+              >
+                <Search size={16} /> Abrir Consulta no DETRAN-SC ↗
+              </button>
             </div>
 
-            <div className="field">
-              <label>Cor Externa</label>
-              <input className="input" value={f.cor ?? ''} onChange={set('cor')} />
-            </div>
-            <div className="field">
-              <label>Cor Interna / Acabamento</label>
-              <input className="input" value={f.cor_interna ?? ''} onChange={set('cor_interna')} placeholder="Ex.: Couro Preto / Caramelo" />
-            </div>
-            <div className="field">
-              <label>Combustível</label>
-              <select className="select" value={f.combustivel} onChange={set('combustivel')}>
-                {['Flex', 'Gasolina', 'Diesel', 'Híbrido', 'Elétrico', 'Etanol', 'GNV'].map((c) => <option key={c}>{c}</option>)}
-              </select>
-            </div>
-
-            <div className="field">
-              <label>Câmbio</label>
-              <select className="select" value={f.cambio} onChange={set('cambio')}>
-                {['Automático', 'Manual', 'CVT', 'Automatizado / Dualogic / DSG'].map((c) => <option key={c}>{c}</option>)}
-              </select>
-            </div>
-            <div className="field">
-              <label>Direção</label>
-              <select className="select" value={f.direcao || 'Elétrica'} onChange={set('direcao')}>
-                {['Elétrica', 'Hidráulica', 'Eletro-hidráulica', 'Mecânica'].map((d) => <option key={d}>{d}</option>)}
-              </select>
-            </div>
-            <div className="field">
-              <label>Portas / Potência (CV) / Cilindradas</label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
-                <input className="input" type="number" placeholder="Portas" value={f.portas ?? 4} onChange={set('portas')} title="Portas" />
-                <input className="input" placeholder="CV" value={f.potencia ?? ''} onChange={set('potencia')} title="Potência (CV)" />
-                <input className="input" placeholder="CC" value={f.cilindradas ?? ''} onChange={set('cilindradas')} title="Cilindradas" />
+            {/* CAMPOS PRINCIPAIS RESUMIDOS */}
+            <div className="card" style={{ background: 'var(--color-neutral-80)', padding: 18 }}>
+              <h3 style={{ fontSize: '.95rem', fontWeight: 700, marginBottom: 12, color: 'var(--text)' }}>
+                1. Identificação Rápida do Veículo
+              </h3>
+              <div className="form-grid">
+                <div className="field">
+                  <label>Placa *</label>
+                  <input
+                    className="input"
+                    maxLength={7}
+                    style={{ textTransform: 'uppercase', fontWeight: 800, fontSize: '1.05rem', letterSpacing: '.08em' }}
+                    value={f.placa ?? ''}
+                    onChange={set('placa')}
+                    placeholder="ABC1D23"
+                  />
+                </div>
+                <div className="field">
+                  <label>Renavam *</label>
+                  <input
+                    className="input"
+                    maxLength={11}
+                    style={{ fontWeight: 700 }}
+                    value={f.renavam ?? ''}
+                    onChange={set('renavam')}
+                    placeholder="11 dígitos"
+                  />
+                </div>
+                <div className="field">
+                  <label>Chassi (Final: {finalChassi})</label>
+                  <input
+                    className="input"
+                    maxLength={17}
+                    style={{ textTransform: 'uppercase' }}
+                    value={f.chassi ?? ''}
+                    onChange={set('chassi')}
+                    placeholder="17 caracteres"
+                  />
+                </div>
               </div>
             </div>
 
-            <div className="field">
-              <label>Nº do CRV / ATPV-e</label>
-              <input className="input" value={f.crv ?? ''} onChange={set('crv')} />
-            </div>
-            <div className="field">
-              <label>Nº do Motor</label>
-              <input className="input" value={f.numero_motor ?? ''} onChange={set('numero_motor')} />
-            </div>
-            <div className="field">
-              <label>Cidade / UF de Emplacamento</label>
-              <input className="input" value={f.cidade_emplacamento ?? ''} onChange={set('cidade_emplacamento')} />
+            <div className="card" style={{ background: 'var(--color-neutral-80)', padding: 18 }}>
+              <h3 style={{ fontSize: '.95rem', fontWeight: 700, marginBottom: 12, color: 'var(--text)' }}>
+                2. Características do Veículo
+              </h3>
+              <div className="form-grid">
+                <div className="field">
+                  <label>Marca *</label>
+                  <input className="input" required value={f.marca ?? ''} onChange={set('marca')} placeholder="Ex: Toyota, Honda, Jeep…" />
+                </div>
+                <div className="field">
+                  <label>Modelo *</label>
+                  <input className="input" required value={f.modelo ?? ''} onChange={set('modelo')} placeholder="Ex: Corolla, Civic, Compass…" />
+                </div>
+                <div className="field">
+                  <label>Versão / Complemento</label>
+                  <input className="input" value={f.modelo_complemento ?? ''} onChange={set('modelo_complemento')} placeholder="Ex: XEi 2.0 16V Flex Aut." />
+                </div>
+
+                <div className="field">
+                  <label>Ano Fabricação / Modelo</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                    <input className="input" type="number" placeholder="Fab" value={f.ano_fabricacao ?? ''} onChange={set('ano_fabricacao')} title="Ano Fabricação" />
+                    <input className="input" type="number" placeholder="Mod" value={f.ano_modelo ?? ''} onChange={set('ano_modelo')} title="Ano Modelo" />
+                  </div>
+                </div>
+                <div className="field">
+                  <label>KM Rodados (Hodômetro)</label>
+                  <input className="input" type="number" min={0} value={f.km ?? 0} onChange={set('km')} />
+                </div>
+                <div className="field">
+                  <label>Câmbio</label>
+                  <select className="select" value={f.cambio} onChange={set('cambio')}>
+                    {['Automático', 'Manual', 'CVT', 'Automatizado / DSG'].map((c) => <option key={c}>{c}</option>)}
+                  </select>
+                </div>
+
+                <div className="field">
+                  <label>Combustível</label>
+                  <select className="select" value={f.combustivel} onChange={set('combustivel')}>
+                    {['Flex', 'Gasolina', 'Diesel', 'Híbrido', 'Elétrico'].map((c) => <option key={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div className="field">
+                  <label>Cor Externa</label>
+                  <input className="input" value={f.cor ?? ''} onChange={set('cor')} placeholder="Ex: Branco, Preto, Prata…" />
+                </div>
+                <div className="field">
+                  <label>Cidade / UF de Emplacamento</label>
+                  <input className="input" value={f.cidade_emplacamento ?? 'Balneário Camboriú - SC'} onChange={set('cidade_emplacamento')} />
+                </div>
+              </div>
             </div>
 
-            <div className="field">
-              <label>IPVA Exercício Pago</label>
-              <input className="input" value={f.ipva_exercicio ?? '2026'} onChange={set('ipva_exercicio')} />
-            </div>
-            <div className="field">
-              <label>Licenciamento Exercício</label>
-              <input className="input" value={f.licenciamento_exercicio ?? '2026'} onChange={set('licenciamento_exercicio')} />
-            </div>
-            <div className="field">
-              <label>Código Interno / Chaveiro</label>
-              <input className="input" value={f.codigo_interno ?? ''} onChange={set('codigo_interno')} placeholder="Ex.: V-105" />
-            </div>
+            <div className="card" style={{ background: 'var(--color-neutral-80)', padding: 18 }}>
+              <h3 style={{ fontSize: '.95rem', fontWeight: 700, marginBottom: 12, color: 'var(--text)' }}>
+                3. Posição no Pátio & Comercial
+              </h3>
+              <div className="form-grid">
+                <div className="field">
+                  <label>Posição no Estoque</label>
+                  <select className="select" value={f.status} onChange={set('status')}>
+                    {Object.entries(STATUS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                  </select>
+                </div>
+                <div className="field">
+                  <label>Propriedade</label>
+                  <select className="select" value={f.propriedade || 'PROPRIO'} onChange={set('propriedade')}>
+                    {Object.entries(PROPRIEDADES).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                  </select>
+                </div>
+                <div className="field">
+                  <label>Situação no Pátio</label>
+                  <select className="select" value={f.situacao_patio || 'Pronto para venda (Showroom)'} onChange={set('situacao_patio')}>
+                    {['Pronto para venda (Showroom)', 'Em preparação / Estética', 'Em oficina / Mecânica', 'Aguardando laudo / documentação', 'Entregue ao cliente'].map((s) => (
+                      <option key={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
 
-            <div className="field">
-              <label>Situação do Veículo</label>
-              <select className="select" value={f.situacao_patio || 'Pronto para venda (Showroom)'} onChange={set('situacao_patio')}>
-                {[
-                  'Pronto para venda (Showroom)',
-                  'Em preparação / Estética',
-                  'Em oficina / Mecânica',
-                  'Em funilaria / Pintura',
-                  'Aguardando laudo / documentação',
-                  'Entregue ao cliente'
-                ].map((s) => <option key={s}>{s}</option>)}
-              </select>
-            </div>
-            <div className="field">
-              <label>Localização Física</label>
-              <select className="select" value={f.localizacao_patio || 'Showroom Principal'} onChange={set('localizacao_patio')}>
-                {['Showroom Principal', 'Pátio Externo', 'Filial / Loja 2', 'Oficina de Terceiro', 'Em posse do Proprietário (Consignado)'].map((l) => <option key={l}>{l}</option>)}
-              </select>
-            </div>
-            <div className="field">
-              <label>Repasse / Garantia de Fábrica</label>
-              <div style={{ display: 'flex', gap: 12, alignItems: 'center', height: 42 }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', color: 'var(--text)' }}>
-                  <input type="checkbox" checked={!!f.repasse} onChange={set('repasse')} /> Veículo de Repasse
-                </label>
+                <div className="field">
+                  <label>Valor de Venda (R$)</label>
+                  <input
+                    className="input"
+                    type="number"
+                    style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--success)' }}
+                    value={f.preco || 0}
+                    onChange={set('preco')}
+                  />
+                </div>
+                <div className="field">
+                  <label>Custo de Aquisição (R$)</label>
+                  <input className="input" type="number" value={f.custo || 0} onChange={set('custo')} />
+                </div>
+                <div className="field">
+                  <label>Código Interno / Chaveiro</label>
+                  <input className="input" value={f.codigo_interno ?? ''} onChange={set('codigo_interno')} placeholder="Ex: V-105" />
+                </div>
               </div>
             </div>
           </div>
@@ -1343,54 +1868,240 @@ function VeiculoModal({ inicial, clientes, onClose, onSave, onDelete, onRefresh,
             </div>
 
             <div className="card" style={{ background: 'var(--color-neutral-80)' }}>
-              <h3 style={{ fontSize: '.98rem', marginBottom: 10 }}>Documentação, Laudo Cautelar e Certidões do Veículo</h3>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 1fr auto', gap: 8, marginBottom: 12 }}>
-                <select className="select" value={novoDoc.tipo} onChange={(e) => setNovoDoc({ ...novoDoc, tipo: e.target.value })}>
-                  {['CRLV Digital', 'ATPV-e / Recibo', 'Laudo Cautelar', 'Consulta Detran / Multas', 'Nota Fiscal Entrada', 'Procuração'].map((t) => (
-                    <option key={t}>{t}</option>
-                  ))}
-                </select>
-                <input className="input" placeholder="Número / Código / Protocolo…" value={novoDoc.numero} onChange={(e) => setNovoDoc({ ...novoDoc, numero: e.target.value })} />
-                <input className="input" placeholder="Situação (ex: Aprovado / PDF Ok)" value={novoDoc.status} onChange={(e) => setNovoDoc({ ...novoDoc, status: e.target.value })} />
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={() => {
-                    setF({
-                      ...f,
-                      documentos_anexos: [...(f.documentos_anexos || []), { id: Date.now(), ...novoDoc, data: new Date().toISOString().slice(0, 10) }]
-                    });
-                    setNovoDoc({ tipo: 'CRLV Digital', numero: '', status: 'Validado' });
-                  }}
-                >
-                  <Plus size={15} />Registrar
-                </button>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
+                <div>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 800, margin: 0 }}>
+                    Documentos do Carro (Upload de PDF e Imagens)
+                  </h3>
+                  <small style={{ color: 'var(--muted)' }}>
+                    Anexe CRLV Digital, ATPV-e, Laudo Cautelar, Notas Fiscais e Dossiê em PDF ou JPG/PNG para armazenamento e impressão.
+                  </small>
+                </div>
               </div>
-              {(f.documentos_anexos || []).map((d, idx) => (
-                <div key={d.id || idx} className="list-row">
-                  <div>
-                    <strong>{d.tipo}</strong> — Nº {d.numero || '—'}
-                    <div style={{ fontSize: '.76rem', color: 'var(--muted)' }}>Data: {dataBr(d.data)}</div>
+
+              {/* FORMULÁRIO DE ANEXO DE ARQUIVO */}
+              <div
+                style={{
+                  background: '#ffffff',
+                  border: '2px dashed var(--border)',
+                  borderRadius: 12,
+                  padding: 16,
+                  marginBottom: 16
+                }}
+              >
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10, alignItems: 'end' }}>
+                  <div className="field">
+                    <label>Tipo de Documento</label>
+                    <select className="select" value={novoDoc.tipo} onChange={(e) => setNovoDoc({ ...novoDoc, tipo: e.target.value })}>
+                      {[
+                        'CRLV Digital (Documento do Carro)',
+                        'ATPV-e / Recibo de Transferência',
+                        'Laudo Cautelar / Vistoria ECV',
+                        'Dossiê de Multas / DETRAN-SC',
+                        'Nota Fiscal de Entrada / Faturamento',
+                        'Contrato Assinado de Compra/Consignação',
+                        'Procuração Pública / Substabelecimento',
+                        'Comprovante de Quitação / Gravame'
+                      ].map((t) => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span className="badge badge-pago">{d.status}</span>
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-danger"
-                      onClick={() => setF({ ...f, documentos_anexos: f.documentos_anexos.filter((_, i) => i !== idx) })}
-                    >
-                      <Trash2 size={13} />
-                    </button>
+
+                  <div className="field">
+                    <label>Número / Identificação / Protocolo</label>
+                    <input
+                      className="input"
+                      placeholder="Ex: 2026/099182 ou Código de Segurança"
+                      value={novoDoc.numero}
+                      onChange={(e) => setNovoDoc({ ...novoDoc, numero: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="field">
+                    <label>Selecionar Arquivo (PDF ou Imagem)</label>
+                    <input
+                      type="file"
+                      className="input"
+                      accept="application/pdf,image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+                        const isImg = file.type.startsWith('image/');
+                        if (!isPdf && !isImg) {
+                          alert('Formato inválido. Por favor envie arquivos em PDF ou Imagens (JPG, PNG).');
+                          return;
+                        }
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                          const docNovo = {
+                            id: Date.now(),
+                            tipo: novoDoc.tipo,
+                            numero: novoDoc.numero || file.name,
+                            status: 'Validado',
+                            data: new Date().toISOString().slice(0, 10),
+                            nome_arquivo: file.name,
+                            tipo_arquivo: isPdf ? 'pdf' : 'imagem',
+                            tamanho_kb: Math.round(file.size / 1024),
+                            arquivo_base64: reader.result
+                          };
+                          setF((prev) => ({
+                            ...prev,
+                            documentos_anexos: [docNovo, ...(prev.documentos_anexos || [])]
+                          }));
+                          setNovoDoc({ tipo: 'CRLV Digital (Documento do Carro)', numero: '', status: 'Validado' });
+                          e.target.value = '';
+                        };
+                        reader.readAsDataURL(file);
+                      }}
+                    />
                   </div>
                 </div>
-              ))}
+              </div>
+
+              {/* LISTAGEM DE DOCUMENTOS ANEXADOS */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {(f.documentos_anexos || []).length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '24px 10px', color: 'var(--muted)', background: '#ffffff', borderRadius: 8, border: '1px solid var(--border)' }}>
+                    <FileText size={32} strokeWidth={1.5} style={{ marginBottom: 6, opacity: .6 }} />
+                    <p style={{ margin: 0, fontSize: '.9rem' }}>Nenhum documento anexado ainda para este veículo.</p>
+                    <small>Carregue o CRLV digital, ATPV-e ou laudo nos formatos PDF ou Imagem acima.</small>
+                  </div>
+                ) : (
+                  (f.documentos_anexos || []).map((d, idx) => (
+                    <div
+                      key={d.id || idx}
+                      className="list-row"
+                      style={{
+                        background: '#ffffff',
+                        padding: '12px 16px',
+                        borderRadius: 8,
+                        border: '1px solid var(--border)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 12,
+                        flexWrap: 'wrap'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                        {d.tipo_arquivo === 'imagem' && d.arquivo_base64 ? (
+                          <img
+                            src={d.arquivo_base64}
+                            alt={d.tipo}
+                            style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)' }}
+                          />
+                        ) : (
+                          <div
+                            style={{
+                              width: 44,
+                              height: 44,
+                              background: d.tipo_arquivo === 'pdf' ? '#fee2e2' : '#e0e7ff',
+                              color: d.tipo_arquivo === 'pdf' ? '#dc2626' : '#4338ca',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              borderRadius: 6,
+                              fontWeight: 800,
+                              fontSize: '.75rem'
+                            }}
+                          >
+                            {d.tipo_arquivo === 'pdf' ? 'PDF' : 'DOC'}
+                          </div>
+                        )}
+                        <div>
+                          <strong style={{ fontSize: '.92rem', color: 'var(--text)' }}>{d.tipo}</strong>
+                          {d.numero && <span style={{ fontSize: '.84rem', color: 'var(--muted)' }}> — Nº {d.numero}</span>}
+                          <div style={{ fontSize: '.76rem', color: 'var(--muted)', marginTop: 2 }}>
+                            {d.nome_arquivo ? <span>Arquivo: <code>{d.nome_arquivo}</code> · </span> : null}
+                            {d.tamanho_kb ? `${d.tamanho_kb} KB · ` : ''}
+                            Adicionado em {dataBr(d.data)}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span className="badge badge-pago">{d.status || 'Validado'}</span>
+                        {d.arquivo_base64 && (
+                          <>
+                            <button
+                              type="button"
+                              className="btn btn-sm"
+                              title="Visualizar documento em tela cheia"
+                              onClick={() => {
+                                const win = window.open();
+                                if (win) {
+                                  if (d.tipo_arquivo === 'pdf') {
+                                    win.document.write(`<title>${d.nome_arquivo || d.tipo}</title><iframe src="${d.arquivo_base64}" style="border:none; width:100%; height:100vh;"></iframe>`);
+                                  } else {
+                                    win.document.write(`<title>${d.nome_arquivo || d.tipo}</title><body style="margin:0; background:#0f172a; display:flex; align-items:center; justify-content:center; min-height:100vh;"><img src="${d.arquivo_base64}" style="max-width:96vw; max-height:96vh; object-fit:contain; border-radius:8px; box-shadow:0 15px 35px rgba(0,0,0,.6);" /></body>`);
+                                  }
+                                }
+                              }}
+                            >
+                              <Eye size={13} /> Ver
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-sm"
+                              title="Baixar arquivo para o computador"
+                              onClick={() => {
+                                const a = document.createElement('a');
+                                a.href = d.arquivo_base64;
+                                a.download = d.nome_arquivo || `${String(d.tipo).toLowerCase().replace(/[^a-z0-9]+/g, '-')}.${d.tipo_arquivo === 'pdf' ? 'pdf' : 'jpg'}`;
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                              }}
+                            >
+                              <Download size={13} /> Baixar
+                            </button>
+                          </>
+                        )}
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-danger"
+                          title="Remover documento anexo"
+                          onClick={() => {
+                            if (!confirm(`Remover o documento "${d.tipo}"?`)) return;
+                            setF({ ...f, documentos_anexos: f.documentos_anexos.filter((_, i) => i !== idx) });
+                          }}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </div>
         )}
 
-        {/* ABA 9: FOTOS & VÍDEO YOUTUBE */}
+        {/* ABA 9: FOTOS & VÍDEO YOUTUBE (DRAG AND DROP PARA ORDEM NO SITE) */}
         {aba === 'fotos' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* BANNER INFORMATIVO DRAG AND DROP */}
+            <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ background: '#16a34a', color: '#ffffff', padding: 8, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <GripVertical size={20} />
+                </div>
+                <div>
+                  <strong style={{ fontSize: '.95rem', color: '#166534', display: 'block' }}>
+                    Organização da Sequência de Fotos no Site DG Automóveis
+                  </strong>
+                  <div style={{ fontSize: '.82rem', color: '#15803d', marginTop: 2 }}>
+                    A <strong>Foto #1 (Capa)</strong> é a imagem principal no site e vitrines. <strong>Clique e arraste</strong> qualquer foto para organizar a sequência exata de exibição, ou use as setas ◀ ▶.
+                  </div>
+                </div>
+              </div>
+              <span className="badge" style={{ background: '#dcfce7', color: '#166534', fontWeight: 800, padding: '6px 12px', fontSize: '.82rem' }}>
+                {(f.fotos || []).length} fotos ordenadas
+              </span>
+            </div>
+
             <div className="form-grid">
               <div className="field">
                 <label>Enviar Fotos do Computador (JPG, PNG, WEBP)</label>
@@ -1423,21 +2134,117 @@ function VeiculoModal({ inicial, clientes, onClose, onSave, onDelete, onRefresh,
             {(f.fotos || []).length === 0 ? (
               <div className="card empty">Nenhuma foto adicionada ainda. Envie fotos do computador ou cole uma URL acima.</div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 14 }}>
                 {f.fotos.map((url, idx) => (
-                  <div key={idx} className="card" style={{ padding: 8 }}>
-                    <img src={url} alt={`Foto ${idx + 1}`} style={{ width: '100%', height: 120, objectFit: 'cover', borderRadius: 8 }} />
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
-                      <button
-                        type="button"
-                        className={`btn btn-sm ${f.foto === url ? 'btn-primary' : ''}`}
-                        onClick={() => setF({ ...f, foto: url })}
-                      >
-                        {f.foto === url ? '★ Capa' : 'Definir Capa'}
-                      </button>
+                  <div
+                    key={idx}
+                    draggable={true}
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData('text/plain', String(idx));
+                      setArrastandoIdx(idx);
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                    }}
+                    onDragEnd={() => setArrastandoIdx(null)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const origem = Number(e.dataTransfer.getData('text/plain'));
+                      if (!isNaN(origem) && origem !== idx) {
+                        moverFoto(origem, idx);
+                      }
+                      setArrastandoIdx(null);
+                    }}
+                    className="card"
+                    style={{
+                      padding: 8,
+                      position: 'relative',
+                      cursor: 'grab',
+                      borderRadius: 10,
+                      border: arrastandoIdx === idx ? '2px dashed var(--primary)' : idx === 0 ? '2px solid #2563eb' : '1px solid var(--border)',
+                      boxShadow: idx === 0 ? '0 4px 14px rgba(37,99,235,.22)' : 'none',
+                      opacity: arrastandoIdx === idx ? 0.35 : 1,
+                      transition: 'all .15s ease',
+                      userSelect: 'none',
+                      background: '#ffffff'
+                    }}
+                    title="Clique e arraste para reordenar a sequência no site"
+                  >
+                    {/* BADGE DA POSIÇÃO NO SITE */}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: 14,
+                        left: 14,
+                        background: idx === 0 ? '#2563eb' : 'rgba(15,23,42,.88)',
+                        color: '#fff',
+                        borderRadius: 6,
+                        padding: '3px 8px',
+                        fontSize: '.74rem',
+                        fontWeight: 800,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        boxShadow: '0 2px 8px rgba(0,0,0,.45)',
+                        zIndex: 2
+                      }}
+                    >
+                      <GripVertical size={12} />
+                      {idx === 0 ? '★ Capa (#1)' : `#${idx + 1}`}
+                    </div>
+
+                    <img
+                      src={url}
+                      alt={`Foto ${idx + 1}`}
+                      style={{ width: '100%', height: 135, objectFit: 'cover', borderRadius: 8, pointerEvents: 'none', display: 'block' }}
+                    />
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, gap: 4 }}>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          disabled={idx === 0}
+                          style={{ padding: '4px 8px', opacity: idx === 0 ? .4 : 1 }}
+                          title="Mover foto para a esquerda / posição anterior"
+                          onClick={() => moverFoto(idx, idx - 1)}
+                        >
+                          ◀
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          disabled={idx === (f.fotos || []).length - 1}
+                          style={{ padding: '4px 8px', opacity: idx === (f.fotos || []).length - 1 ? .4 : 1 }}
+                          title="Mover foto para a direita / próxima posição"
+                          onClick={() => moverFoto(idx, idx + 1)}
+                        >
+                          ▶
+                        </button>
+                      </div>
+
+                      {idx !== 0 ? (
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          style={{ fontSize: '.72rem', padding: '4px 8px' }}
+                          title="Tornar esta a 1ª foto (Capa do Veículo)"
+                          onClick={() => moverFoto(idx, 0)}
+                        >
+                          Definir Capa
+                        </button>
+                      ) : (
+                        <span style={{ fontSize: '.72rem', color: '#2563eb', fontWeight: 800 }}>
+                          Foto Capa
+                        </span>
+                      )}
+
                       <button
                         type="button"
                         className="btn btn-sm btn-danger"
+                        style={{ padding: '4px 8px' }}
+                        title="Excluir esta foto"
                         onClick={() => {
                           const restantes = f.fotos.filter((_, i) => i !== idx);
                           setF({ ...f, fotos: restantes, foto: f.foto === url ? (restantes[0] || '') : f.foto });
@@ -1459,17 +2266,24 @@ function VeiculoModal({ inicial, clientes, onClose, onSave, onDelete, onRefresh,
             <div className="card" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, padding: 20 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
                 <div>
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 8, margin: 0 }}>
                     <Globe size={20} /> Publicação no Site Oficial & Portais
                   </h3>
-                  <small style={{ color: 'var(--muted)' }}>
+                  <small style={{ color: 'var(--muted)', display: 'block', marginTop: 4 }}>
                     Controle em tempo real da exibição deste veículo no site da loja (DG Automóveis) e nos feeds integrados.
                   </small>
                 </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <span className={`badge ${f.publicar_site !== false ? 'badge-disponivel' : 'badge-vendido'}`}>
-                    {f.publicar_site !== false ? '● Publicado no Site' : '○ Oculto no Site'}
-                  </span>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  {/* BOTAO SWITCH GRANDE DE PUBLICAR / RETIRAR DO SITE */}
+                  <button
+                    type="button"
+                    className={`btn ${f.publicar_site !== false ? 'btn-success' : 'btn-danger'}`}
+                    style={{ fontWeight: 800 }}
+                    onClick={() => setF({ ...f, publicar_site: f.publicar_site === false ? true : false })}
+                  >
+                    <Globe size={15} />
+                    {f.publicar_site !== false ? '✓ Publicado no Site (Clique para Ocultar)' : '🚫 Oculto do Site (Clique para Publicar)'}
+                  </button>
                   {f.destaque_site && (
                     <span className="badge" style={{ background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a' }}>
                       ★ Destaque na Home
@@ -1614,13 +2428,22 @@ function VeiculoModal({ inicial, clientes, onClose, onSave, onDelete, onRefresh,
 
       <div className="altimus-crud-footer">
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          {f.id && (
+          {f.id && f.status !== 'cancelado' && (
             <button
               type="button"
               className="btn btn-danger"
-              onClick={() => confirm('Excluir este veículo permanentemente?') && onDelete(f.id)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              onClick={() => {
+                if (user?.perfil !== 'admin') {
+                  alert('Ação bloqueada: Por compliance legal, a exclusão de veículos e contratos é terminantemente proibida. Para cancelar este veículo do estoque, solicite a um Administrador o cancelamento formal do contrato.');
+                  return;
+                }
+                const motivo = prompt(`Informe o motivo do cancelamento formal deste veículo #${f.id} (${f.marca} ${f.modelo}) / Distrato de Contrato:`);
+                if (!motivo) return;
+                onCancelarVeiculo(f, motivo);
+              }}
             >
-              <Trash2 size={16} />Excluir
+              <Trash2 size={15} /> Cancelar Veículo (Apenas Admin)
             </button>
           )}
           {ABAS_VEICULO.findIndex((a) => a.id === aba) > 0 && (
