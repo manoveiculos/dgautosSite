@@ -32,7 +32,7 @@ export default function Login({ onLogin }) {
           </div>
           <div>
             <div style={{ fontWeight: 800, fontSize: '1.25rem', color: 'var(--primary)' }}>
-              DG AUTOS
+              DGAUTOS
             </div>
             <small style={{ color: 'var(--muted)', fontSize: '.8rem' }}>Gestão Integrada para Revendas</small>
           </div>

@@ -53,7 +53,7 @@ function Shell({ user, onLogout }) {
               <Car size={18} />
             </div>
             <div>
-              DG AUTOS
+              DGAUTOS
               <small>Gestão de Veículos & CRM</small>
             </div>
           </NavLink>
