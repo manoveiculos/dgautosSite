@@ -3,8 +3,8 @@ import { Car, Eye, EyeOff } from 'lucide-react';
 import { login } from '../store';
 
 export default function Login({ onLogin }) {
-  const [email, setEmail] = useState('alexandre_gorges@hotmail.com');
-  const [senha, setSenha] = useState('123456');
+  const [email, setEmail] = useState('');
+  const [senha, setSenha] = useState('');
   const [mostrarSenha, setMostrarSenha] = useState(false);
   const [erro, setErro] = useState('');
   const [loading, setLoading] = useState(false);

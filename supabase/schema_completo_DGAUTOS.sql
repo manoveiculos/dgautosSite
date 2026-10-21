@@ -1,17 +1,14 @@
 -- ==============================================================================
--- DG AUTOMÓVEIS - SCHEMA COMPLETO DE BANCO DE DADOS (POSTGRESQL / SUPABASE)
+-- DG AUTOMÓVEIS - SCHEMA COMPLETO DE BANCO DE DADOS (SUPABASE / POSTGRESQL)
 -- TODAS AS TABELAS CRIADAS COM SUFIXO _DGAUTOS
--- Compatível com: Supabase, PostgreSQL 12+, AWS RDS, Neon, Render, Railway
+-- ==============================================================================
+-- INSTRUÇÃO DE EXECUÇÃO NO SUPABASE:
+-- 1. No Supabase SQL Editor, aperte CTRL + A (para selecionar tudo).
+-- 2. Clique no botão "Run" (ou pressione CTRL + ENTER).
 -- ==============================================================================
 
--- 0. Habilita extensões úteis
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-CREATE EXTENSION IF NOT EXISTS "pg_trgm";
-
--- ------------------------------------------------------------------------------
--- 1. TABELA DE USUÁRIOS & PERMISSÕES
--- ------------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS usuarios_DGAUTOS (
+-- 1. TABELA DE USUÁRIOS DO SISTEMA
+CREATE TABLE IF NOT EXISTS "usuarios_DGAUTOS" (
     id BIGSERIAL PRIMARY KEY,
     nome VARCHAR(150) NOT NULL,
     email VARCHAR(150) NOT NULL UNIQUE,
@@ -24,12 +21,10 @@ CREATE TABLE IF NOT EXISTS usuarios_DGAUTOS (
     atualizado_em TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_usuarios_email_DGAUTOS ON usuarios_DGAUTOS(email);
+CREATE INDEX IF NOT EXISTS idx_usuarios_email_dgautos ON "usuarios_DGAUTOS"(email);
 
--- ------------------------------------------------------------------------------
--- 2. TABELA DE CONFIGURAÇÃO DA LOJA & DADOS FISCAIS
--- ------------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS config_loja_DGAUTOS (
+-- 2. TABELA DE CONFIGURAÇÃO DA LOJA (DADOS CADASTRAIS E FISCAIS)
+CREATE TABLE IF NOT EXISTS "config_loja_DGAUTOS" (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     razao_social VARCHAR(200) NOT NULL DEFAULT 'DG Automóveis Comércio de Veículos Ltda',
     nome_fantasia VARCHAR(150) NOT NULL DEFAULT 'DG Automóveis',
@@ -48,16 +43,14 @@ CREATE TABLE IF NOT EXISTS config_loja_DGAUTOS (
     uf VARCHAR(2) DEFAULT 'SC',
     token_feed_site VARCHAR(100) DEFAULT '20706bbe-4a09-4a03-8e2a-1f47e73d7a14',
     auto_publicar_site BOOLEAN DEFAULT TRUE,
-    termo_garantia_padrao TEXT DEFAULT 'Garantia legal de 90 (noventa) dias para motor e câmbio, conforme Art. 26 do Código de Defesa do Consumidor.',
+    termo_garantia_padrao TEXT DEFAULT 'Garantia legal de 90 (noventa) dias para motor e câmbio, conforme Art. 26 do CDC.',
     chave_pix VARCHAR(100),
     criado_em TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     atualizado_em TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- ------------------------------------------------------------------------------
 -- 3. TABELA DE CLIENTES E FORNECEDORES
--- ------------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS clientes_DGAUTOS (
+CREATE TABLE IF NOT EXISTS "clientes_DGAUTOS" (
     id BIGSERIAL PRIMARY KEY,
     tipo_pessoa VARCHAR(2) NOT NULL DEFAULT 'PF' CHECK (tipo_pessoa IN ('PF', 'PJ')),
     papel VARCHAR(20) NOT NULL DEFAULT 'cliente' CHECK (papel IN ('cliente', 'fornecedor', 'ambos')),
@@ -81,19 +74,17 @@ CREATE TABLE IF NOT EXISTS clientes_DGAUTOS (
     atualizado_em TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_clientes_nome_DGAUTOS ON clientes_DGAUTOS(nome);
-CREATE INDEX IF NOT EXISTS idx_clientes_cpf_cnpj_DGAUTOS ON clientes_DGAUTOS(cpf_cnpj);
+CREATE INDEX IF NOT EXISTS idx_clientes_nome_dgautos ON "clientes_DGAUTOS"(nome);
+CREATE INDEX IF NOT EXISTS idx_clientes_cpf_cnpj_dgautos ON "clientes_DGAUTOS"(cpf_cnpj);
 
--- ------------------------------------------------------------------------------
--- 4. TABELA CENTRAL DE VEÍCULOS DO ESTOQUE (10 ABAS DE GESTÃO)
--- ------------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS veiculos_DGAUTOS (
+-- 4. TABELA CENTRAL DE VEÍCULOS (ESTOQUE COMPLETO - 10 ABAS)
+CREATE TABLE IF NOT EXISTS "veiculos_DGAUTOS" (
     id BIGSERIAL PRIMARY KEY,
     codigo_interno VARCHAR(50),
     marca VARCHAR(80) NOT NULL,
     modelo VARCHAR(120) NOT NULL,
     modelo_complemento VARCHAR(120),
-    ano VARCHAR(20) NOT NULL, -- Ex: '2023/2024'
+    ano VARCHAR(20) NOT NULL,
     ano_fabricacao INTEGER,
     ano_modelo INTEGER,
     km INTEGER NOT NULL DEFAULT 0,
@@ -123,7 +114,7 @@ CREATE TABLE IF NOT EXISTS veiculos_DGAUTOS (
     repasse BOOLEAN DEFAULT FALSE,
     garantia_fabrica VARCHAR(60) DEFAULT 'Não',
     
-    -- Valores & Lucratividade
+    -- Valores & FIPE
     custo NUMERIC(12,2) NOT NULL DEFAULT 0.00,
     despesas_veiculo NUMERIC(12,2) NOT NULL DEFAULT 0.00,
     preco NUMERIC(12,2) NOT NULL DEFAULT 0.00,
@@ -133,7 +124,7 @@ CREATE TABLE IF NOT EXISTS veiculos_DGAUTOS (
     valor_fipe_anterior NUMERIC(12,2) DEFAULT 0.00,
     codigo_fipe VARCHAR(30),
     
-    -- Integração com Site DG
+    -- Integração com Site DG Automóveis
     foto_capa TEXT,
     publicar_site BOOLEAN NOT NULL DEFAULT TRUE,
     destaque_site BOOLEAN NOT NULL DEFAULT FALSE,
@@ -141,7 +132,7 @@ CREATE TABLE IF NOT EXISTS veiculos_DGAUTOS (
     observacao_site VARCHAR(255),
     url_video VARCHAR(255),
     
-    -- Observações e Textos Comerciais
+    -- Textos e Observações
     observacao_anuncio TEXT,
     observacao_internet TEXT,
     observacao_interna TEXT,
@@ -153,66 +144,57 @@ CREATE TABLE IF NOT EXISTS veiculos_DGAUTOS (
     valor_nf_compra NUMERIC(12,2) DEFAULT 0.00,
     valor_nf_venda NUMERIC(12,2) DEFAULT 0.00,
     
-    -- Relacionamentos Comerciais
-    cliente_origem_id BIGINT REFERENCES clientes_DGAUTOS(id) ON DELETE SET NULL,
-    cliente_comprador_id BIGINT REFERENCES clientes_DGAUTOS(id) ON DELETE SET NULL,
-    vendedor_responsavel_id BIGINT REFERENCES usuarios_DGAUTOS(id) ON DELETE SET NULL,
+    -- Relacionamentos
+    cliente_origem_id BIGINT REFERENCES "clientes_DGAUTOS"(id) ON DELETE SET NULL,
+    cliente_comprador_id BIGINT REFERENCES "clientes_DGAUTOS"(id) ON DELETE SET NULL,
+    vendedor_responsavel_id BIGINT REFERENCES "usuarios_DGAUTOS"(id) ON DELETE SET NULL,
     
-    -- Dados Brutos / Legado Altimus
     dados_altimus JSONB DEFAULT '{}'::jsonb,
     
-    -- Datas de Controle
     data_entrada DATE NOT NULL DEFAULT CURRENT_DATE,
     data_venda DATE,
     criado_em TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     atualizado_em TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_veiculos_status_DGAUTOS ON veiculos_DGAUTOS(status);
-CREATE INDEX IF NOT EXISTS idx_veiculos_publicar_site_DGAUTOS ON veiculos_DGAUTOS(publicar_site);
-CREATE INDEX IF NOT EXISTS idx_veiculos_placa_DGAUTOS ON veiculos_DGAUTOS(placa);
-CREATE INDEX IF NOT EXISTS idx_veiculos_chassi_DGAUTOS ON veiculos_DGAUTOS(chassi);
-CREATE INDEX IF NOT EXISTS idx_veiculos_marca_modelo_DGAUTOS ON veiculos_DGAUTOS(marca, modelo);
+CREATE INDEX IF NOT EXISTS idx_veiculos_status_dgautos ON "veiculos_DGAUTOS"(status);
+CREATE INDEX IF NOT EXISTS idx_veiculos_publicar_site_dgautos ON "veiculos_DGAUTOS"(publicar_site);
+CREATE INDEX IF NOT EXISTS idx_veiculos_placa_dgautos ON "veiculos_DGAUTOS"(placa);
+CREATE INDEX IF NOT EXISTS idx_veiculos_marca_modelo_dgautos ON "veiculos_DGAUTOS"(marca, modelo);
 
--- ------------------------------------------------------------------------------
--- 5. TABELA DE FOTOS DO VEÍCULO (DRAG & DROP E ORDENAÇÃO NO SITE)
--- ------------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS veiculos_fotos_DGAUTOS (
+-- 5. TABELA DE FOTOS (DRAG & DROP COM ORDEM DEFINIDA)
+CREATE TABLE IF NOT EXISTS "veiculos_fotos_DGAUTOS" (
     id BIGSERIAL PRIMARY KEY,
-    veiculo_id BIGINT NOT NULL REFERENCES veiculos_DGAUTOS(id) ON DELETE CASCADE,
+    veiculo_id BIGINT NOT NULL REFERENCES "veiculos_DGAUTOS"(id) ON DELETE CASCADE,
     url_foto TEXT NOT NULL,
     ordem INTEGER NOT NULL DEFAULT 1,
     is_capa BOOLEAN NOT NULL DEFAULT FALSE,
     criado_em TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_fotos_veiculo_ordem_DGAUTOS ON veiculos_fotos_DGAUTOS(veiculo_id, ordem);
+CREATE INDEX IF NOT EXISTS idx_fotos_veiculo_ordem_dgautos ON "veiculos_fotos_DGAUTOS"(veiculo_id, ordem);
 
--- ------------------------------------------------------------------------------
--- 6. TABELA DE DOCUMENTOS DO VEÍCULO (PDF, IMAGENS, LAUDOS, ATPV-e)
--- ------------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS veiculos_documentos_DGAUTOS (
+-- 6. TABELA DE DOCUMENTOS DO CARRO (PDF E IMAGENS)
+CREATE TABLE IF NOT EXISTS "veiculos_documentos_DGAUTOS" (
     id BIGSERIAL PRIMARY KEY,
-    veiculo_id BIGINT NOT NULL REFERENCES veiculos_DGAUTOS(id) ON DELETE CASCADE,
-    tipo VARCHAR(100) NOT NULL, -- CRLV Digital, ATPV-e, Laudo Cautelar, Nota Fiscal
+    veiculo_id BIGINT NOT NULL REFERENCES "veiculos_DGAUTOS"(id) ON DELETE CASCADE,
+    tipo VARCHAR(100) NOT NULL,
     numero VARCHAR(80),
     nome_arquivo VARCHAR(255),
-    tipo_arquivo VARCHAR(30) NOT NULL DEFAULT 'pdf', -- 'pdf' ou 'imagem'
-    arquivo_dados TEXT NOT NULL, -- URL pública ou Base64 seguro
+    tipo_arquivo VARCHAR(30) NOT NULL DEFAULT 'pdf',
+    arquivo_dados TEXT NOT NULL,
     tamanho_kb NUMERIC(10,2),
     status VARCHAR(50) DEFAULT 'Validado',
     data_anexo DATE NOT NULL DEFAULT CURRENT_DATE,
     criado_em TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_documentos_veiculo_DGAUTOS ON veiculos_documentos_DGAUTOS(veiculo_id);
+CREATE INDEX IF NOT EXISTS idx_documentos_veiculo_dgautos ON "veiculos_documentos_DGAUTOS"(veiculo_id);
 
--- ------------------------------------------------------------------------------
--- 7. TABELA DE PENDÊNCIAS DO VEÍCULO
--- ------------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS veiculos_pendencias_DGAUTOS (
+-- 7. TABELA DE PENDÊNCIAS
+CREATE TABLE IF NOT EXISTS "veiculos_pendencias_DGAUTOS" (
     id BIGSERIAL PRIMARY KEY,
-    veiculo_id BIGINT NOT NULL REFERENCES veiculos_DGAUTOS(id) ON DELETE CASCADE,
+    veiculo_id BIGINT NOT NULL REFERENCES "veiculos_DGAUTOS"(id) ON DELETE CASCADE,
     descricao VARCHAR(255) NOT NULL,
     obrigatoria BOOLEAN NOT NULL DEFAULT TRUE,
     concluida BOOLEAN NOT NULL DEFAULT FALSE,
@@ -220,12 +202,10 @@ CREATE TABLE IF NOT EXISTS veiculos_pendencias_DGAUTOS (
     criado_em TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
--- ------------------------------------------------------------------------------
--- 8. TABELA DE RESERVAS DO VEÍCULO
--- ------------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS veiculos_reservas_DGAUTOS (
+-- 8. TABELA DE RESERVAS
+CREATE TABLE IF NOT EXISTS "veiculos_reservas_DGAUTOS" (
     id BIGSERIAL PRIMARY KEY,
-    veiculo_id BIGINT NOT NULL REFERENCES veiculos_DGAUTOS(id) ON DELETE CASCADE,
+    veiculo_id BIGINT NOT NULL REFERENCES "veiculos_DGAUTOS"(id) ON DELETE CASCADE,
     cliente_nome VARCHAR(150) NOT NULL,
     funcionario_nome VARCHAR(150),
     data_limite DATE NOT NULL,
@@ -235,29 +215,23 @@ CREATE TABLE IF NOT EXISTS veiculos_reservas_DGAUTOS (
     criado_em TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
--- ------------------------------------------------------------------------------
--- 9. TABELA DE OPCIONAIS E ITENS DE SÉRIE DO VEÍCULO
--- ------------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS veiculos_opcionais_DGAUTOS (
+-- 9. TABELA DE OPCIONAIS
+CREATE TABLE IF NOT EXISTS "veiculos_opcionais_DGAUTOS" (
     id BIGSERIAL PRIMARY KEY,
-    veiculo_id BIGINT NOT NULL REFERENCES veiculos_DGAUTOS(id) ON DELETE CASCADE,
+    veiculo_id BIGINT NOT NULL REFERENCES "veiculos_DGAUTOS"(id) ON DELETE CASCADE,
     nome_opcional VARCHAR(120) NOT NULL,
-    tipo VARCHAR(30) DEFAULT 'opcional' -- 'opcional' ou 'destaque'
+    tipo VARCHAR(30) DEFAULT 'opcional'
 );
 
-CREATE INDEX IF NOT EXISTS idx_opcionais_veiculo_DGAUTOS ON veiculos_opcionais_DGAUTOS(veiculo_id);
-
--- ------------------------------------------------------------------------------
--- 10. TABELA DE OPORTUNIDADES DO CRM / LEADS DO SITE E REDES SOCIAIS
--- ------------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS oportunidades_crm_DGAUTOS (
+-- 10. TABELA DE OPORTUNIDADES DO CRM / LEADS
+CREATE TABLE IF NOT EXISTS "oportunidades_crm_DGAUTOS" (
     id BIGSERIAL PRIMARY KEY,
     nome_lead VARCHAR(150) NOT NULL,
     telefone VARCHAR(30),
     email VARCHAR(150),
-    cliente_id BIGINT REFERENCES clientes_DGAUTOS(id) ON DELETE SET NULL,
-    vendedor_id BIGINT REFERENCES usuarios_DGAUTOS(id) ON DELETE SET NULL,
-    veiculo_id BIGINT REFERENCES veiculos_DGAUTOS(id) ON DELETE SET NULL,
+    cliente_id BIGINT REFERENCES "clientes_DGAUTOS"(id) ON DELETE SET NULL,
+    vendedor_id BIGINT REFERENCES "usuarios_DGAUTOS"(id) ON DELETE SET NULL,
+    veiculo_id BIGINT REFERENCES "veiculos_DGAUTOS"(id) ON DELETE SET NULL,
     veiculo_interesse VARCHAR(200),
     troca_veiculo VARCHAR(200),
     valor_proposta NUMERIC(12,2) DEFAULT 0.00,
@@ -272,26 +246,20 @@ CREATE TABLE IF NOT EXISTS oportunidades_crm_DGAUTOS (
     atualizado_em TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_oportunidades_estagio_DGAUTOS ON oportunidades_crm_DGAUTOS(estagio);
-
--- ------------------------------------------------------------------------------
--- 11. TABELA DE NEGOCIAÇÕES E CONTRATOS (WIZARD DE 4 ETAPAS)
--- ------------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS negociacoes_DGAUTOS (
+-- 11. TABELA DE NEGOCIAÇÕES / CONTRATOS (WIZARD DE 4 ETAPAS)
+CREATE TABLE IF NOT EXISTS "negociacoes_DGAUTOS" (
     id BIGSERIAL PRIMARY KEY,
     tipo VARCHAR(30) NOT NULL DEFAULT 'venda' CHECK (tipo IN ('venda', 'troca', 'compra', 'consignacao')),
     status VARCHAR(30) NOT NULL DEFAULT 'aberta' CHECK (status IN ('aberta', 'conferencia', 'concluida', 'cancelada')),
-    cliente_id BIGINT REFERENCES clientes_DGAUTOS(id) ON DELETE RESTRICT,
-    vendedor_id BIGINT REFERENCES usuarios_DGAUTOS(id) ON DELETE SET NULL,
-    veiculo_id BIGINT REFERENCES veiculos_DGAUTOS(id) ON DELETE RESTRICT,
+    cliente_id BIGINT REFERENCES "clientes_DGAUTOS"(id) ON DELETE RESTRICT,
+    vendedor_id BIGINT REFERENCES "usuarios_DGAUTOS"(id) ON DELETE SET NULL,
+    veiculo_id BIGINT REFERENCES "veiculos_DGAUTOS"(id) ON DELETE RESTRICT,
     canal_venda VARCHAR(50) DEFAULT 'LOJA',
     
-    -- Valores da Operação
     valor_veiculo NUMERIC(12,2) NOT NULL DEFAULT 0.00,
     desconto NUMERIC(12,2) NOT NULL DEFAULT 0.00,
     valor_liquido NUMERIC(12,2) GENERATED ALWAYS AS (valor_veiculo - desconto) STORED,
     
-    -- Veículo de Entrada (Na Troca)
     troca_marca VARCHAR(80),
     troca_modelo VARCHAR(120),
     troca_ano VARCHAR(20),
@@ -300,29 +268,22 @@ CREATE TABLE IF NOT EXISTS negociacoes_DGAUTOS (
     troca_cor VARCHAR(50),
     troca_valor NUMERIC(12,2) DEFAULT 0.00,
     
-    -- Comissões e Auditoria
     comissao_vendedor NUMERIC(12,2) DEFAULT 0.00,
     observacoes TEXT,
     motivo_cancelamento TEXT,
-    cancelado_por_usuario_id BIGINT REFERENCES usuarios_DGAUTOS(id),
+    cancelado_por_usuario_id BIGINT REFERENCES "usuarios_DGAUTOS"(id),
     
-    -- Datas
     data_negociacao DATE NOT NULL DEFAULT CURRENT_DATE,
     data_fechamento TIMESTAMP WITH TIME ZONE,
     criado_em TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     atualizado_em TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_negociacoes_tipo_DGAUTOS ON negociacoes_DGAUTOS(tipo);
-CREATE INDEX IF NOT EXISTS idx_negociacoes_status_DGAUTOS ON negociacoes_DGAUTOS(status);
-
--- ------------------------------------------------------------------------------
 -- 12. TABELA DE FORMAS DE PAGAMENTO DA NEGOCIAÇÃO
--- ------------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS negociacoes_pagamentos_DGAUTOS (
+CREATE TABLE IF NOT EXISTS "negociacoes_pagamentos_DGAUTOS" (
     id BIGSERIAL PRIMARY KEY,
-    negociacao_id BIGINT NOT NULL REFERENCES negociacoes_DGAUTOS(id) ON DELETE CASCADE,
-    forma VARCHAR(60) NOT NULL, -- 'Pix / TED', 'Financiamento', 'Veículo na Troca', etc.
+    negociacao_id BIGINT NOT NULL REFERENCES "negociacoes_DGAUTOS"(id) ON DELETE CASCADE,
+    forma VARCHAR(60) NOT NULL,
     financeira VARCHAR(100),
     valor NUMERIC(12,2) NOT NULL DEFAULT 0.00,
     vencimento DATE DEFAULT CURRENT_DATE,
@@ -330,31 +291,25 @@ CREATE TABLE IF NOT EXISTS negociacoes_pagamentos_DGAUTOS (
     criado_em TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_pagamentos_negociacao_DGAUTOS ON negociacoes_pagamentos_DGAUTOS(negociacao_id);
-
--- ------------------------------------------------------------------------------
--- 13. TABELA DE MODELOS E MINUTAS CONTRATUAIS
--- ------------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS contratos_modelos_DGAUTOS (
+-- 13. TABELA DE MODELOS CONTRATUAIS
+CREATE TABLE IF NOT EXISTS "contratos_modelos_DGAUTOS" (
     id BIGSERIAL PRIMARY KEY,
     codigo VARCHAR(50) NOT NULL UNIQUE,
     titulo VARCHAR(150) NOT NULL,
-    tipo_operacao VARCHAR(30) NOT NULL, -- 'venda', 'troca', 'compra', 'consignacao'
+    tipo_operacao VARCHAR(30) NOT NULL,
     descricao TEXT,
     conteudo_minuta TEXT NOT NULL,
     ativo BOOLEAN NOT NULL DEFAULT TRUE,
     criado_em TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
--- ------------------------------------------------------------------------------
--- 14. TABELA DE CONTRATOS GERADOS & AUDITORIA DE ASSINATURA
--- ------------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS contratos_gerados_DGAUTOS (
+-- 14. TABELA DE CONTRATOS GERADOS & LGPD
+CREATE TABLE IF NOT EXISTS "contratos_gerados_DGAUTOS" (
     id BIGSERIAL PRIMARY KEY,
-    negociacao_id BIGINT REFERENCES negociacoes_DGAUTOS(id) ON DELETE RESTRICT,
-    veiculo_id BIGINT REFERENCES veiculos_DGAUTOS(id) ON DELETE RESTRICT,
-    cliente_id BIGINT REFERENCES clientes_DGAUTOS(id) ON DELETE RESTRICT,
-    modelo_codigo VARCHAR(50) REFERENCES contratos_modelos_DGAUTOS(codigo),
+    negociacao_id BIGINT REFERENCES "negociacoes_DGAUTOS"(id) ON DELETE RESTRICT,
+    veiculo_id BIGINT REFERENCES "veiculos_DGAUTOS"(id) ON DELETE RESTRICT,
+    cliente_id BIGINT REFERENCES "clientes_DGAUTOS"(id) ON DELETE RESTRICT,
+    modelo_codigo VARCHAR(50) REFERENCES "contratos_modelos_DGAUTOS"(codigo),
     texto_integral TEXT NOT NULL,
     autorizacao_lgpd_imagem BOOLEAN DEFAULT TRUE,
     hodometro_comprado INTEGER,
@@ -363,10 +318,8 @@ CREATE TABLE IF NOT EXISTS contratos_gerados_DGAUTOS (
     data_emissao TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
--- ------------------------------------------------------------------------------
--- 15. TABELA FINANCEIRA (CONTAS A PAGAR, RECEBER E CUSTOS DE VEÍCULO)
--- ------------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS financeiro_DGAUTOS (
+-- 15. TABELA FINANCEIRA
+CREATE TABLE IF NOT EXISTS "financeiro_DGAUTOS" (
     id BIGSERIAL PRIMARY KEY,
     tipo VARCHAR(20) NOT NULL CHECK (tipo IN ('receita', 'despesa')),
     categoria VARCHAR(80) NOT NULL DEFAULT 'Outros',
@@ -377,22 +330,17 @@ CREATE TABLE IF NOT EXISTS financeiro_DGAUTOS (
     status VARCHAR(30) NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'pago', 'cancelado')),
     forma_pagamento VARCHAR(60) DEFAULT 'Pix / TED',
     conta_bancaria VARCHAR(80) DEFAULT 'Conta Principal',
-    veiculo_id BIGINT REFERENCES veiculos_DGAUTOS(id) ON DELETE SET NULL,
-    cliente_id BIGINT REFERENCES clientes_DGAUTOS(id) ON DELETE SET NULL,
-    negociacao_id BIGINT REFERENCES negociacoes_DGAUTOS(id) ON DELETE SET NULL,
+    veiculo_id BIGINT REFERENCES "veiculos_DGAUTOS"(id) ON DELETE SET NULL,
+    cliente_id BIGINT REFERENCES "clientes_DGAUTOS"(id) ON DELETE SET NULL,
+    negociacao_id BIGINT REFERENCES "negociacoes_DGAUTOS"(id) ON DELETE SET NULL,
     criado_em TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_financeiro_tipo_status_DGAUTOS ON financeiro_DGAUTOS(tipo, status);
-CREATE INDEX IF NOT EXISTS idx_financeiro_veiculo_DGAUTOS ON financeiro_DGAUTOS(veiculo_id);
-
--- ------------------------------------------------------------------------------
--- 16. TABELA DE AUDITORIA & SEGURANÇA (HISTÓRICO COMPLETO DE COMPLIANCE)
--- ------------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS auditoria_logs_DGAUTOS (
+-- 16. TABELA DE AUDITORIA & SEGURANÇA
+CREATE TABLE IF NOT EXISTS "auditoria_logs_DGAUTOS" (
     id BIGSERIAL PRIMARY KEY,
-    usuario_id BIGINT REFERENCES usuarios_DGAUTOS(id) ON DELETE SET NULL,
-    acao VARCHAR(80) NOT NULL, -- 'CRIAR_CONTRATO', 'CANCELAR_VEICULO', 'TOGGLE_SITE', etc.
+    usuario_id BIGINT REFERENCES "usuarios_DGAUTOS"(id) ON DELETE SET NULL,
+    acao VARCHAR(80) NOT NULL,
     tabela_afetada VARCHAR(80) NOT NULL,
     registro_id BIGINT,
     detalhes JSONB DEFAULT '{}'::jsonb,
@@ -400,14 +348,8 @@ CREATE TABLE IF NOT EXISTS auditoria_logs_DGAUTOS (
     data_hora TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_auditoria_tabela_DGAUTOS ON auditoria_logs_DGAUTOS(tabela_afetada, registro_id);
-
--- ------------------------------------------------------------------------------
 -- 17. VIEWS DE INTEGRAÇÃO COM O SITE DG AUTOMÓVEIS
--- ------------------------------------------------------------------------------
-
--- View 1: Veículos Ativos no Site (com capa e dados consolidados)
-CREATE OR REPLACE VIEW view_estoque_site_DGAUTOS AS
+CREATE OR REPLACE VIEW "view_estoque_site_DGAUTOS" AS
 SELECT 
     v.id,
     v.codigo_interno,
@@ -429,18 +371,18 @@ SELECT
     v.valor_troca,
     v.fipe,
     COALESCE(v.foto_capa, (
-        SELECT url_foto FROM veiculos_fotos_DGAUTOS f 
+        SELECT url_foto FROM "veiculos_fotos_DGAUTOS" f 
         WHERE f.veiculo_id = v.id 
         ORDER BY f.ordem ASC, f.id ASC LIMIT 1
     )) AS foto_principal,
     (
         SELECT json_agg(json_build_object('url', f.url_foto, 'ordem', f.ordem, 'is_capa', f.is_capa) ORDER BY f.ordem ASC)
-        FROM veiculos_fotos_DGAUTOS f
+        FROM "veiculos_fotos_DGAUTOS" f
         WHERE f.veiculo_id = v.id
     ) AS galeria_fotos,
     (
         SELECT array_agg(o.nome_opcional)
-        FROM veiculos_opcionais_DGAUTOS o
+        FROM "veiculos_opcionais_DGAUTOS" o
         WHERE o.veiculo_id = v.id
     ) AS opcionais,
     v.destaque_site,
@@ -451,19 +393,16 @@ SELECT
     v.status,
     v.data_entrada,
     v.atualizado_em
-FROM veiculos_DGAUTOS v
+FROM "veiculos_DGAUTOS" v
 WHERE v.status = 'disponivel' 
   AND v.publicar_site = TRUE;
 
--- View 2: Vitrine e Destaques da Home do Site
-CREATE OR REPLACE VIEW view_vitrine_home_DGAUTOS AS
-SELECT * FROM view_estoque_site_DGAUTOS
+CREATE OR REPLACE VIEW "view_vitrine_home_DGAUTOS" AS
+SELECT * FROM "view_estoque_site_DGAUTOS"
 WHERE destaque_site = TRUE;
 
--- ------------------------------------------------------------------------------
--- 18. CARGA INICIAL DE CONFIGURAÇÃO E MODELOS OFICIAIS
--- ------------------------------------------------------------------------------
-INSERT INTO config_loja_DGAUTOS (
+-- 18. CARGA INICIAL BÁSICA
+INSERT INTO "config_loja_DGAUTOS" (
     id, razao_social, nome_fantasia, cnpj, telefone, whatsapp, email, site_url, cidade, uf, token_feed_site
 ) VALUES (
     1, 
@@ -477,19 +416,4 @@ INSERT INTO config_loja_DGAUTOS (
     'Balneário Camboriú', 
     'SC', 
     '20706bbe-4a09-4a03-8e2a-1f47e73d7a14'
-) ON CONFLICT (id) DO UPDATE SET 
-    nome_fantasia = EXCLUDED.nome_fantasia,
-    site_url = EXCLUDED.site_url;
-
--- Usuário Administrador Inicial (senha padrão: dg2026admin)
-INSERT INTO usuarios_DGAUTOS (nome, email, senha_hash, perfil, telefone, ativo)
-VALUES (
-    'Administrador DG', 
-    'admin@dgautomoveis.com.br', 
-    '$2a$10$w3aU5l3g/rYyM5HqK5f1E.e9v3pX8yQ1z8x1kL5n3pQ8yQ1z8x1kL', -- dg2026admin bcrypt
-    'admin', 
-    '(47) 99999-8888', 
-    TRUE
-) ON CONFLICT (email) DO NOTHING;
-
--- FIM DO SCRIPT DGAUTOS
+) ON CONFLICT (id) DO NOTHING;
