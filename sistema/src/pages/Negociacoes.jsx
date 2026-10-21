@@ -48,9 +48,9 @@ export default function Negociacoes({ user }) {
   const [editando, setEditando] = useState(null);
 
   const recarregar = () => {
-    getNegociacoes().then(setLista).catch(() => {});
-    getClientes().then(setClientes).catch(() => {});
-    getVeiculos().then(setVeiculos).catch(() => {});
+    getNegociacoes().then((res) => setLista(Array.isArray(res) ? res : [])).catch(() => {});
+    getClientes().then((res) => setClientes(Array.isArray(res) ? res : [])).catch(() => {});
+    getVeiculos().then((res) => setVeiculos(Array.isArray(res) ? res : [])).catch(() => {});
   };
   useEffect(recarregar, []);
 
@@ -66,20 +66,25 @@ export default function Negociacoes({ user }) {
     }
   }, [searchParams, setSearchParams]);
 
-  const filtradas = useMemo(() => lista.filter((n) => {
-    if (filtroStatus && n.status !== filtroStatus) return false;
-    return `${n.cliente_nome || ''} ${n.veic_marca || ''} ${n.veic_modelo || ''} ${n.veic_placa || ''} ${n.troca_modelo || ''}`
-      .toLowerCase().includes(busca.toLowerCase());
-  }), [lista, busca, filtroStatus]);
+  const filtradas = useMemo(() => {
+    const arr = Array.isArray(lista) ? lista : [];
+    return arr.filter((n) => {
+      if (!n) return false;
+      if (filtroStatus && n.status !== filtroStatus) return false;
+      return `${n.cliente_nome || ''} ${n.veic_marca || ''} ${n.veic_modelo || ''} ${n.veic_placa || ''} ${n.troca_modelo || ''}`
+        .toLowerCase().includes(busca.toLowerCase());
+    });
+  }, [lista, busca, filtroStatus]);
 
   const totais = useMemo(() => {
-    const concluidas = lista.filter((n) => n.status === 'concluida');
-    const emAndamento = lista.filter((n) => ['aberta', 'conferencia'].includes(n.status));
+    const arr = Array.isArray(lista) ? lista : [];
+    const concluidas = arr.filter((n) => n?.status === 'concluida');
+    const emAndamento = arr.filter((n) => ['aberta', 'conferencia'].includes(n?.status));
     return {
       fechadasQtd: concluidas.length,
-      fechadasValor: concluidas.reduce((s, n) => s + (Number(n.valor_veiculo) - Number(n.desconto || 0)), 0),
+      fechadasValor: concluidas.reduce((s, n) => s + (Number(n.valor_veiculo || 0) - Number(n.desconto || 0)), 0),
       abertasQtd: emAndamento.length,
-      abertasValor: emAndamento.reduce((s, n) => s + (Number(n.valor_veiculo) - Number(n.desconto || 0)), 0),
+      abertasValor: emAndamento.reduce((s, n) => s + (Number(n.valor_veiculo || 0) - Number(n.desconto || 0)), 0),
     };
   }, [lista]);
 

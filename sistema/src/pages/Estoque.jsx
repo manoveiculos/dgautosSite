@@ -153,14 +153,16 @@ export default function Estoque({ user }) {
   const recarregar = async () => {
     try {
       const [vs, cs] = await Promise.all([getVeiculos(), getClientes()]);
-      setLista(vs);
-      setClientes(cs);
+      const listaArray = Array.isArray(vs) ? vs : [];
+      const clientesArray = Array.isArray(cs) ? cs : [];
+      setLista(listaArray);
+      setClientes(clientesArray);
       if (editando?.id) {
-        const atualizado = vs.find((x) => x.id === editando.id);
+        const atualizado = listaArray.find((x) => x.id === editando.id);
         if (atualizado) setEditando(atualizado);
       }
     } catch (e) {
-      alert(e.message);
+      console.warn('Erro ao carregar estoque:', e);
     }
   };
 
@@ -169,9 +171,9 @@ export default function Estoque({ user }) {
     const novoStatus = v.publicar_site === false ? true : false;
     try {
       const atualizados = await saveVeiculo({ ...v, publicar_site: novoStatus });
-      setLista(atualizados);
+      setLista(Array.isArray(atualizados) ? atualizados : []);
     } catch (err) {
-      alert('Erro ao atualizar status do site: ' + err.message);
+      console.warn('Erro ao atualizar status do site:', err);
     }
   };
 
@@ -184,13 +186,16 @@ export default function Estoque({ user }) {
     }
   }, [searchParams, setSearchParams]);
 
-  const filtrados = useMemo(() => lista.filter((v) => {
-    if (status && v.status !== status) return false;
-    if (propriedade && (v.propriedade || 'PROPRIO') !== propriedade) return false;
-    if (cambio && v.cambio !== cambio) return false;
-    const texto = `${v.marca} ${v.modelo} ${v.modelo_complemento || ''} ${v.placa || ''} ${v.cor || ''} ${v.chassi || ''} ${v.renavam || ''} ${v.codigo_interno || ''}`.toLowerCase();
-    return texto.includes(busca.toLowerCase());
-  }), [lista, busca, status, propriedade, cambio]);
+  const filtrados = useMemo(() => {
+    const arr = Array.isArray(lista) ? lista : [];
+    return arr.filter((v) => {
+      if (status && v.status !== status) return false;
+      if (propriedade && (v.propriedade || 'PROPRIO') !== propriedade) return false;
+      if (cambio && v.cambio !== cambio) return false;
+      const texto = `${v.marca || ''} ${v.modelo || ''} ${v.modelo_complemento || ''} ${v.placa || ''} ${v.cor || ''} ${v.chassi || ''} ${v.renavam || ''} ${v.codigo_interno || ''}`.toLowerCase();
+      return texto.includes(busca.toLowerCase());
+    });
+  }, [lista, busca, status, propriedade, cambio]);
 
   const totais = useMemo(() => {
     const ativos = filtrados.filter((v) => v.status !== 'vendido');

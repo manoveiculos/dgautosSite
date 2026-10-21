@@ -23,16 +23,19 @@ export default function Documentos({ user }) {
 
   useEffect(() => {
     getNegociacoes().then((ns) => {
-      setNegociacoes(ns);
-      if (!negId && ns.length) setNegId(String(ns[0].id));
+      const arr = Array.isArray(ns) ? ns : [];
+      setNegociacoes(arr);
+      if (!negId && arr.length) setNegId(String(arr[0].id));
     }).catch(() => {});
-    getConfig().then((c) => setLoja(c.loja)).catch(() => {});
+    getConfig().then((c) => {
+      if (c?.loja) setLoja(c.loja);
+    }).catch(() => {});
   }, []);
 
-  const neg = useMemo(
-    () => negociacoes.find((n) => String(n.id) === String(negId)) || negociacoes[0] || null,
-    [negociacoes, negId]
-  );
+  const neg = useMemo(() => {
+    const arr = Array.isArray(negociacoes) ? negociacoes : [];
+    return arr.find((n) => String(n.id) === String(negId)) || arr[0] || null;
+  }, [negociacoes, negId]);
 
   const valorLiquido = neg ? Number(neg.valor_veiculo || 0) - Number(neg.desconto || 0) : 0;
   const cidEmp = loja?.cidade || 'Balneário Camboriú';
@@ -57,9 +60,9 @@ export default function Documentos({ user }) {
         <div className="field" style={{ minWidth: 320, flex: 1 }}>
           <label>Selecionar Negociação Vinculada</label>
           <select className="select" value={neg?.id || ''} onChange={(e) => setNegId(e.target.value)}>
-            {negociacoes.map((n) => (
+            {(Array.isArray(negociacoes) ? negociacoes : []).map((n) => (
               <option key={n.id} value={n.id}>
-                #{n.id} — {n.cliente_nome || 'Cliente'} · {n.veic_marca} {n.veic_modelo} ({brl(n.valor_veiculo - (n.desconto || 0))}) [{n.tipo?.toUpperCase()}]
+                #{n.id} — {n.cliente_nome || 'Cliente'} · {n.veic_marca || ''} {n.veic_modelo || ''} ({brl(Number(n.valor_veiculo || 0) - Number(n.desconto || 0))}) [{n.tipo?.toUpperCase()}]
               </option>
             ))}
           </select>

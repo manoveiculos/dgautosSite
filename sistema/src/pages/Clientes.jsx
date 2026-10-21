@@ -14,13 +14,19 @@ export default function Clientes() {
   const [papel, setPapel] = useState('');
   const [editando, setEditando] = useState(null);
 
-  useEffect(() => { getClientes().then(setLista).catch(() => {}); }, []);
+  useEffect(() => {
+    getClientes().then((res) => setLista(Array.isArray(res) ? res : [])).catch(() => {});
+  }, []);
 
-  const filtrados = useMemo(() => lista.filter((c) => {
-    if (papel && c.papel !== papel && c.papel !== 'ambos') return false;
-    return `${c.nome} ${c.cpf_cnpj || ''} ${c.telefone || ''} ${c.cidade || ''} ${c.email || ''}`
-      .toLowerCase().includes(busca.toLowerCase());
-  }), [lista, busca, papel]);
+  const filtrados = useMemo(() => {
+    const arr = Array.isArray(lista) ? lista : [];
+    return arr.filter((c) => {
+      if (!c) return false;
+      if (papel && c.papel !== papel && c.papel !== 'ambos') return false;
+      return `${c.nome || ''} ${c.cpf_cnpj || ''} ${c.telefone || ''} ${c.cidade || ''} ${c.email || ''}`
+        .toLowerCase().includes(busca.toLowerCase());
+    });
+  }, [lista, busca, papel]);
 
   return (
     <>

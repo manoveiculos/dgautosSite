@@ -33,24 +33,29 @@ export default function Financeiro() {
   const [editando, setEditando] = useState(null);
 
   const recarregar = () => {
-    getFinanceiro().then(setLista).catch(() => {});
-    getVeiculos().then(setVeiculos).catch(() => {});
-    getClientes().then(setClientes).catch(() => {});
+    getFinanceiro().then((res) => setLista(Array.isArray(res) ? res : [])).catch(() => {});
+    getVeiculos().then((res) => setVeiculos(Array.isArray(res) ? res : [])).catch(() => {});
+    getClientes().then((res) => setClientes(Array.isArray(res) ? res : [])).catch(() => {});
   };
   useEffect(recarregar, []);
 
-  const filtrados = useMemo(() => lista.filter((f) => {
-    if (filtroTipo && f.tipo !== filtroTipo) return false;
-    if (filtroStatus && f.status !== filtroStatus) return false;
-    return `${f.descricao} ${f.categoria} ${f.veic_modelo || ''} ${f.veic_placa || ''} ${f.cliente_nome || ''}`
-      .toLowerCase().includes(busca.toLowerCase());
-  }), [lista, busca, filtroTipo, filtroStatus]);
+  const filtrados = useMemo(() => {
+    const arr = Array.isArray(lista) ? lista : [];
+    return arr.filter((f) => {
+      if (!f) return false;
+      if (filtroTipo && f.tipo !== filtroTipo) return false;
+      if (filtroStatus && f.status !== filtroStatus) return false;
+      return `${f.descricao || ''} ${f.categoria || ''} ${f.veic_modelo || ''} ${f.veic_placa || ''} ${f.cliente_nome || ''}`
+        .toLowerCase().includes(busca.toLowerCase());
+    });
+  }, [lista, busca, filtroTipo, filtroStatus]);
 
   const resumo = useMemo(() => {
-    const recPagas = lista.filter((f) => f.tipo === 'receita' && f.status === 'pago').reduce((s, f) => s + f.valor, 0);
-    const despPagas = lista.filter((f) => f.tipo === 'despesa' && f.status === 'pago').reduce((s, f) => s + f.valor, 0);
-    const aReceber = lista.filter((f) => f.tipo === 'receita' && f.status !== 'pago').reduce((s, f) => s + f.valor, 0);
-    const aPagar = lista.filter((f) => f.tipo === 'despesa' && f.status !== 'pago').reduce((s, f) => s + f.valor, 0);
+    const arr = Array.isArray(lista) ? lista : [];
+    const recPagas = arr.filter((f) => f.tipo === 'receita' && f.status === 'pago').reduce((s, f) => s + (Number(f.valor) || 0), 0);
+    const despPagas = arr.filter((f) => f.tipo === 'despesa' && f.status === 'pago').reduce((s, f) => s + (Number(f.valor) || 0), 0);
+    const aReceber = arr.filter((f) => f.tipo === 'receita' && f.status !== 'pago').reduce((s, f) => s + (Number(f.valor) || 0), 0);
+    const aPagar = arr.filter((f) => f.tipo === 'despesa' && f.status !== 'pago').reduce((s, f) => s + (Number(f.valor) || 0), 0);
     return { recPagas, despPagas, saldo: recPagas - despPagas, aReceber, aPagar };
   }, [lista]);
 

@@ -4,7 +4,20 @@ import { getConfig, saveConfigLoja, createUsuario, deleteUsuario } from '../stor
 
 export default function Configuracoes() {
   const [aba, setAba] = useState('loja'); // loja | usuarios | auditoria
-  const [loja, setLoja] = useState(null);
+  const [loja, setLoja] = useState({
+    razao_social: 'DG Automóveis Comércio de Veículos Ltda',
+    nome_fantasia: 'DG Automóveis',
+    cnpj: '12.345.678/0001-90',
+    telefone: '(47) 3333-4444',
+    whatsapp: '(47) 99999-8888',
+    email: 'contato@dgautomoveis.com.br',
+    site_url: 'https://dgautomoveis.com.br',
+    endereco: 'Av. Brasil, 1500 - Centro',
+    cidade: 'Balneário Camboriú',
+    uf: 'SC',
+    cep: '88330-000',
+    termos_garantia: 'Garantia legal de 90 (noventa) dias para motor e câmbio, conforme Art. 26 do Código de Defesa do Consumidor.'
+  });
   const [usuarios, setUsuarios] = useState([]);
   const [auditoria, setAuditoria] = useState([]);
   const [novoUser, setNovoUser] = useState({ nome: '', email: '', senha: '', perfil: 'vendedor' });
@@ -12,9 +25,9 @@ export default function Configuracoes() {
 
   const recarregar = () => {
     getConfig().then((c) => {
-      setLoja(c.loja);
-      setUsuarios(c.usuarios || []);
-      setAuditoria(c.auditoria || []);
+      if (c?.loja) setLoja(c.loja);
+      setUsuarios(Array.isArray(c?.usuarios) ? c.usuarios : []);
+      setAuditoria(Array.isArray(c?.auditoria) ? c.auditoria : []);
     }).catch(() => {});
   };
   useEffect(recarregar, []);

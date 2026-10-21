@@ -31,9 +31,9 @@ export default function Crm({ user }) {
   const [editando, setEditando] = useState(null);
 
   useEffect(() => {
-    getOportunidades().then(setLista).catch(() => {});
-    getVeiculos().then(setVeiculos).catch(() => {});
-    getClientes().then(setClientes).catch(() => {});
+    getOportunidades().then((res) => setLista(Array.isArray(res) ? res : [])).catch(() => {});
+    getVeiculos().then((res) => setVeiculos(Array.isArray(res) ? res : [])).catch(() => {});
+    getClientes().then((res) => setClientes(Array.isArray(res) ? res : [])).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -43,18 +43,22 @@ export default function Crm({ user }) {
     }
   }, [searchParams, setSearchParams]);
 
-  const filtradas = useMemo(() => lista.filter((o) => {
-    if (filtroOrigem && o.origem !== filtroOrigem) return false;
-    if (filtroEtiqueta && !(o.etiquetas || []).includes(filtroEtiqueta)) return false;
-    const termo = `${o.nome_lead} ${o.telefone || ''} ${o.veiculo_interesse || ''} ${o.veic_modelo || ''} ${o.troca_veiculo || ''}`.toLowerCase();
-    return termo.includes(busca.toLowerCase());
-  }), [lista, busca, filtroOrigem, filtroEtiqueta]);
+  const filtradas = useMemo(() => {
+    const arr = Array.isArray(lista) ? lista : [];
+    return arr.filter((o) => {
+      if (!o) return false;
+      if (filtroOrigem && o.origem !== filtroOrigem) return false;
+      if (filtroEtiqueta && !(o.etiquetas || []).includes(filtroEtiqueta)) return false;
+      const termo = `${o.nome_lead || ''} ${o.telefone || ''} ${o.veiculo_interesse || ''} ${o.veic_modelo || ''} ${o.troca_veiculo || ''}`.toLowerCase();
+      return termo.includes(busca.toLowerCase());
+    });
+  }, [lista, busca, filtroOrigem, filtroEtiqueta]);
 
-  const acoesPendentes = useMemo(() =>
-    filtradas.filter((o) => o.proxima_acao_data && !['concluido', 'perdido'].includes(o.estagio))
-      .sort((a, b) => new Date(a.proxima_acao_data) - new Date(b.proxima_acao_data)),
-    [filtradas]
-  );
+  const acoesPendentes = useMemo(() => {
+    const arr = Array.isArray(filtradas) ? filtradas : [];
+    return arr.filter((o) => o?.proxima_acao_data && !['concluido', 'perdido'].includes(o.estagio))
+      .sort((a, b) => new Date(a.proxima_acao_data) - new Date(b.proxima_acao_data));
+  }, [filtradas]);
 
   const mover = async (op, novoEstagio) => {
     let motivo = op.motivo_conclusao;
