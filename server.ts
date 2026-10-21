@@ -191,6 +191,16 @@ async function startServer() {
   // casar o evento do Conversions API com a pessoa certa.
   app.set("trust proxy", 1);
 
+  // Security Headers (Hardening contra clickjacking, MIME sniffing e XSS)
+  app.use((_req, res, next) => {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-Frame-Options", "SAMEORIGIN");
+    res.setHeader("X-XSS-Protection", "1; mode=block");
+    res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+    res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+    next();
+  });
+
   app.use(express.json());
 
   // Integrar rotas da API do Sistema ERP/CRM (DG AUTOS)
