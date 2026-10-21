@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="pt-BR" translate="no">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="google" content="notranslate" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0B1120" />
+    <link rel="icon" type="image/png" href="/logo-dg-square.png" />
+    <title>DG Automóveis — Compra, Vende, Troca e Financia em Rio do Sul/SC</title>
+    <meta name="description" content="Entre populares e exclusividades, seu carro tá aqui. +250 carros vendidos em Rio do Sul/SC. Rua Dom Pedro II, 461. Compra, Vende, Troca e Financia." />
+    <meta property="og:title" content="DG Automóveis — Rio do Sul/SC" />
+    <meta property="og:description" content="Entre populares e exclusividades, seu carro tá aqui! +250 carros vendidos. Rua Dom Pedro II, 461 — Rio do Sul/SC." />
+    <meta property="og:image" content="/logo-dg-square.png" />
+    <script>
+      window.__manosVid = (function () {
+        try {
+          var m = document.cookie.match(/(?:^|;\s*)manos_vid=([^;]*)/);
+          if (m) return decodeURIComponent(m[1]);
+          var id = (window.crypto && crypto.randomUUID)
+            ? crypto.randomUUID()
+            : "v_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 11);
+          document.cookie = "manos_vid=" + encodeURIComponent(id) +
+            ";Max-Age=63072000;Path=/;SameSite=Lax" +
+            (location.protocol === "https:" ? ";Secure" : "");
+          return id;
+        } catch (e) { return ""; }
+      })();
+      window.__manosPixelId = (function () {
+        var id = "%VITE_META_PIXEL_ID%";
+        return !id || id.charAt(0) === "%" ? "" : id;
+      })();
+      window.__medirEmProducao =
+        !/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) && !/\.local$/.test(location.hostname);
+    </script>
+    <meta name="manos:meta-pixel" content="%VITE_META_PIXEL_ID%" />
+  </head>
+  <body>
+    <div id="root">
+      <div style="min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:24px;text-align:center;background:#0B1120;color:#FFFFFF;font-family:'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif">
+        <img src="/logo-dg.png" alt="DG Automóveis" style="height:64px;width:auto;object-fit:contain" />
+        <h1 style="font-size:24px;font-weight:800;line-height:1.1;margin:0;font-family:'Bitter',Georgia,serif">DG Automóveis</h1>
+        <p style="font-size:15px;color:#CBD5E1;max-width:340px;line-height:1.5;margin:0">
+          Entre populares e exclusividades, seu carro tá aqui! Compra, venda, troca e financiamento em Rio do Sul/SC.
+        </p>
+        <a href="tel:+5547989169598" style="padding:16px 28px;width:100%;max-width:340px;background:#0052FF;color:#FFFFFF;font-weight:800;font-size:15px;text-transform:uppercase;border-radius:16px;text-decoration:none;text-align:center">Ligar: (47) 98916-9598</a>
+        <a href="https://wa.me/5547989169598" style="padding:16px 28px;width:100%;max-width:340px;background:#22c55e;color:#fff;font-weight:800;font-size:15px;text-transform:uppercase;border-radius:16px;text-decoration:none;text-align:center">Falar no WhatsApp</a>
+        <a href="/estoque" style="padding:14px 28px;width:100%;max-width:340px;background:#1E293B;border:1px solid #334155;color:#38BDF8;font-weight:700;font-size:14px;text-transform:uppercase;border-radius:16px;text-decoration:none;text-align:center">Ver estoque</a>
+        <p style="font-size:12px;color:#94A3B8;max-width:340px;line-height:1.5;margin:0">
+          Rua Dom Pedro II, 461 &ndash; Canoas, Rio do Sul/SC &bull; Seg a Sex 8h&ndash;18h30 &bull; Sáb 8h&ndash;13h
+        </p>
+      </div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

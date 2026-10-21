@@ -1,0 +1,56 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function isValidLead(data) {
+      return data.keys().hasAll(['name', 'phone', 'lead_type', 'created_at', 'updated_at']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
+             data.phone is string && data.phone.size() >= 8 && data.phone.size() <= 20 &&
+             data.lead_type in ['Compra', 'Venda', 'Financiamento'] &&
+             data.created_at == request.time &&
+             data.updated_at == request.time;
+    }
+
+    match /leads_manos_crm/{leadId} {
+      allow create: if (
+        isValidId(leadId) &&
+        isValidLead(incoming())
+      );
+      
+      // For now, allow reading if signed in (CRM side)
+      allow read: if isSignedIn();
+      
+      // Update logic for CRM/Auto-assignment
+      allow update: if isSignedIn() && (
+        incoming().diff(resource.data).affectedKeys().hasOnly(['status', 'assigned_to', 'updated_at']) &&
+        incoming().updated_at == request.time
+      );
+    }
+
+    // Bolão palpites - public create, admin read
+    match /bolao_palpites_manos/{palpiteId} {
+      allow create: if true;
+      allow read: if isSignedIn();
+    }
+
+    match /test/connection {
+      allow read: if true;
+    }
+  }
+}

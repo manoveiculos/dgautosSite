@@ -1,0 +1,188 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Bitter:ital,wght@0,400;0,600;0,700;1,400&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Bitter", Georgia, serif;
+
+  /* DG Automóveis — Carbon Black + Electric Blue + Platinum */
+  --color-manos-red: #0052FF;
+  --color-manos-dark: #0B1120;
+  --color-manos-cream: #F8FAFC;
+  --color-manos-warm: #F1F5F9;
+  --color-manos-sand: #E2E8F0;
+  --color-manos-accent: #FFFFFF;
+}
+
+@layer base {
+  body {
+    @apply bg-manos-cream text-[#0B1120] font-sans min-h-screen selection:bg-manos-red/20;
+    width: 100%;
+    margin: 0;
+    overflow-x: hidden;
+  }
+
+  #root {
+    min-height: 100vh;
+    width: 100%;
+  }
+}
+
+@layer components {
+  .app-viewport {
+    @apply relative flex flex-col overflow-hidden bg-manos-cream w-full mx-auto shadow-2xl;
+    height: 100vh; /* fallback for browsers without svh */
+    height: 100svh;
+    max-width: 500px;
+    box-shadow: 0 24px 60px -20px rgba(0, 82, 255, 0.2), 0 0 0 1px rgba(15, 23, 42, 0.08);
+  }
+
+  @media (min-width: 1024px) {
+    .app-viewport {
+      max-width: 1180px;
+      height: min(860px, calc(100vh - 3rem));
+      border-radius: 32px;
+      border: 1px solid #E2E8F0;
+      margin-top: 1.5rem;
+      margin-bottom: 1.5rem;
+      display: grid;
+      grid-template-columns: 460px 1fr;
+    }
+  }
+
+  .scroll-container {
+    @apply flex-grow overflow-y-auto overflow-x-hidden pt-4 px-5 sm:px-6 lg:px-8;
+    /* extra clearance for the sticky footer + iOS home indicator */
+    padding-bottom: calc(8rem + env(safe-area-inset-bottom));
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  .sticky-footer {
+    @apply fixed bottom-0 left-0 right-0 px-4 py-3 bg-[#F8FAFC]/95 backdrop-blur-md border-t border-[#E2E8F0] z-30 lg:hidden shadow-[0_-4px_20px_rgba(11,17,32,0.12)];
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+  }
+
+  /* Large touch targets */
+  button, a {
+    @apply min-h-[48px] cursor-pointer touch-manipulation select-none;
+  }
+
+  input, textarea {
+    @apply text-base bg-white border border-[#CBD5E1] rounded-2xl focus:border-manos-red/50 transition-all outline-none text-[#0B1120] placeholder:text-[#64748B];
+  }
+
+  .glow-bg {
+    @apply fixed inset-0 pointer-events-none z-[-1];
+    background: radial-gradient(circle at 50% -10%, rgba(0, 82, 255, 0.08) 0%, transparent 60%);
+  }
+
+  .card-glass {
+    @apply bg-white border border-manos-sand rounded-[20px];
+  }
+
+  /* Vendas Rápidas — reusable input + primary button */
+  .input-manos {
+    @apply w-full py-5 px-6 bg-white border border-[#CBD5E1] rounded-2xl focus:border-manos-red/50 transition-all outline-none text-base text-[#0B1120] placeholder:text-[#64748B];
+  }
+  .btn-manos {
+    @apply w-full py-5 bg-manos-red text-manos-accent font-extrabold text-lg uppercase rounded-2xl shadow-[0_12px_36px_rgba(0,82,255,0.25)] hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-30 disabled:scale-100 flex items-center justify-center gap-3 no-underline;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 2px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-manos-red/15 rounded-full;
+  }
+
+  /* Bolão-specific styles */
+  .bolao-viewport {
+    @apply relative flex flex-col overflow-hidden bg-manos-dark;
+    height: 100svh;
+    width: 100%;
+    max-width: 520px;
+    margin: 0 auto;
+    box-shadow: 0 0 100px rgba(0,0,0,0.8);
+  }
+
+  /* Landing Page Vendas Rápidas — Full Width Responsive Design */
+  .vendas-landing-viewport {
+    @apply relative flex flex-col w-full h-full min-h-screen overflow-y-auto bg-[#070707] text-white selection:bg-manos-red/30;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .vendas-glow-bg {
+    @apply fixed inset-0 pointer-events-none z-[0];
+    background: 
+      radial-gradient(circle at 50% 0%, rgba(0, 82, 255, 0.15) 0%, transparent 50%),
+      radial-gradient(circle at 85% 30%, rgba(34, 197, 94, 0.08) 0%, transparent 40%),
+      radial-gradient(circle at 15% 70%, rgba(0, 82, 255, 0.08) 0%, transparent 45%);
+  }
+
+  .vendas-card-glass {
+    @apply bg-white/[0.04] backdrop-blur-2xl border border-white/10 rounded-3xl shadow-2xl;
+  }
+
+  .vendas-card-active {
+    @apply bg-white/[0.07] backdrop-blur-2xl border border-manos-red/40 shadow-[0_10px_40px_rgba(0,82,255,0.15)];
+  }
+
+  .bolao-glow {
+    @apply fixed inset-0 pointer-events-none z-[-1];
+    background: 
+      radial-gradient(circle at 30% -10%, rgba(34, 197, 94, 0.08) 0%, transparent 50%),
+      radial-gradient(circle at 70% -5%, rgba(56, 189, 248, 0.06) 0%, transparent 45%),
+      radial-gradient(circle at 50% 100%, rgba(0, 82, 255, 0.05) 0%, transparent 40%);
+  }
+
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    75% { transform: translateX(4px); }
+  }
+
+  .animate-shake {
+    animation: shake 0.3s ease-in-out;
+  }
+
+  /* Custom Range Slider Styling */
+  .range-slider-dg {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 10px;
+    border-radius: 9999px;
+    outline: none;
+  }
+  .range-slider-dg::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #FFFFFF;
+    border: 3px solid #0052FF;
+    box-shadow: 0 0 14px rgba(0, 82, 255, 0.6);
+    cursor: grab;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .range-slider-dg::-webkit-slider-thumb:hover,
+  .range-slider-dg::-webkit-slider-thumb:active {
+    transform: scale(1.2);
+    box-shadow: 0 0 20px rgba(0, 82, 255, 0.9);
+    cursor: grabbing;
+  }
+  .range-slider-dg::-moz-range-thumb {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #FFFFFF;
+    border: 3px solid #0052FF;
+    box-shadow: 0 0 14px rgba(0, 82, 255, 0.6);
+    cursor: grab;
+  }
+}

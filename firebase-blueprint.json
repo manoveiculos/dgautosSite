@@ -1,0 +1,41 @@
+{
+  "entities": {
+    "Lead": {
+      "title": "Lead",
+      "description": "Qualificated lead from the tri-modal form.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Lead full name." },
+        "phone": { "type": "string", "description": "Lead phone number (WhatsApp)." },
+        "lead_type": { "type": "string", "enum": ["Compra", "Venda", "Financiamento"], "description": "Type of lead based on initial choice." },
+        "details": { 
+          "type": "object", 
+          "description": "Specific details based on lead type.",
+          "properties": {
+            "category": { "type": "string", "description": "Car category (Compra)." },
+            "has_trade": { "type": "string", "description": "If user has vehicle for trade (Compra)." },
+            "payment_method": { "type": "string", "description": "Preferred payment method (Compra)." },
+            "vehicle_interest": { "type": "string", "description": "Specific vehicle of interest from stock (Compra)." },
+            "vehicle_info": { "type": "string", "description": "Vehicle brand, model and year (Venda)." },
+            "condition": { "type": "string", "description": "Vehicle condition (Venda)." },
+            "urgency": { "type": "string", "description": "Sale urgency (Venda)." },
+            "has_car": { "type": "string", "description": "If user already chose a car (Financiamento)." },
+            "down_payment": { "type": "string", "description": "Available down payment (Financiamento)." },
+            "credit_score": { "type": "string", "description": "Estimated credit score (Financiamento)." }
+          }
+        },
+        "status": { "type": "string", "enum": ["new", "assigned", "contacted", "closed"], "description": "Lead status in CRM." },
+        "assigned_to": { "type": "string", "description": "UID of the assigned seller." },
+        "created_at": { "type": "string", "format": "date-time", "description": "Creation timestamp." },
+        "updated_at": { "type": "string", "format": "date-time", "description": "Last update timestamp." }
+      },
+      "required": ["name", "phone", "lead_type", "created_at", "updated_at"]
+    }
+  },
+  "firestore": {
+    "/leads_manos_crm/{leadId}": {
+      "schema": "Lead",
+      "description": "Collection of qualified leads."
+    }
+  }
+}
