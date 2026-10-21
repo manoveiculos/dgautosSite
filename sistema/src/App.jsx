@@ -36,7 +36,7 @@ function Shell({ user, onLogout }) {
 
   return (
     <div className={`altimus-wrapper ${collapsed ? 'sidebar-collapsed' : ''}`}>
-      {/* TOPBAR FIXA PADRÃO DG AUTOS */}
+      {/* TOPBAR FIXA PADRÃO AUTOS 360 · MOTRIZ */}
       <header className="altimus-topbar">
         <div className="altimus-topbar-left">
           <button
@@ -179,13 +179,13 @@ function Shell({ user, onLogout }) {
       <main className="main">
         <Routes>
           <Route path="/" element={<Dashboard user={user} />} />
-          <Route path="/estoque" element={<Estoque />} />
+          <Route path="/estoque" element={<Estoque user={user} />} />
           <Route path="/crm" element={<Crm user={user} />} />
-          <Route path="/clientes" element={<Clientes />} />
-          <Route path="/negociacoes" element={<Negociacoes />} />
-          <Route path="/integracao-site" element={<IntegracaoSite />} />
-          <Route path="/financeiro" element={<Financeiro />} />
-          <Route path="/documentos" element={<Documentos />} />
+          <Route path="/clientes" element={<Clientes user={user} />} />
+          <Route path="/negociacoes" element={<Negociacoes user={user} />} />
+          <Route path="/integracao-site" element={<IntegracaoSite user={user} />} />
+          <Route path="/financeiro" element={<Financeiro user={user} />} />
+          <Route path="/documentos" element={<Documentos user={user} />} />
           <Route path="/configuracoes" element={<Configuracoes />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>

@@ -8,7 +8,8 @@ const SECRET = process.env.JWT_SECRET || 'troque-este-segredo-em-producao';
 const PORT = process.env.PORT || 3333;
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: '15mb' }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // ---------- Auth ----------
 app.post('/api/auth/login', (req, res) => {
@@ -313,7 +314,7 @@ app.post(['/api/public/leads', '/api/leads/site'], (req, res) => {
   res.status(201).json({
     ok: true,
     lead_id: Number(r.lastInsertRowid),
-    mensagem: 'Lead registrado com sucesso no CRM DG AUTOS!'
+    mensagem: 'Lead registrado com sucesso no CRM Motriz!'
   });
 });
 
@@ -727,9 +728,4 @@ app.delete('/api/usuarios/:id', auth, perfil('admin'), (req, res) => {
   res.json(db.prepare('SELECT id, nome, email, perfil FROM usuarios ORDER BY id').all());
 });
 
-export default app;
-export { app };
-
-if (process.env.STANDALONE_MOTRIZ === 'true') {
-  app.listen(PORT, () => console.log(`Motriz API em http://localhost:${PORT}`));
-}
+app.listen(PORT, () => console.log(`Motriz API em http://localhost:${PORT}`));
