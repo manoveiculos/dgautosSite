@@ -223,14 +223,14 @@ export default function EstoquePage() {
                 className="bg-white rounded-2xl border border-[#E2E8F0] overflow-hidden hover:border-[#0052FF] transition-all group flex flex-col justify-between shadow-2xs"
               >
                 <div>
-                  <a href={v.link} className="block relative aspect-4/3 overflow-hidden bg-[#F1F5F9]">
+                  <a href={v.link} className="block relative aspect-4/3 overflow-hidden bg-[#0B1120]">
                     <img
                       src={v.image}
                       alt={v.description}
                       className="w-full h-[200px] object-cover group-hover:scale-105 transition-transform duration-300"
                     />
-                    <span className="absolute top-3 right-3 px-2.5 py-1 bg-[#0B1120]/80 backdrop-blur-xs text-[#FFFFFF] text-[10px] font-extrabold uppercase rounded-lg">
-                      Revisado
+                    <span className="absolute top-3 right-3 px-2.5 py-1 bg-[#0B1120]/85 backdrop-blur-xs text-sky-400 border border-blue-500/30 text-[10px] font-extrabold uppercase rounded-lg">
+                      Garantia DG
                     </span>
                   </a>
 
@@ -240,7 +240,7 @@ export default function EstoquePage() {
                     </h3>
                     
                     <p className="text-xs text-[#475569] font-medium">
-                      {v.year} · {v.km}
+                      {v.year} · {v.km} {v.transmission ? `· ${v.transmission}` : ''}
                     </p>
 
                     <div className="pt-2 border-t border-[#E2E8F0]">
@@ -249,7 +249,7 @@ export default function EstoquePage() {
                         {v.priceFormatted}
                       </span>
                       <span className="text-[11px] text-[#475569] block pt-1">
-                        Aceita troca e financia
+                        Aceita troca e financia em até 60x
                       </span>
                     </div>
                   </div>
@@ -257,14 +257,14 @@ export default function EstoquePage() {
 
                 <div className="p-4 pt-0">
                   <a
-                    href={waLink(`Olá! Tenho interesse no ${v.description} (${v.priceFormatted}). Estável no estoque?`)}
+                    href={waLink(`Olá! Vi o ${v.description} (${v.priceFormatted}) no site da DG Automóveis e gostaria de mais informações.`)}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={() => track('whatsapp_click', { pagina: '/estoque', vehicleId: v.id })}
-                    className="w-full py-3 bg-[#0052FF] hover:bg-[#003ECC] text-[#FFFFFF] font-bold text-xs uppercase rounded-xl flex items-center justify-center gap-2 transition-all shadow-xs min-h-[44px]"
+                    className="w-full py-3 bg-[#0B1120] hover:bg-[#0052FF] text-[#FFFFFF] font-bold text-xs uppercase rounded-xl flex items-center justify-center gap-2 transition-all shadow-xs min-h-[44px]"
                   >
                     <MessageCircle className="w-4 h-4 text-emerald-400" />
-                    <span>Falar no WhatsApp</span>
+                    <span>Chamar Consultor DG</span>
                   </a>
                 </div>
               </div>

@@ -22,7 +22,7 @@ import {
   Landmark
 } from 'lucide-react';
 import { SiteShell } from '../ManosUI';
-import { LOJA, SOCIAL, CONTATO, waLink, brl } from '../../lib/manos';
+import { LOJA, SOCIAL, CONTATO, waLink, brl, calcParcela } from '../../lib/manos';
 import { fetchStock, type Vehicle } from '../../services/stockService';
 import { track } from '../../lib/track';
 import { navigate } from '../../lib/router';
@@ -465,7 +465,7 @@ export default function HomePage() {
                 return (
                   <div
                     key={v.id}
-                    className="bg-white rounded-2xl border-2 border-[#0052FF]/30 overflow-hidden hover:border-[#0052FF] transition-all group flex flex-col justify-between shadow-md"
+                    className="bg-white rounded-2xl border border-slate-200 overflow-hidden hover:border-[#0052FF] transition-all group flex flex-col justify-between shadow-sm hover:shadow-xl"
                   >
                     <div>
                       <a href={v.link} className="block relative aspect-4/3 overflow-hidden bg-[#0B1120]">
@@ -474,56 +474,42 @@ export default function HomePage() {
                           alt={v.description}
                           className="w-full h-[220px] object-cover group-hover:scale-105 transition-transform duration-300"
                         />
-                        <span className="absolute top-3 right-3 px-2.5 py-1 bg-[#0052FF] text-white text-[10px] font-black uppercase rounded-lg shadow-md">
-                          💡 Simulação Pronta
+                        <span className="absolute top-3 right-3 px-2.5 py-1 bg-[#0B1120]/85 backdrop-blur-xs text-sky-400 border border-blue-500/30 text-[10px] font-extrabold uppercase rounded-lg">
+                          Garantia DG
                         </span>
                       </a>
 
-                      <div className="p-4 space-y-3">
-                        <div>
-                          <h3 className="font-serif font-bold text-base text-[#0B1120] group-hover:text-[#0052FF] transition-colors leading-snug">
-                            <a href={v.link}>{v.description}</a>
-                          </h3>
-                          <p className="text-xs text-slate-500 font-medium">
-                            {v.year} · {v.km} {v.transmission ? `· ${v.transmission}` : ''}
-                          </p>
-                        </div>
+                      <div className="p-4 space-y-2.5">
+                        <h3 className="font-serif font-bold text-base text-[#0B1120] group-hover:text-[#0052FF] transition-colors leading-snug">
+                          <a href={v.link}>{v.description}</a>
+                        </h3>
+                        
+                        <p className="text-xs text-slate-500 font-medium">
+                          {v.year} · {v.km} {v.transmission ? `· ${v.transmission}` : ''}
+                        </p>
 
-                        <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] uppercase font-bold text-blue-900 block">
-                              {sim.ehRecomendada30 ? 'Simulação Recomendada' : 'Simulação de Parcela'}
-                            </span>
-                            <span className="text-[9px] bg-blue-100 text-blue-900 font-extrabold px-1.5 py-0.5 rounded border border-blue-300">
-                              *Sujeito à aprovação
-                            </span>
-                          </div>
-                          <div className="flex items-baseline justify-between">
-                            <span className="text-xs font-bold text-slate-800">{sim.textoEntrada}</span>
-                            <span className="text-base font-black text-[#0052FF]">{sim.textoParcela}</span>
-                          </div>
-                          <p className="text-[9px] text-slate-600 leading-tight border-t border-blue-200/60 pt-1">
-                            *Simulação estimada em 48x. Aceitamos seu usado na troca.
-                          </p>
-                        </div>
-
-                        <div className="flex items-center justify-between text-xs text-slate-600 pt-1">
-                          <span>Preço à vista:</span>
-                          <strong className="text-[#0B1120] font-extrabold text-sm">{v.priceFormatted}</strong>
+                        <div className="pt-2 border-t border-slate-100">
+                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Preço à vista</span>
+                          <span className="text-2xl font-extrabold text-[#0052FF] leading-none block mt-0.5">
+                            {v.priceFormatted}
+                          </span>
+                          <span className="text-[11px] text-slate-500 block pt-1">
+                            {sim.textoParcela !== 'R$ 0' ? `Opção estimada em ${sim.textoParcela} · Aceita troca` : 'Aceita troca e financia'}
+                          </span>
                         </div>
                       </div>
                     </div>
 
                     <div className="p-4 pt-0">
                       <a
-                        href={waLink(`Olá! Vi o ${v.description} (${v.priceFormatted}) no site da DG Automóveis.\nFiz a simulação com ${sim.textoEntrada} + ${sim.textoParcela}.\nGostaria de atendimento para este modelo!`)}
+                        href={waLink(`Olá! Vi o ${v.description} (${v.priceFormatted}) no site da DG Automóveis e gostaria de mais informações.`)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        onClick={() => track('whatsapp_click', { pagina: '/', vehicleId: v.id, simulacao: sim.textoParcela })}
-                        className="w-full py-3.5 bg-[#0052FF] hover:bg-[#003ECC] text-white font-bold text-xs uppercase rounded-xl flex items-center justify-center gap-2 transition-all shadow-md min-h-[44px]"
+                        onClick={() => track('whatsapp_click', { pagina: '/', vehicleId: v.id })}
+                        className="w-full py-3 bg-[#0B1120] hover:bg-[#0052FF] text-white font-bold text-xs uppercase rounded-xl flex items-center justify-center gap-2 transition-all shadow-xs min-h-[44px]"
                       >
-                        <MessageCircle className="w-4 h-4 fill-current" />
-                        <span>Chamar sobre esta parcela no Whats</span>
+                        <MessageCircle className="w-4 h-4 text-emerald-400" />
+                        <span>Chamar Consultor DG</span>
                       </a>
                     </div>
                   </div>
