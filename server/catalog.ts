@@ -19,7 +19,8 @@ const OPENAI_ADS_PIXEL_ID =
   process.env.VITE_OPENAI_ADS_PIXEL_ID || process.env.OPENAI_ADS_PIXEL_ID || '';
 
 const META_PIXEL_ID = PIXEL_ID;
-const FEED_URL = process.env.DG_FEED_URL || '';
+export const DEFAULT_DG_FEED_URL = 'http://localhost:3333/api/estoquejson?estoque=20706bbe-4a09-4a03-8e2a-1f47e73d7a14';
+const FEED_URL = process.env.DG_FEED_URL || DEFAULT_DG_FEED_URL;
 
 export const DEALER = {
   name: 'DG Automóveis',
@@ -154,20 +155,28 @@ function parseFeed(raw: string): FeedVehicle[] {
       const data = JSON.parse(trimmed);
       const list = Array.isArray(data) ? data : (data.veiculos || []);
       const vehicles: FeedVehicle[] = list.map((v: any) => {
-        const desc = v.descricao || v.observacao || v.observacao_anuncio || `${v.marca} ${v.modelo} ${v.versao || ''}`.trim();
+        const brandName = (v.marca || '').trim() || 'DG Automóveis';
+        const modelName = (v.modelo || '').trim();
+        const versaoName = (v.versao || '').trim();
+        const fullName = `${brandName} ${modelName} ${versaoName}`.trim() || 'Veículo DG Automóveis';
+        const desc = (v.descricao || v.observacao_anuncio || v.observacao || fullName).trim();
         const price = Number(v.valorVenda || v.valor || v.preco || 0);
         const kmNumber = Number(v.km || 0);
         const ops = Array.isArray(v.opcionais) ? v.opcionais : [];
         const imgs = Array.isArray(v.fotos) && v.fotos.length > 0
           ? v.fotos
           : (Array.isArray(v.images) && v.images.length > 0 ? v.images : (v.foto ? [v.foto] : []));
+        const anoFormatado = (v.anoFabricacao && v.anoModelo) 
+          ? `${v.anoFabricacao}/${v.anoModelo}` 
+          : String(v.anoModelo || v.anoFabricacao || v.ano || '');
+
         return {
           id: String(v.id),
-          slug: `${slugify(desc)}-${v.id}`,
-          title: desc,
-          brand: v.marca || desc.split(/\s|-/)[0] || 'DG Automóveis',
+          slug: `${slugify(fullName)}-${v.id}`,
+          title: fullName,
+          brand: brandName,
           tipo: String(v.tipo || '1'),
-          year: String(v.anoModelo || v.ano || ''),
+          year: anoFormatado,
           price,
           priceFormatted: price > 0 ? formatBRL(price) : 'Consulte',
           km: formatKm(kmNumber),

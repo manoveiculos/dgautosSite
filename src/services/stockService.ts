@@ -17,8 +17,8 @@ export interface Vehicle {
 }
 
 const STOCK_JSON_URL = '/api/stock';
-const CACHE_KEY = 'dg_automoveis_stock_cache_v2';
-const CACHE_TTL = 1000 * 60 * 5; // 5 minutes
+const CACHE_KEY = 'dg_automoveis_stock_cache_v3';
+const CACHE_TTL = 1000 * 60 * 3; // 3 minutes
 
 function slugify(input: string): string {
   return (input || '')
