@@ -75,7 +75,7 @@ const EMPTY_VEICULO = {
   renavam: '',
   crv: '',
   numero_motor: '',
-  cidade_emplacamento: 'Balneário Camboriú - SC',
+  cidade_emplacamento: 'Rio do Sul - SC',
   ipva_exercicio: '2026',
   licenciamento_exercicio: '2026',
   dpvat_exercicio: '2026',
@@ -1302,7 +1302,7 @@ function VeiculoModal({ inicial, clientes, onClose, onSave, onCancelarVeiculo, o
                 </div>
                 <div className="field">
                   <label>Cidade / UF de Emplacamento</label>
-                  <input className="input" value={f.cidade_emplacamento ?? 'Balneário Camboriú - SC'} onChange={set('cidade_emplacamento')} />
+                  <input className="input" value={f.cidade_emplacamento ?? 'Rio do Sul - SC'} onChange={set('cidade_emplacamento')} />
                 </div>
               </div>
             </div>

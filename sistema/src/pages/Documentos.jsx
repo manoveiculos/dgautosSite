@@ -38,7 +38,7 @@ export default function Documentos({ user }) {
   }, [negociacoes, negId]);
 
   const valorLiquido = neg ? Number(neg.valor_veiculo || 0) - Number(neg.desconto || 0) : 0;
-  const cidEmp = loja?.cidade || 'Balneário Camboriú';
+  const cidEmp = loja?.cidade || 'Rio do Sul';
   const sigEmp = loja?.uf || 'SC';
   const nomCli = neg?.cliente_nome || 'Cliente Comprador';
   const qvnAut = neg?.veic_km ? `${Number(neg.veic_km).toLocaleString('pt-BR')} km` : 'Não informado';
@@ -98,8 +98,8 @@ export default function Documentos({ user }) {
                 {loja?.nome_fantasia || 'DG Automóveis'}
               </h2>
               <div style={{ fontSize: '.82rem', color: '#4b5563', marginTop: 4 }}>
-                <strong>{loja?.razao_social || 'DGAUTOS COMÉRCIO DE VEÍCULOS LTDA'}</strong> · CNPJ: {loja?.cnpj || '12.345.678/0001-90'}<br />
-                {loja?.endereco || 'Rua 3100, nº 450'} — {cidEmp}/{sigEmp} · Telefone: {loja?.telefone || '(47) 3360-0000'}
+                <strong>{loja?.razao_social || 'DG Automóveis Comércio de Veículos Ltda'}</strong> · CNPJ: {loja?.cnpj || '35.236.994/0001-24'}<br />
+                {loja?.endereco || 'Rua Dom Pedro II, 461 - Canoas'} — {cidEmp}/{sigEmp} · Telefone: {loja?.telefone || '(47) 98916-9598'}
               </div>
             </div>
             <div style={{ textAlign: 'right', fontSize: '.84rem' }}>
@@ -113,7 +113,7 @@ export default function Documentos({ user }) {
 
           {/* DADOS DAS PARTES */}
           <div className="doc-box" style={{ background: '#f8fafc', border: '1px solid #cbd5e1', padding: 12, borderRadius: 6, marginBottom: 16 }}>
-            <strong>VENDEDOR(A) / LOJA:</strong> {loja?.razao_social || 'DG Automóveis Ltda'}, CNPJ nº {loja?.cnpj || '12.345.678/0001-90'}, com sede em {loja?.endereco || 'Av. Central, 100'}, {cidEmp}/{sigEmp}.<br />
+            <strong>VENDEDOR(A) / LOJA:</strong> {loja?.razao_social || 'DG Automóveis Comércio de Veículos Ltda'}, CNPJ nº {loja?.cnpj || '35.236.994/0001-24'}, com sede em {loja?.endereco || 'Rua Dom Pedro II, 461 - Canoas'}, {cidEmp}/{sigEmp}.<br />
             <strong>COMPRADOR(A) / CLIENTE:</strong> <strong>{nomCli}</strong>, inscrito(a) no CPF/CNPJ sob nº <strong>{neg.cliente_cpf_cnpj || '___.___.___-__'}</strong>, telefone {neg.cliente_telefone || '__________'}, residente e domiciliado(a) em {neg.cliente_endereco || '________________'}, {neg.cliente_cidade || cidEmp}/{neg.cliente_uf || sigEmp}.
           </div>
 
@@ -456,7 +456,7 @@ export default function Documentos({ user }) {
             <div className="doc-sign-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 30, marginTop: 20 }}>
               <div className="doc-sign-line" style={{ textAlign: 'center', borderTop: '1px solid #111827', paddingTop: 8 }}>
                 <strong>{loja?.nome_fantasia || 'DG Automóveis'}</strong><br />
-                <span style={{ fontSize: '.78rem', color: '#4b5563' }}>Vendedora / Loja ({loja?.cnpj})</span>
+                <span style={{ fontSize: '.78rem', color: '#4b5563' }}>Vendedora / Loja ({loja?.cnpj || '35.236.994/0001-24'})</span>
               </div>
               <div className="doc-sign-line" style={{ textAlign: 'center', borderTop: '1px solid #111827', paddingTop: 8 }}>
                 <strong>{nomCli}</strong><br />

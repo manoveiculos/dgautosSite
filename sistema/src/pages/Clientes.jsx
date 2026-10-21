@@ -5,7 +5,7 @@ import { getClientes, saveCliente, deleteCliente, ORIGENS_LEAD } from '../store'
 const EMPTY_CLI = {
   tipo_pessoa: 'PF', papel: 'cliente', nome: '', cpf_cnpj: '', rg_ie: '',
   data_nasc: '', telefone: '', whatsapp: '', email: '', cep: '',
-  endereco: '', cidade: 'Balneário Camboriú', uf: 'SC', origem: 'WHATSAPP', observacoes: ''
+  endereco: '', cidade: 'Rio do Sul', uf: 'SC', origem: 'WHATSAPP', observacoes: ''
 };
 
 export default function Clientes() {
