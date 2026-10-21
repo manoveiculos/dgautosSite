@@ -203,7 +203,7 @@ export async function getVeiculos() {
       .select('*')
       .order('id', { ascending: false });
 
-    if (!error && Array.isArray(data) && data.length > 0) {
+    if (!error && Array.isArray(data)) {
       const formatados = data.map((v) => ({
         ...v,
         preco: Number(v.preco || 0),
@@ -225,83 +225,57 @@ export async function getVeiculos() {
   }
 
   const emCache = lerCache('veiculos', null);
-  if (Array.isArray(emCache) && emCache.length > 0) return emCache;
-  salvarCache('veiculos', VEICULOS_SHOWROOM_DEMO);
-  return VEICULOS_SHOWROOM_DEMO;
+  if (Array.isArray(emCache)) return emCache;
+  return [];
 }
 
 export async function saveVeiculo(v) {
-  const listaAtual = await getVeiculos();
-  const id = v.id || Date.now();
-  const novoVeiculo = {
-    ...v,
-    id,
-    preco: Number(v.preco || 0),
-    custo: Number(v.custo || 0),
-    despesas_veiculo: Number(v.despesas_veiculo || 0),
-    foto: v.foto || (Array.isArray(v.fotos) ? v.fotos[0] : ''),
-    fotos: Array.isArray(v.fotos) ? v.fotos : (v.foto ? [v.foto] : []),
+  const isUpdate = Boolean(v.id && Number(v.id) > 0 && Number(v.id) < 1000000000);
+  const payload = {
+    marca: v.marca,
+    modelo: v.modelo,
+    modelo_complemento: v.modelo_complemento || '',
+    ano: v.ano || '2023/2024',
+    km: Number(v.km) || 0,
+    cor: v.cor || 'Branco',
+    combustivel: v.combustivel || 'Flex',
+    cambio: v.cambio || 'Automático',
+    placa: (v.placa || '').toUpperCase(),
+    chassi: (v.chassi || '').toUpperCase(),
+    renavam: v.renavam || '',
+    custo: Number(v.custo) || 0,
+    despesas_veiculo: Number(v.despesas_veiculo) || 0,
+    preco: Number(v.preco) || 0,
+    status: v.status || 'disponivel',
     publicar_site: v.publicar_site !== false,
+    destaque_site: !!v.destaque_site,
+    foto_capa: v.foto || (Array.isArray(v.fotos) ? v.fotos[0] : ''),
+    dados_altimus: v
   };
 
-  // Salva no Supabase
   try {
-    await supabase.from('veiculos_DGAUTOS').upsert({
-      id: typeof id === 'number' && id < 1000000000 ? id : undefined,
-      marca: novoVeiculo.marca,
-      modelo: novoVeiculo.modelo,
-      modelo_complemento: novoVeiculo.modelo_complemento || '',
-      ano: novoVeiculo.ano || '2023/2024',
-      km: Number(novoVeiculo.km) || 0,
-      cor: novoVeiculo.cor || 'Branco',
-      combustivel: novoVeiculo.combustivel || 'Flex',
-      cambio: novoVeiculo.cambio || 'Automático',
-      placa: (novoVeiculo.placa || '').toUpperCase(),
-      chassi: (novoVeiculo.chassi || '').toUpperCase(),
-      renavam: novoVeiculo.renavam || '',
-      custo: novoVeiculo.custo,
-      despesas_veiculo: novoVeiculo.despesas_veiculo,
-      preco: novoVeiculo.preco,
-      status: novoVeiculo.status || 'disponivel',
-      publicar_site: novoVeiculo.publicar_site,
-      destaque_site: !!novoVeiculo.destaque_site,
-      foto_capa: novoVeiculo.foto,
-      dados_altimus: novoVeiculo
-    });
+    if (isUpdate) {
+      await supabase.from('veiculos_DGAUTOS').update(payload).eq('id', Number(v.id));
+    } else {
+      await supabase.from('veiculos_DGAUTOS').insert([payload]);
+    }
   } catch (err) {
     console.warn('Supabase saveVeiculo fallback:', err);
   }
 
-  const idx = listaAtual.findIndex((x) => x.id === v.id);
-  let atualizada = [];
-  if (idx >= 0) {
-    atualizada = [...listaAtual];
-    atualizada[idx] = novoVeiculo;
-  } else {
-    atualizada = [novoVeiculo, ...listaAtual];
-  }
-  salvarCache('veiculos', atualizada);
-  return atualizada;
+  return await getVeiculos();
 }
 
 export async function deleteVeiculo(id) {
   try {
-    await supabase.from('veiculos_DGAUTOS').delete().eq('id', id);
+    await supabase.from('veiculos_DGAUTOS').delete().eq('id', Number(id));
   } catch {}
-  const lista = (await getVeiculos()).filter((v) => v.id !== id);
-  salvarCache('veiculos', lista);
-  return lista;
+  return await getVeiculos();
 }
 
 // ==============================================================================
 // 3. CLIENTES & FORNECEDORES
 // ==============================================================================
-const CLIENTES_PADRAO = [
-  { id: 1, nome: 'Cliente Balcão / Não Identificado', tipo_pessoa: 'PF', papel: 'cliente', cidade: 'Balneário Camboriú', uf: 'SC' },
-  { id: 2, nome: 'Douglas Silveira', tipo_pessoa: 'PF', papel: 'ambos', cpf_cnpj: '123.456.789-00', telefone: '(47) 99999-1111', cidade: 'Itajaí', uf: 'SC' },
-  { id: 3, nome: 'Manoel Carros Ltda', tipo_pessoa: 'PJ', papel: 'fornecedor', cpf_cnpj: '98.765.432/0001-99', telefone: '(47) 3333-2222', cidade: 'Balneário Camboriú', uf: 'SC' }
-];
-
 export async function getClientes() {
   if (IS_LOCAL) {
     try {
@@ -312,7 +286,7 @@ export async function getClientes() {
 
   try {
     const { data, error } = await supabase.from('clientes_DGAUTOS').select('*').order('nome');
-    if (!error && Array.isArray(data) && data.length > 0) {
+    if (!error && Array.isArray(data)) {
       salvarCache('clientes', data);
       return data;
     }
@@ -321,44 +295,40 @@ export async function getClientes() {
   }
 
   const emCache = lerCache('clientes', null);
-  if (Array.isArray(emCache) && emCache.length > 0) return emCache;
-  salvarCache('clientes', CLIENTES_PADRAO);
-  return CLIENTES_PADRAO;
+  if (Array.isArray(emCache)) return emCache;
+  return [];
 }
 
 export async function saveCliente(c) {
-  const lista = await getClientes();
-  const id = c.id || Date.now();
-  const novoCliente = { ...c, id };
+  const isUpdate = Boolean(c.id && Number(c.id) > 0 && Number(c.id) < 1000000000);
+  const payload = {
+    nome: c.nome,
+    tipo_pessoa: c.tipo_pessoa || 'PF',
+    papel: c.papel || 'cliente',
+    cpf_cnpj: c.cpf_cnpj || '',
+    telefone: c.telefone || '',
+    whatsapp: c.whatsapp || '',
+    email: c.email || '',
+    cidade: c.cidade || 'Balneário Camboriú',
+    uf: c.uf || 'SC'
+  };
 
   try {
-    await supabase.from('clientes_DGAUTOS').upsert({
-      id: typeof id === 'number' && id < 1000000000 ? id : undefined,
-      nome: novoCliente.nome,
-      tipo_pessoa: novoCliente.tipo_pessoa || 'PF',
-      papel: novoCliente.papel || 'cliente',
-      cpf_cnpj: novoCliente.cpf_cnpj || '',
-      telefone: novoCliente.telefone || '',
-      whatsapp: novoCliente.whatsapp || '',
-      email: novoCliente.email || '',
-      cidade: novoCliente.cidade || 'Balneário Camboriú',
-      uf: novoCliente.uf || 'SC'
-    });
+    if (isUpdate) {
+      await supabase.from('clientes_DGAUTOS').update(payload).eq('id', Number(c.id));
+    } else {
+      await supabase.from('clientes_DGAUTOS').insert([payload]);
+    }
   } catch {}
 
-  const idx = lista.findIndex((x) => x.id === c.id);
-  const atualizada = idx >= 0 ? lista.map((x) => (x.id === c.id ? novoCliente : x)) : [novoCliente, ...lista];
-  salvarCache('clientes', atualizada);
-  return atualizada;
+  return await getClientes();
 }
 
 export async function deleteCliente(id) {
   try {
-    await supabase.from('clientes_DGAUTOS').delete().eq('id', id);
+    await supabase.from('clientes_DGAUTOS').delete().eq('id', Number(id));
   } catch {}
-  const lista = (await getClientes()).filter((c) => c.id !== id);
-  salvarCache('clientes', lista);
-  return lista;
+  return await getClientes();
 }
 
 // ==============================================================================
@@ -404,60 +374,64 @@ export async function getOportunidades() {
 
   try {
     const { data, error } = await supabase.from('oportunidades_crm_DGAUTOS').select('*').order('id', { ascending: false });
-    if (!error && Array.isArray(data) && data.length > 0) {
+    if (!error && Array.isArray(data)) {
       salvarCache('crm', data);
       return data;
     }
   } catch {}
 
   const emCache = lerCache('crm', null);
-  if (Array.isArray(emCache) && emCache.length > 0) return emCache;
-  salvarCache('crm', CRM_PADRAO);
-  return CRM_PADRAO;
+  if (Array.isArray(emCache)) return emCache;
+  return [];
 }
 
 export async function saveOportunidade(o) {
-  const lista = await getOportunidades();
-  const id = o.id || Date.now();
-  const novaOp = { ...o, id };
+  const isUpdate = Boolean(o.id && Number(o.id) > 0 && Number(o.id) < 1000000000);
+  const payload = {
+    nome_lead: o.nome_lead,
+    telefone: o.telefone || '',
+    email: o.email || '',
+    cliente_id: o.cliente_id ? Number(o.cliente_id) : null,
+    veiculo_id: o.veiculo_id ? Number(o.veiculo_id) : null,
+    veiculo_interesse: o.veiculo_interesse || '',
+    troca_veiculo: o.troca_veiculo || '',
+    valor_proposta: Number(o.valor_proposta) || 0,
+    origem: o.origem || 'WHATSAPP',
+    estagio: o.estagio || 'pendente',
+    etiquetas: Array.isArray(o.etiquetas) ? o.etiquetas : [],
+    proxima_acao_tipo: o.proxima_acao_tipo || 'Contato',
+    proxima_acao_data: o.proxima_acao_data || null,
+    motivo_conclusao: o.motivo_conclusao || null,
+    historico: Array.isArray(o.historico) ? o.historico : []
+  };
 
   try {
-    await supabase.from('oportunidades_crm_DGAUTOS').upsert({
-      id: typeof id === 'number' && id < 1000000000 ? id : undefined,
-      nome_lead: novaOp.nome_lead,
-      telefone: novaOp.telefone,
-      email: novaOp.email,
-      origem: novaOp.origem || 'WHATSAPP',
-      estagio: novaOp.estagio || 'pendente',
-      veiculo_interesse: novaOp.veiculo_interesse,
-      troca_veiculo: novaOp.troca_veiculo,
-      valor_proposta: Number(novaOp.valor_proposta) || 0
-    });
-  } catch {}
+    if (isUpdate) {
+      await supabase.from('oportunidades_crm_DGAUTOS').update(payload).eq('id', Number(o.id));
+    } else {
+      await supabase.from('oportunidades_crm_DGAUTOS').insert([payload]);
+    }
+  } catch (err) {
+    console.warn('Supabase saveOportunidade:', err);
+  }
 
-  const idx = lista.findIndex((x) => x.id === o.id);
-  const atualizada = idx >= 0 ? lista.map((x) => (x.id === o.id ? novaOp : x)) : [novaOp, ...lista];
-  salvarCache('crm', atualizada);
-  return atualizada;
+  return await getOportunidades();
 }
 
 export async function moveOportunidadeEstagio(id, estagio, motivo_conclusao) {
-  const lista = await getOportunidades();
-  const atualizada = lista.map((o) => (o.id === id ? { ...o, estagio, motivo_conclusao } : o));
-  salvarCache('crm', atualizada);
   try {
-    await supabase.from('oportunidades_crm_DGAUTOS').update({ estagio, motivo_conclusao }).eq('id', id);
+    await supabase.from('oportunidades_crm_DGAUTOS').update({ estagio, motivo_conclusao }).eq('id', Number(id));
   } catch {}
-  return atualizada;
+  return await getOportunidades();
 }
 
 export async function deleteOportunidade(id) {
   try {
-    await supabase.from('oportunidades_crm_DGAUTOS').delete().eq('id', id);
-  } catch {}
-  const lista = (await getOportunidades()).filter((o) => o.id !== id);
-  salvarCache('crm', lista);
-  return lista;
+    await supabase.from('oportunidades_crm_DGAUTOS').delete().eq('id', Number(id));
+  } catch (err) {
+    console.warn('Supabase deleteOportunidade:', err);
+  }
+  return await getOportunidades();
 }
 
 // ==============================================================================
@@ -473,7 +447,7 @@ export async function getNegociacoes() {
 
   try {
     const { data, error } = await supabase.from('negociacoes_DGAUTOS').select('*').order('id', { ascending: false });
-    if (!error && Array.isArray(data) && data.length > 0) {
+    if (!error && Array.isArray(data)) {
       salvarCache('negociacoes', data);
       return data;
     }
@@ -485,44 +459,44 @@ export async function getNegociacoes() {
 }
 
 export async function saveNegociacao(n) {
-  const lista = await getNegociacoes();
-  const id = n.id || Date.now();
-  const novaNeg = { ...n, id, valor_veiculo: Number(n.valor_veiculo || 0), desconto: Number(n.desconto || 0) };
+  const isUpdate = Boolean(n.id && Number(n.id) > 0 && Number(n.id) < 1000000000);
+  const payload = {
+    tipo: n.tipo || 'venda',
+    status: n.status || 'aberta',
+    cliente_id: n.cliente_id ? Number(n.cliente_id) : null,
+    veiculo_id: n.veiculo_id ? Number(n.veiculo_id) : null,
+    valor_veiculo: Number(n.valor_veiculo) || 0,
+    desconto: Number(n.desconto) || 0,
+    canal_venda: n.canal_venda || 'LOJA',
+    troca_modelo: n.troca_modelo || '',
+    troca_valor: Number(n.troca_valor) || 0,
+    pagamentos: Array.isArray(n.pagamentos) ? n.pagamentos : [],
+    observacoes: n.observacoes || ''
+  };
 
   try {
-    await supabase.from('negociacoes_DGAUTOS').upsert({
-      id: typeof id === 'number' && id < 1000000000 ? id : undefined,
-      tipo: novaNeg.tipo || 'venda',
-      status: novaNeg.status || 'aberta',
-      valor_veiculo: novaNeg.valor_veiculo,
-      desconto: novaNeg.desconto,
-      observacoes: novaNeg.observacoes || ''
-    });
+    if (isUpdate) {
+      await supabase.from('negociacoes_DGAUTOS').update(payload).eq('id', Number(n.id));
+    } else {
+      await supabase.from('negociacoes_DGAUTOS').insert([payload]);
+    }
   } catch {}
 
-  const idx = lista.findIndex((x) => x.id === n.id);
-  const atualizada = idx >= 0 ? lista.map((x) => (x.id === n.id ? novaNeg : x)) : [novaNeg, ...lista];
-  salvarCache('negociacoes', atualizada);
-  return atualizada;
+  return await getNegociacoes();
 }
 
 export async function concluirNegociacao(id) {
-  const lista = await getNegociacoes();
-  const atualizada = lista.map((n) => (n.id === id ? { ...n, status: 'concluida' } : n));
-  salvarCache('negociacoes', atualizada);
   try {
-    await supabase.from('negociacoes_DGAUTOS').update({ status: 'concluida' }).eq('id', id);
+    await supabase.from('negociacoes_DGAUTOS').update({ status: 'concluida' }).eq('id', Number(id));
   } catch {}
-  return atualizada;
+  return await getNegociacoes();
 }
 
 export async function deleteNegociacao(id) {
   try {
-    await supabase.from('negociacoes_DGAUTOS').delete().eq('id', id);
+    await supabase.from('negociacoes_DGAUTOS').delete().eq('id', Number(id));
   } catch {}
-  const lista = (await getNegociacoes()).filter((n) => n.id !== id);
-  salvarCache('negociacoes', lista);
-  return lista;
+  return await getNegociacoes();
 }
 
 // ==============================================================================
@@ -538,7 +512,7 @@ export async function getFinanceiro() {
 
   try {
     const { data, error } = await supabase.from('financeiro_DGAUTOS').select('*').order('vencimento', { ascending: true });
-    if (!error && Array.isArray(data) && data.length > 0) {
+    if (!error && Array.isArray(data)) {
       salvarCache('financeiro', data);
       return data;
     }
@@ -550,45 +524,39 @@ export async function getFinanceiro() {
 }
 
 export async function saveFinanceiro(f) {
-  const lista = await getFinanceiro();
-  const id = f.id || Date.now();
-  const novoFin = { ...f, id, valor: Number(f.valor || 0) };
+  const isUpdate = Boolean(f.id && Number(f.id) > 0 && Number(f.id) < 1000000000);
+  const payload = {
+    tipo: f.tipo || 'despesa',
+    categoria: f.categoria || 'Outros',
+    descricao: f.descricao,
+    valor: Number(f.valor) || 0,
+    vencimento: f.vencimento || new Date().toISOString().slice(0, 10),
+    status: f.status || 'pendente'
+  };
 
   try {
-    await supabase.from('financeiro_DGAUTOS').upsert({
-      id: typeof id === 'number' && id < 1000000000 ? id : undefined,
-      tipo: novoFin.tipo || 'despesa',
-      categoria: novoFin.categoria || 'Outros',
-      descricao: novoFin.descricao,
-      valor: novoFin.valor,
-      vencimento: novoFin.vencimento || new Date().toISOString().slice(0, 10),
-      status: novoFin.status || 'pendente'
-    });
+    if (isUpdate) {
+      await supabase.from('financeiro_DGAUTOS').update(payload).eq('id', Number(f.id));
+    } else {
+      await supabase.from('financeiro_DGAUTOS').insert([payload]);
+    }
   } catch {}
 
-  const idx = lista.findIndex((x) => x.id === f.id);
-  const atualizada = idx >= 0 ? lista.map((x) => (x.id === f.id ? novoFin : x)) : [novoFin, ...lista];
-  salvarCache('financeiro', atualizada);
-  return atualizada;
+  return await getFinanceiro();
 }
 
 export async function baixarFinanceiro(id) {
-  const lista = await getFinanceiro();
-  const atualizada = lista.map((f) => (f.id === id ? { ...f, status: 'pago', pagamento_data: new Date().toISOString().slice(0, 10) } : f));
-  salvarCache('financeiro', atualizada);
   try {
-    await supabase.from('financeiro_DGAUTOS').update({ status: 'pago', pagamento_data: new Date().toISOString().slice(0, 10) }).eq('id', id);
+    await supabase.from('financeiro_DGAUTOS').update({ status: 'pago', pagamento_data: new Date().toISOString().slice(0, 10) }).eq('id', Number(id));
   } catch {}
-  return atualizada;
+  return await getFinanceiro();
 }
 
 export async function deleteFinanceiro(id) {
   try {
-    await supabase.from('financeiro_DGAUTOS').delete().eq('id', id);
+    await supabase.from('financeiro_DGAUTOS').delete().eq('id', Number(id));
   } catch {}
-  const lista = (await getFinanceiro()).filter((f) => f.id !== id);
-  salvarCache('financeiro', lista);
-  return lista;
+  return await getFinanceiro();
 }
 
 // ==============================================================================
