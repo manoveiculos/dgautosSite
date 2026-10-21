@@ -313,7 +313,7 @@ app.post(['/api/public/leads', '/api/leads/site'], (req, res) => {
   res.status(201).json({
     ok: true,
     lead_id: Number(r.lastInsertRowid),
-    mensagem: 'Lead registrado com sucesso no CRM Motriz!'
+    mensagem: 'Lead registrado com sucesso no CRM DG AUTOS!'
   });
 });
 

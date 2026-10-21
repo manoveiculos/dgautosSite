@@ -1,7 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 :root {
-  /* Paleta Oficial Altimus / Autos 360 (Extraída de main.4e692c17.css) */
+  /* Paleta Oficial DG AUTOS */
   --color-neutral-70: #ffffff;
   --color-neutral-80: #f5f6f7;
   --color-neutral-85: #eef0f4;
@@ -65,7 +65,7 @@ a { color: inherit; text-decoration: none; }
 button, input, select, textarea { font: inherit; color: inherit; }
 
 /* ==========================================================================
-   ESTRUTURA PADRÃO ALTIMUS / AUTOS 360 (TOPBAR FIXA + SIDEBAR ESQUERDA)
+   ESTRUTURA PADRÃO DG AUTOS (TOPBAR FIXA + SIDEBAR ESQUERDA)
    ========================================================================== */
 .altimus-wrapper {
   display: flex;
@@ -1003,7 +1003,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .guide-card h3 { font-size: 0.95rem; font-weight: 700; color: var(--text); }
 .guide-card p { font-size: 0.8rem; color: var(--muted); line-height: 1.4; }
 
-/* Login Oficial Estilo Altimus / Autos 360 */
+/* Login Oficial Estilo DG AUTOS */
 .login-wrap {
   min-height: 100vh;
   display: grid;

@@ -172,7 +172,7 @@ export default function IntegracaoSite() {
         <div className="stat-card">
           <div className="stat-label">Leads Recebidos do Site</div>
           <div className="stat-val" style={{ color: '#0284c7' }}>{dados.leads_site_total}</div>
-          <div className="stat-desc">Integrados no CRM Motriz</div>
+          <div className="stat-desc">Integrados no CRM DG AUTOS</div>
         </div>
       </section>
 
@@ -269,7 +269,7 @@ export default function IntegracaoSite() {
           <div style={{ background: 'var(--color-neutral-80)', padding: 14, borderRadius: 10, border: '1px solid var(--border)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
               <strong style={{ fontSize: '.88rem', color: '#1e293b', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Send size={16} style={{ color: 'var(--success)' }} /> Webhook de Captura de Leads (Site DG ➔ CRM Motriz)
+                <Send size={16} style={{ color: 'var(--success)' }} /> Webhook de Captura de Leads (Site DG ➔ CRM DG AUTOS)
               </strong>
               <span className="badge badge-reservado">Inbound Leads</span>
             </div>

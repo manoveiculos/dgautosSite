@@ -123,12 +123,12 @@ db.exec(`
 
   CREATE TABLE IF NOT EXISTS config_loja (
     id INTEGER PRIMARY KEY CHECK (id = 1),
-    razao_social TEXT DEFAULT 'Motriz Multimarcas Comércio de Veículos Ltda',
-    nome_fantasia TEXT DEFAULT 'Motriz Multimarcas',
+    razao_social TEXT DEFAULT 'DG Automóveis Comércio de Veículos Ltda',
+    nome_fantasia TEXT DEFAULT 'DG Automóveis',
     cnpj TEXT DEFAULT '12.345.678/0001-90',
     telefone TEXT DEFAULT '(47) 3333-4444',
     whatsapp TEXT DEFAULT '(47) 99999-8888',
-    email TEXT DEFAULT 'contato@motriz.com.br',
+    email TEXT DEFAULT 'contato@dgautos.com.br',
     endereco TEXT DEFAULT 'Av. Brasil, 1500 - Centro',
     cidade TEXT DEFAULT 'Balneário Camboriú',
     uf TEXT DEFAULT 'SC',
@@ -212,7 +212,7 @@ if (veicsSemDetalhes.length > 0) {
         { id: 1, funcionario: 'Carlos Mendes (Vendas)', cliente: 'Fernanda Duarte Silva', data_limite: '2026-10-23', observacao: 'Sinal de R$ 2.000 via Pix aguardando aprovação final Santander.', status: 'Pendente' }
       ] : [],
       investidores: [
-        { id: 1, nome: 'Motriz Multimarcas (Loja)', percentual: 100 }
+        { id: 1, nome: 'DG Automóveis (Loja)', percentual: 100 }
       ],
       documentos_anexos: [
         { id: 1, tipo: 'CRLV Digital 2026', numero: renavamPadrao, status: 'Validado', data: v.entrada },
@@ -238,9 +238,9 @@ if (!db.prepare('SELECT COUNT(*) n FROM config_loja').get().n) {
 
 if (!db.prepare('SELECT COUNT(*) n FROM usuarios').get().n) {
   const insU = db.prepare('INSERT INTO usuarios (nome, email, senha_hash, perfil) VALUES (?,?,?,?)');
-  insU.run('Administrador', 'admin@motriz.com', bcrypt.hashSync('admin123', 10), 'admin');
-  insU.run('Alexandre Gorges', 'alexandre@motriz.com', bcrypt.hashSync('admin123', 10), 'gerente');
-  insU.run('Carlos Mendes (Vendas)', 'carlos@motriz.com', bcrypt.hashSync('admin123', 10), 'vendedor');
+  insU.run('Administrador', 'admin@dgautos.com.br', bcrypt.hashSync('admin123', 10), 'admin');
+  insU.run('Alexandre Gorges', 'alexandre@dgautos.com.br', bcrypt.hashSync('admin123', 10), 'gerente');
+  insU.run('Carlos Mendes (Vendas)', 'carlos@dgautos.com.br', bcrypt.hashSync('admin123', 10), 'vendedor');
 }
 
 export const audit = (usuarioId, acao, tabela, registroId) =>

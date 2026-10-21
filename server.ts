@@ -193,7 +193,7 @@ async function startServer() {
 
   app.use(express.json());
 
-  // Integrar rotas da API do Sistema ERP/CRM (Autos 360 · Motriz)
+  // Integrar rotas da API do Sistema ERP/CRM (DG AUTOS)
   app.use(motrizBackendApp);
 
   // Servir frontend do sistema administrativo em /sistema
@@ -206,7 +206,7 @@ async function startServer() {
     } else {
       res.status(503).send(`
         <div style="font-family:sans-serif;text-align:center;padding:50px">
-          <h2>Sistema Autos 360 · Motriz</h2>
+          <h2>Sistema DG AUTOS</h2>
           <p>O painel administrativo ainda está sendo construído ou compilado.</p>
           <p>Execute <code>npm run build:sistema</code> para gerar a pasta <code>dist-sistema</code>.</p>
         </div>

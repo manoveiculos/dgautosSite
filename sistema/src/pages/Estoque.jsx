@@ -115,7 +115,7 @@ const EMPTY_VEICULO = {
     { id: 3, titulo: 'Reconhecimento de Firma / ATPV-e', obrigatoria: true, concluida: false, data: new Date().toISOString().slice(0, 10) },
   ],
   reservas: [],
-  investidores: [{ id: 1, nome: 'Motriz Multimarcas (Loja)', percentual: 100 }],
+  investidores: [{ id: 1, nome: 'DG Automóveis (Loja)', percentual: 100 }],
   documentos_anexos: [],
   fotos: [],
   foto: '',

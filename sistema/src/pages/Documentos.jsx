@@ -71,7 +71,7 @@ export default function Documentos() {
         <div className="doc-preview">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', borderBottom: '2px solid #111827', paddingBottom: 14, marginBottom: 20 }}>
             <div>
-              <h2 style={{ fontSize: '1.35rem', margin: 0 }}>{loja?.nome_fantasia || 'Motriz Multimarcas'}</h2>
+              <h2 style={{ fontSize: '1.35rem', margin: 0 }}>{loja?.nome_fantasia || 'DG Automóveis'}</h2>
               <div style={{ fontSize: '.82rem', color: '#4b5563' }}>
                 {loja?.razao_social} · CNPJ: {loja?.cnpj}<br />
                 {loja?.endereco} — {loja?.cidade}/{loja?.uf} · Tel: {loja?.telefone}
@@ -90,7 +90,7 @@ export default function Documentos() {
               </h3>
 
               <div className="doc-box">
-                <strong>VENDEDORA:</strong> {loja?.razao_social || 'Motriz Multimarcas Ltda'}, inscrita no CNPJ sob nº {loja?.cnpj || '12.345.678/0001-90'}, estabelecida em {loja?.endereco}, {loja?.cidade}/{loja?.uf}.<br />
+                <strong>VENDEDORA:</strong> {loja?.razao_social || 'DG Automóveis Ltda'}, inscrita no CNPJ sob nº {loja?.cnpj || '12.345.678/0001-90'}, estabelecida em {loja?.endereco}, {loja?.cidade}/{loja?.uf}.<br />
                 <strong>COMPRADOR(A):</strong> <strong>{neg.cliente_nome || '______________________'}</strong>, inscrito(a) no CPF/CNPJ sob nº <strong>{neg.cliente_cpf_cnpj || '___.___.___-__'}</strong>, telefone {neg.cliente_telefone || '__________'}, residente e domiciliado(a) em {neg.cliente_endereco || '________________'}, {neg.cliente_cidade || ''}/{neg.cliente_uf || 'SC'}.
               </div>
 
@@ -170,7 +170,7 @@ export default function Documentos() {
 
           <div className="doc-sign-grid">
             <div className="doc-sign-line">
-              {loja?.nome_fantasia || 'Motriz Multimarcas'}<br />
+              {loja?.nome_fantasia || 'DG Automóveis'}<br />
               <small style={{ fontWeight: 400, color: '#4b5563' }}>Vendedora ({loja?.cnpj})</small>
             </div>
             <div className="doc-sign-line">

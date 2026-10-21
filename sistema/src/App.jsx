@@ -36,7 +36,7 @@ function Shell({ user, onLogout }) {
 
   return (
     <div className={`altimus-wrapper ${collapsed ? 'sidebar-collapsed' : ''}`}>
-      {/* TOPBAR FIXA PADRÃO AUTOS 360 · MOTRIZ */}
+      {/* TOPBAR FIXA PADRÃO DG AUTOS */}
       <header className="altimus-topbar">
         <div className="altimus-topbar-left">
           <button
@@ -53,7 +53,7 @@ function Shell({ user, onLogout }) {
               <Car size={18} />
             </div>
             <div>
-              Autos 360 <span style={{ color: 'var(--olx-orange)' }}>·</span> Motriz
+              DG AUTOS
               <small>Gestão de Veículos & CRM</small>
             </div>
           </NavLink>
@@ -96,7 +96,7 @@ function Shell({ user, onLogout }) {
         <div className="altimus-topbar-right">
           <div className="altimus-store-pill">
             <Building2 size={14} style={{ color: 'var(--primary)' }} />
-            <span>Motriz Multimarcas</span>
+            <span>DG Automóveis</span>
           </div>
 
           <div className="altimus-user-box">

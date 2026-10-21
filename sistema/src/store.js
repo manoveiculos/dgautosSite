@@ -1,9 +1,9 @@
 // Camada de dados: chama a API REST do backend (pasta /backend).
 
 const API = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && window.location.pathname.startsWith('/sistema') ? '/api' : 'http://localhost:3333/api');
-const AUTH = 'motriz_sessao';
+const AUTH = 'dgautos_sessao';
 
-const sessao = () => JSON.parse(localStorage.getItem(AUTH) || 'null');
+const sessao = () => JSON.parse(localStorage.getItem(AUTH) || localStorage.getItem('motriz_sessao') || 'null');
 
 async function api(path, { method = 'GET', body } = {}) {
   const res = await fetch(API + path, {
