@@ -7,6 +7,7 @@ import { track } from '../../lib/track';
 
 const FAIXAS = [
   { id: 'todos', label: 'Todos os preços' },
+  { id: 'ate-30k', label: 'Até R$ 30 mil', min: 0, max: 30000 },
   { id: 'ate-50k', label: 'Até R$ 50 mil', min: 0, max: 50000 },
   { id: '50k-100k', label: 'R$ 50 a 100 mil', min: 50000, max: 100000 },
   { id: 'acima-100k', label: 'Acima de R$ 100 mil', min: 100000, max: Infinity },
@@ -270,30 +271,44 @@ export default function EstoquePage() {
             ))}
           </div>
         ) : (
-          /* Empty State — Consultor Hero */
-          <div className="bg-[#0B1120] text-[#FFFFFF] p-8 sm:p-12 rounded-3xl text-center space-y-6 max-w-xl mx-auto border border-[#38BDF8]/30">
-            <div className="w-16 h-16 rounded-full bg-[#060B14] border-2 border-[#38BDF8] flex items-center justify-center mx-auto">
+          /* Empty State — Contato Direto com a Loja DG */
+          <div className="bg-[#0B1120] text-[#FFFFFF] p-8 sm:p-12 rounded-3xl text-center space-y-6 max-w-xl mx-auto border border-[#38BDF8]/30 shadow-2xl">
+            <div className="w-16 h-16 rounded-full bg-[#060B14] border-2 border-[#38BDF8] flex items-center justify-center mx-auto shadow-[0_0_15px_rgba(56,189,248,0.4)]">
               <Bot className="w-9 h-9 text-[#38BDF8]" />
             </div>
 
             <div className="space-y-2">
               <h3 className="font-serif font-extrabold text-xl text-white">
-                Diz do que você precisa que eu procuro
+                Não encontrou o veículo exato no pátio?
               </h3>
-              <p className="text-xs text-[#E2E8F0]/80 leading-relaxed">
-                Não encontramos um carro com esses filtros exatos agora, mas nosso estoque gira toda semana. Fale com um consultor para buscar pra você!
+              <p className="text-xs sm:text-sm text-[#E2E8F0]/80 leading-relaxed">
+                Nosso estoque da <strong>DG Automóveis</strong> gira semanalmente em Rio do Sul e recebemos novos carros toda semana. Fale agora com nossa equipe para localizarmos ou avisarmos assim que entrar!
               </p>
             </div>
 
-            <button
-              onClick={() => {
-                window.dispatchEvent(new CustomEvent('open-consultor', { detail: { prompt: `Procuro ${busca || 'um seminovo'}` } }));
-              }}
-              className="py-3.5 px-6 bg-[#0052FF] hover:bg-[#003ECC] text-[#FFFFFF] font-bold text-xs uppercase rounded-xl inline-flex items-center justify-center gap-2 shadow-lg"
-            >
-              <MessageCircle className="w-4 h-4 text-emerald-400" />
-              <span>Pedir uma busca no WhatsApp</span>
-            </button>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
+              <a
+                href={waLink(`Olá! Estava buscando no estoque da DG Automóveis por "${busca || faixa}" e não encontrei disponível no momento. Podem verificar se têm opções chegando ou similares?`)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="py-3.5 px-6 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs uppercase tracking-wider rounded-xl inline-flex items-center justify-center gap-2 shadow-lg transition-all"
+              >
+                <MessageCircle className="w-4 h-4 text-white" />
+                <span>Falar com a DG no WhatsApp</span>
+              </a>
+
+              <button
+                onClick={() => {
+                  setBusca('');
+                  setFaixa('todos');
+                  setMarca('todas');
+                  updateUrlParams({ busca: '', faixa: 'todos', marca: 'todas' });
+                }}
+                className="py-3.5 px-5 bg-white/10 hover:bg-white/20 text-white font-bold text-xs uppercase tracking-wider rounded-xl inline-flex items-center justify-center gap-2 border border-white/20 transition-all"
+              >
+                <span>Limpar Filtros</span>
+              </button>
+            </div>
           </div>
         )}
 

@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "tsx watch server.ts",
     "start": "node server.js",
-    "build:sistema": "npm --prefix sistema run build",
-    "build": "vite build && npm run build:sistema && npm run build:server",
+    "build:sistema": "cd sistema && npm install --prefer-offline --no-audit && npm run build && cd ..",
+    "build": "vite build && npm run build:sistema",
     "build:server": "esbuild server.ts --bundle --platform=node --format=esm --outfile=server.js --external:vite --external:express --external:path --external:url --external:dotenv --external:bcryptjs --external:cors --external:jsonwebtoken --external:node:sqlite",
     "preview": "vite preview",
     "clean": "rm -rf dist",
