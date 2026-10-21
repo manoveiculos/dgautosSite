@@ -1,7 +1,11 @@
 node_modules/
 build/
 dist/
-server.js
+dist-sistema/
+sistema/node_modules/
+sistema/dist/
+backend/node_modules/
+/server.js
 coverage/
 .DS_Store
 *.log

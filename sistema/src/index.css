@@ -1,0 +1,1154 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+:root {
+  /* Paleta Oficial Altimus / Autos 360 (Extraída de main.4e692c17.css) */
+  --color-neutral-70: #ffffff;
+  --color-neutral-80: #f5f6f7;
+  --color-neutral-85: #eef0f4;
+  --color-neutral-90: #cfd4dd;
+  --color-neutral-100: #8994a9;
+  --color-neutral-110: #5e6a82;
+  --color-neutral-120: #3c4453;
+  --color-neutral-130: #1a1d23;
+
+  --color-primary-70: #f0e6ff;
+  --color-primary-80: #c599ff;
+  --color-primary-90: #994dfa;
+  --color-primary-100: #6e0ad6;
+  --color-primary-110: #5c08b2;
+  --color-primary-120: #49078f;
+  --color-primary-130: #37056b;
+
+  --olx-orange: #f28000;
+  --olx-orange-soft: #fff3e6;
+  --altimus-blue: #084173;
+  --altimus-blue-light: #e1f5fe;
+
+  /* Mapeamento de Variáveis do Sistema */
+  --bg: #f5f6f7;
+  --bg-elev: #ffffff;
+  --card: #ffffff;
+  --card-hover: #f8f9fb;
+  --border: #dfe3eb;
+  --border-strong: #cfd4dd;
+  --text: #1a1d23;
+  --muted: #5e6a82;
+  --primary: #6e0ad6;
+  --primary-hover: #5c08b2;
+  --primary-2: #6e0ad6;
+  --primary-soft: #f0e6ff;
+  --success: #24a148;
+  --success-soft: #def9cc;
+  --warning: #d97706;
+  --warning-soft: #fff7e0;
+  --danger: #dc2626;
+  --danger-soft: #fef2f2;
+  --info: #0284c7;
+  --info-soft: #e0f2fe;
+  --radius: 8px;
+  --shadow-sm: 0 1px 3px rgba(26, 29, 35, 0.06), 0 1px 2px rgba(26, 29, 35, 0.04);
+  --shadow-md: 0 4px 12px rgba(26, 29, 35, 0.08);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body, #root {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: inherit; text-decoration: none; }
+button, input, select, textarea { font: inherit; color: inherit; }
+
+/* ==========================================================================
+   ESTRUTURA PADRÃO ALTIMUS / AUTOS 360 (TOPBAR FIXA + SIDEBAR ESQUERDA)
+   ========================================================================== */
+.altimus-wrapper {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* Barra Superior Fixa (Altimus Topbar) */
+.altimus-topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 56px;
+  background: #ffffff;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px 0 16px;
+  z-index: 100;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.altimus-topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.altimus-menu-toggle {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background .15s;
+}
+.altimus-menu-toggle:hover {
+  background: var(--color-neutral-80);
+}
+
+.altimus-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 800;
+  font-size: 1.15rem;
+  color: var(--primary);
+  letter-spacing: -0.02em;
+}
+.altimus-brand-badge {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #6e0ad6, #49078f);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 2px 6px rgba(110, 10, 214, 0.25);
+}
+.altimus-brand small {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0;
+}
+
+.altimus-topbar-center {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.altimus-shortcut-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.altimus-shortcut-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-neutral-120);
+  background: var(--color-neutral-80);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all .15s;
+}
+.altimus-shortcut-btn:hover {
+  background: var(--primary-soft);
+  border-color: var(--color-primary-80);
+  color: var(--primary);
+}
+.altimus-shortcut-btn.primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+.altimus-shortcut-btn.primary:hover {
+  background: var(--primary-hover);
+}
+
+.altimus-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.altimus-store-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  border-radius: 99px;
+  background: var(--color-neutral-80);
+  border: 1px solid var(--border);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-neutral-120);
+}
+
+.altimus-user-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 10px;
+  border-left: 1px solid var(--border);
+}
+.altimus-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-weight: 700;
+  font-size: 0.85rem;
+  display: grid;
+  place-items: center;
+}
+
+/* Menu Lateral Esquerdo (layout-menu-container-olx) */
+.altimus-sidebar {
+  position: fixed;
+  top: 56px;
+  left: 0;
+  bottom: 0;
+  width: 245px;
+  background: #ffffff;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 12px 10px;
+  z-index: 90;
+  overflow-y: auto;
+  transition: width 0.2s ease, transform 0.25s ease;
+}
+
+.altimus-wrapper.sidebar-collapsed .altimus-sidebar {
+  width: 68px;
+}
+.altimus-wrapper.sidebar-collapsed .altimus-sidebar .nav-label,
+.altimus-wrapper.sidebar-collapsed .altimus-sidebar .nav-group-label,
+.altimus-wrapper.sidebar-collapsed .altimus-sidebar .sidebar-footer-text {
+  display: none;
+}
+.altimus-wrapper.sidebar-collapsed .altimus-sidebar .nav-item {
+  justify-content: center;
+  padding: 11px 0;
+}
+
+.nav { display: flex; flex-direction: column; gap: 3px; }
+.nav-group-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-neutral-100);
+  padding: 12px 12px 4px;
+  font-weight: 700;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  color: var(--color-neutral-120);
+  font-weight: 500;
+  font-size: 0.9rem;
+  transition: all .15s ease;
+  border: none;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+.nav-item:hover {
+  background: var(--color-neutral-80);
+  color: var(--primary);
+}
+.nav-item.active {
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-weight: 700;
+  border-left: 3px solid var(--primary);
+  border-radius: 0 6px 6px 0;
+}
+.nav-item svg {
+  flex-shrink: 0;
+}
+
+/* Área de Conteúdo Principal */
+.main {
+  margin-top: 56px;
+  margin-left: 245px;
+  padding: 22px 26px 48px;
+  min-height: calc(100vh - 56px);
+  transition: margin-left 0.2s ease;
+}
+.altimus-wrapper.sidebar-collapsed .main {
+  margin-left: 68px;
+}
+
+/* Cabeçalho de Página Altimus */
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+  background: #ffffff;
+  padding: 16px 20px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+.topbar h1 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+.topbar p {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin-top: 2px;
+}
+
+/* ==========================================================================
+   CARDS, INDICADORES E BOTÕES (ESTILO ALTIMUS LIGHT)
+   ========================================================================== */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+  box-shadow: var(--shadow-sm);
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  position: relative;
+  overflow: hidden;
+  border-left: 4px solid var(--primary);
+  transition: transform .15s, box-shadow .15s;
+}
+.stat:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+.stat:nth-child(2) { border-left-color: var(--success); }
+.stat:nth-child(3) { border-left-color: var(--olx-orange); }
+.stat:nth-child(4) { border-left-color: var(--info); }
+
+.stat-label {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.stat-value {
+  font-size: 1.55rem;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+.stat-sub {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+/* Botões Padrão Altimus / OLX */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 0.86rem;
+  border: 1px solid var(--border-strong);
+  background: #ffffff;
+  color: var(--color-neutral-120);
+  cursor: pointer;
+  transition: all .15s ease;
+  white-space: nowrap;
+}
+.btn:hover {
+  background: var(--color-neutral-80);
+  border-color: var(--color-neutral-100);
+}
+.btn-primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
+}
+.btn-primary:hover {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+}
+.btn-success {
+  background: var(--success);
+  border-color: var(--success);
+  color: #ffffff;
+}
+.btn-success:hover {
+  background: #197b35;
+}
+.btn-danger {
+  background: var(--danger-soft);
+  border-color: #fca5a5;
+  color: var(--danger);
+}
+.btn-danger:hover {
+  background: #fee2e2;
+}
+.btn-sm {
+  padding: 5px 10px;
+  font-size: 0.78rem;
+  border-radius: 5px;
+}
+
+/* Inputs, Selects & Textareas (Altimus Clean Forms) */
+.input, .select, .textarea {
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: #ffffff;
+  color: var(--text);
+  font-size: 0.88rem;
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+.input:focus, .select:focus, .textarea:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+.input::placeholder, .textarea::placeholder {
+  color: var(--color-neutral-100);
+}
+.textarea { min-height: 76px; resize: vertical; }
+
+/* Barra de Filtros Altimus */
+.toolbar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+  background: #ffffff;
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ==========================================================================
+   GRID DE VEÍCULOS E CARDS (VITRINE ALTIMUS)
+   ========================================================================== */
+.vehicles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+.vehicle {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+}
+.vehicle:hover {
+  transform: translateY(-2px);
+  border-color: var(--color-primary-80);
+  box-shadow: var(--shadow-md);
+}
+.vehicle-photo {
+  height: 175px;
+  background: #eef0f4;
+  position: relative;
+  display: grid;
+  place-items: center;
+  color: var(--color-neutral-100);
+  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+}
+.vehicle-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.vehicle-photo .badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+.vehicle-plate {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: #ffffff;
+  color: #111827;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border-top: 4px solid #003399;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+.vehicle-body {
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+.vehicle-body h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.25;
+}
+.vehicle-subtitle {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.vehicle-specs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 8px;
+  background: var(--color-neutral-80);
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+.vehicle-spec-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.vehicle-spec-item span {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 600;
+}
+.vehicle-pricing {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.vehicle-price-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 700;
+  display: block;
+}
+.vehicle-price {
+  font-size: 1.22rem;
+  font-weight: 800;
+  color: var(--primary);
+}
+.vehicle-profit-box {
+  text-align: right;
+  padding: 5px 9px;
+  border-radius: 6px;
+  background: var(--color-neutral-80);
+  border: 1px solid var(--border);
+}
+.vehicle-actions {
+  display: flex;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+  margin-top: auto;
+}
+.vehicle-actions .btn {
+  flex: 1;
+  padding: 6px 8px;
+  font-size: 0.76rem;
+}
+
+/* Badges Status */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: var(--color-neutral-85);
+  color: var(--color-neutral-120);
+}
+.badge-disponivel, .badge-pago, .badge-concluida, .badge-concluido {
+  background: var(--success-soft);
+  color: #15803d;
+}
+.badge-preparacao, .badge-reservado, .badge-pendente, .badge-aberta, .badge-conferencia {
+  background: var(--warning-soft);
+  color: #b45309;
+}
+.badge-consignado {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+.badge-vendido, .badge-cancelada, .badge-perdido {
+  background: var(--color-neutral-85);
+  color: var(--muted);
+}
+
+/* ==========================================================================
+   TABELAS PADRÃO ALTIMUS (p-datatable)
+   ========================================================================== */
+.table-wrap {
+  overflow-x: auto;
+  padding: 0;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+.table th, .table td {
+  padding: 11px 14px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.table th {
+  background: #f8f9fb;
+  color: var(--color-neutral-110);
+  font-weight: 700;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.table tbody tr {
+  cursor: pointer;
+  transition: background .12s;
+}
+.table tbody tr:hover {
+  background: #f4effc;
+}
+
+/* ==========================================================================
+   TELA DE CADASTRO / EDIÇÃO EM PÁGINA INTEIRA (ESTILO ALTIMUS IQe / A6t)
+   ========================================================================== */
+.altimus-crud-page {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.altimus-crud-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  background: #ffffff;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.altimus-crud-body {
+  padding: 20px;
+}
+.altimus-crud-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  background: #f8f9fb;
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+/* Modal / Painel Full-Page Integrado */
+.modal-backdrop, .overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(26, 29, 35, 0.45);
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  z-index: 200;
+}
+.modal {
+  width: 100%;
+  max-width: 980px;
+  max-height: 92vh;
+  overflow-y: auto;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 22px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+}
+.modal-xl {
+  max-width: 1180px;
+}
+.modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 14px;
+}
+.span-2 { grid-column: span 2; }
+.span-3 { grid-column: 1 / -1; }
+.btn-icon { padding: 7px; width: 34px; height: 34px; }
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.field label {
+  font-size: 0.78rem;
+  color: var(--color-neutral-120);
+  font-weight: 600;
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+/* Abas Horizontais Estilo Altimus (p-tabview) */
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  background: var(--color-neutral-80);
+  padding: 4px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  width: fit-content;
+  max-width: 100%;
+  overflow: visible;
+}
+.tab {
+  padding: 7px 13px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  transition: all .15s;
+}
+.tab:hover {
+  color: var(--primary);
+}
+.tab.active {
+  background: #ffffff;
+  color: var(--primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* ==========================================================================
+   KANBAN CRM ALTIMUS
+   ========================================================================== */
+.kanban {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(260px, 1fr));
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 12px;
+}
+.kanban-col {
+  background: #eef0f4;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 460px;
+}
+.kanban-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 8px 10px;
+  border-bottom: 3px solid var(--primary);
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+.kanban-count {
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-size: 0.74rem;
+  background: #ffffff;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.kanban-card {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: transform .14s, border-color .14s, box-shadow .14s;
+}
+.kanban-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--color-primary-80);
+  box-shadow: var(--shadow-md);
+}
+.tag-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+/* Stepper Negociação e Abas Veículo Altimus (Sem Barra de Rolagem Horizontal) */
+.stepper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 18px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--border);
+  overflow: visible;
+}
+.step, .step-btn {
+  flex: 1 1 auto;
+  justify-content: center;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--color-neutral-80);
+  font-size: 0.79rem;
+  font-weight: 600;
+  color: var(--color-neutral-120);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  transition: all .15s;
+}
+.step:hover, .step-btn:hover {
+  background: var(--primary-soft);
+  border-color: var(--color-primary-80);
+  color: var(--primary);
+}
+.step.active, .step-btn.active {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #ffffff;
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(110, 10, 214, 0.22);
+}
+.step-num {
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+  display: inline-grid;
+  place-items: center;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+.step-btn:not(.active) .step-num {
+  background: var(--border);
+  color: var(--text);
+}
+.step.done {
+  border-color: #86efac;
+  background: #f0fdf4;
+  color: var(--success);
+}
+
+/* Grid 2 Colunas & Linhas de Lista */
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 16px;
+}
+.list-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 11px 6px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.88rem;
+}
+.list-row:hover {
+  background: var(--color-neutral-80);
+}
+.list-row:last-child { border-bottom: none; }
+
+.bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  height: 150px;
+  padding-top: 20px;
+}
+.bar-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  justify-content: flex-end;
+}
+.bar {
+  width: 100%;
+  max-width: 44px;
+  border-radius: 6px 6px 0 0;
+  background: linear-gradient(180deg, var(--primary), #994dfa);
+}
+.bar-col span { font-size: 0.76rem; color: var(--muted); font-weight: 600; }
+
+/* Guia Rápido no Dashboard */
+.guide-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.guide-card {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: all .15s;
+}
+.guide-card:hover {
+  border-color: var(--primary);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+.guide-step {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  width: fit-content;
+}
+.guide-card h3 { font-size: 0.95rem; font-weight: 700; color: var(--text); }
+.guide-card p { font-size: 0.8rem; color: var(--muted); line-height: 1.4; }
+
+/* Login Oficial Estilo Altimus / Autos 360 */
+.login-wrap {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: linear-gradient(135deg, #f5f6f7 0%, #eae4f7 100%);
+}
+.login-card {
+  width: 100%;
+  max-width: 420px;
+  padding: 32px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(26, 29, 35, 0.08);
+}
+
+/* Preview de Impressão A4 */
+.doc-preview {
+  background: #fff;
+  color: #111827;
+  padding: 36px 42px;
+  border-radius: 8px;
+  max-width: 840px;
+  margin: 0 auto;
+  border: 1px solid var(--border);
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+.doc-preview h2, .doc-preview h3 { color: #111827; }
+.doc-preview .doc-box {
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+}
+
+.empty {
+  text-align: center;
+  padding: 48px 20px;
+  color: var(--muted);
+}
+
+/* ==========================================================================
+   MOBILE & TABLET RESPONSIVO
+   ========================================================================== */
+.mobile-bottom-nav { display: none; }
+.sidebar-overlay { display: none; }
+.mobile-stage-pills { display: none; }
+
+@media (max-width: 960px) {
+  .altimus-topbar-center { display: none; }
+  .altimus-store-pill { display: none; }
+
+  .altimus-sidebar {
+    transform: translateX(-105%);
+    width: 260px !important;
+    box-shadow: 10px 0 30px rgba(0, 0, 0, 0.15);
+  }
+  .altimus-sidebar.open {
+    transform: translateX(0);
+  }
+  .sidebar-overlay.open {
+    display: block;
+    position: fixed;
+    inset: 56px 0 0 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 85;
+  }
+
+  .main {
+    margin-left: 0 !important;
+    padding: 14px 12px 82px;
+  }
+
+  .mobile-bottom-nav {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #ffffff;
+    border-top: 1px solid var(--border);
+    padding: 6px 4px;
+    z-index: 95;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+  }
+  .mobile-nav-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 5px 2px;
+    border-radius: 6px;
+    color: var(--muted);
+    font-size: 0.68rem;
+    font-weight: 600;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+  }
+  .mobile-nav-btn.active {
+    color: var(--primary);
+    font-weight: 700;
+  }
+
+  .grid-2 { grid-template-columns: 1fr; }
+  .stats { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .vehicles { grid-template-columns: 1fr; }
+
+  .mobile-stage-pills {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 10px;
+    margin-bottom: 10px;
+  }
+  .stage-pill {
+    padding: 7px 12px;
+    border-radius: 99px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    white-space: nowrap;
+    border: 1px solid var(--border);
+    background: #ffffff;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .stage-pill.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+  }
+  .kanban {
+    grid-template-columns: 1fr;
+  }
+  .kanban-col {
+    min-height: auto;
+  }
+}
+
+@media print {
+  .altimus-topbar, .altimus-sidebar, .mobile-bottom-nav, .topbar, .toolbar, .no-print { display: none !important; }
+  .main { margin: 0 !important; padding: 0 !important; }
+  .doc-preview { border: none; padding: 0; max-width: 100%; }
+}

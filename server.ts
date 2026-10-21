@@ -21,7 +21,8 @@ import {
 } from "./server/catalog";
 import { radarMiddleware } from "./server/radar";
 import { calcularScore, acaoRecomendada } from "./server/scoring";
-import { readFileSync } from "fs";
+import fs, { readFileSync } from "fs";
+import motrizBackendApp from "./backend/server.js";
 import { enviarEventoCapi, capiConfigurado, PIXEL_ID, PIXEL_PADRAO } from "./server/meta";
 import {
   syncCatalogMapping,
@@ -191,6 +192,27 @@ async function startServer() {
   app.set("trust proxy", 1);
 
   app.use(express.json());
+
+  // Integrar rotas da API do Sistema ERP/CRM (Autos 360 · Motriz)
+  app.use(motrizBackendApp);
+
+  // Servir frontend do sistema administrativo em /sistema
+  const sistemaDist = path.join(process.cwd(), "dist-sistema");
+  app.use("/sistema", express.static(sistemaDist));
+  app.get(["/sistema", "/sistema/*"], (_req, res) => {
+    const indexPath = path.join(sistemaDist, "index.html");
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      res.status(503).send(`
+        <div style="font-family:sans-serif;text-align:center;padding:50px">
+          <h2>Sistema Autos 360 · Motriz</h2>
+          <p>O painel administrativo ainda está sendo construído ou compilado.</p>
+          <p>Execute <code>npm run build:sistema</code> para gerar a pasta <code>dist-sistema</code>.</p>
+        </div>
+      `);
+    }
+  });
 
   // AI Visit Radar — logs crawler hits + AI/search referrals (fire-and-forget)
   app.use(radarMiddleware);
@@ -1201,10 +1223,9 @@ async function startServer() {
     }
   });
 
-  // Vite middleware for development.
-  // Imported dynamically so production (npm ci --omit=dev, no vite) doesn't
-  // need it at startup — only loaded when actually running in dev.
-  if (process.env.NODE_ENV !== "production") {
+  const isProduction = process.env.NODE_ENV === "production" || Boolean(process.argv[1]?.endsWith("server.js"));
+
+  if (!isProduction) {
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
