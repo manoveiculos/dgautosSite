@@ -376,14 +376,24 @@ export default function Crm({ user }) {
           clientes={clientes}
           onClose={() => setEditando(null)}
           onSave={async (op) => {
-            const r = await saveOportunidade(op);
-            setLista(r);
-            setEditando(null);
+            try {
+              const r = await saveOportunidade(op);
+              setLista(Array.isArray(r) ? r : []);
+              setEditando(null);
+              alert('✓ Oportunidade salva com sucesso no CRM!');
+            } catch (err) {
+              alert('Erro ao salvar oportunidade: ' + err.message);
+            }
           }}
           onDelete={async (id) => {
-            const r = await deleteOportunidade(id);
-            setLista(r);
-            setEditando(null);
+            try {
+              const r = await deleteOportunidade(id);
+              setLista(Array.isArray(r) ? r : []);
+              setEditando(null);
+              alert('✓ Oportunidade excluída com sucesso do CRM!');
+            } catch (err) {
+              alert('Erro ao excluir: ' + err.message);
+            }
           }}
           onNegociar={converterEmNegociacao}
         />

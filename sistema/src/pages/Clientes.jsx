@@ -108,12 +108,16 @@ export default function Clientes() {
           inicial={editando}
           onClose={() => setEditando(null)}
           onSave={async (cli) => {
-            setLista(await saveCliente(cli));
+            const res = await saveCliente(cli);
+            setLista(Array.isArray(res) ? res : []);
             setEditando(null);
+            alert('✓ Cliente/Fornecedor salvo com sucesso!');
           }}
           onDelete={async (id) => {
-            setLista(await deleteCliente(id));
+            const res = await deleteCliente(id);
+            setLista(Array.isArray(res) ? res : []);
             setEditando(null);
+            alert('✓ Cadastro excluído com sucesso!');
           }}
         />
       )}

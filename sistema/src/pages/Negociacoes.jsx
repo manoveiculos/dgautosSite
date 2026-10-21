@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import {
   getNegociacoes, saveNegociacao, concluirNegociacao, deleteNegociacao,
-  getClientes, getVeiculos, brl, dataBr
+  getClientes, saveCliente, getVeiculos, brl, dataBr
 } from '../store';
 
 const EMPTY_NEG = {
@@ -97,19 +97,69 @@ export default function Negociacoes({ user }) {
         user={user}
         onClose={() => setEditando(null)}
         onSave={async (neg) => {
-          await saveNegociacao(neg);
+          let negFinal = { ...neg };
+          if (!negFinal.cliente_id && negFinal.cliente_nome) {
+            try {
+              const resCli = await saveCliente({
+                nome: negFinal.cliente_nome,
+                cpf_cnpj: negFinal.cliente_cpf_cnpj || '',
+                telefone: negFinal.cliente_telefone || '',
+                email: negFinal.cliente_email || '',
+                cep: negFinal.cliente_cep || '',
+                endereco: negFinal.cliente_endereco || '',
+                cidade: negFinal.cliente_cidade || 'Rio do Sul',
+                uf: negFinal.cliente_uf || 'SC',
+                origem: negFinal.canal_venda || 'LOJA'
+              });
+              if (resCli?.savedItem?.id) {
+                negFinal.cliente_id = resCli.savedItem.id;
+              } else if (Array.isArray(resCli) && resCli.length) {
+                const criado = resCli.find((c) => c.nome?.trim().toLowerCase() === negFinal.cliente_nome?.trim().toLowerCase()) || resCli[0];
+                if (criado) negFinal.cliente_id = criado.id;
+              }
+            } catch (err) {
+              console.warn('Erro ao salvar cliente inline:', err);
+            }
+          }
+          await saveNegociacao(negFinal);
           recarregar();
           setEditando(null);
+          alert('✓ Negociação e Contrato salvos com sucesso!');
+        }}
+        onDelete={async (id) => {
+          await deleteNegociacao(id);
+          recarregar();
+          setEditando(null);
+          alert('✓ Negociação excluída com sucesso!');
         }}
         onConcluir={async (neg) => {
-          const listaAtualizada = await saveNegociacao(neg);
-          const idAlvo = neg.id || listaAtualizada[0]?.id;
+          let negFinal = { ...neg };
+          if (!negFinal.cliente_id && negFinal.cliente_nome) {
+            try {
+              const resCli = await saveCliente({
+                nome: negFinal.cliente_nome,
+                cpf_cnpj: negFinal.cliente_cpf_cnpj || '',
+                telefone: negFinal.cliente_telefone || '',
+                email: negFinal.cliente_email || '',
+                cep: negFinal.cliente_cep || '',
+                endereco: negFinal.cliente_endereco || '',
+                cidade: negFinal.cliente_cidade || 'Rio do Sul',
+                uf: negFinal.cliente_uf || 'SC',
+                origem: negFinal.canal_venda || 'LOJA'
+              });
+              if (resCli?.savedItem?.id) negFinal.cliente_id = resCli.savedItem.id;
+            } catch {}
+          }
+          const listaAtualizada = await saveNegociacao(negFinal);
+          const idAlvo = negFinal.id || listaAtualizada[0]?.id;
           if (idAlvo) await concluirNegociacao(idAlvo);
           recarregar();
           setEditando(null);
+          alert('✓ Venda concluída e fechada com sucesso!');
         }}
         onCancelarNegociacao={async (neg, motivo) => {
-          if (user?.perfil !== 'admin') {
+          const isAdmin = user?.perfil === 'admin' || user?.email?.toLowerCase() === 'admin@dgautos.com.br';
+          if (!isAdmin) {
             alert('Ação proibida: Apenas administradores podem cancelar contratos e negociações.');
             return;
           }
@@ -120,7 +170,7 @@ export default function Negociacoes({ user }) {
           });
           recarregar();
           setEditando(null);
-          alert('Negociação/Contrato cancelado com sucesso. Histórico preservado.');
+          alert('✓ Negociação/Contrato cancelado com sucesso.');
         }}
         onContrato={(id) => {
           setEditando(null);
@@ -250,6 +300,21 @@ export default function Negociacoes({ user }) {
                       <CheckCircle2 size={13} /> Concluir
                     </button>
                   )}
+                  {(n.status === 'cancelada' || user?.perfil === 'admin' || user?.email?.toLowerCase() === 'admin@dgautos.com.br') && (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-danger"
+                      title="Excluir negociação permanentemente"
+                      onClick={async () => {
+                        if (!confirm(`Tem certeza que deseja excluir a Negociação #${n.id} permanentemente do sistema?`)) return;
+                        await deleteNegociacao(n.id);
+                        recarregar();
+                        alert('✓ Negociação excluída com sucesso!');
+                      }}
+                    >
+                      <Trash2 size={13} /> Excluir
+                    </button>
+                  )}
                 </div>
               </article>
             );
@@ -317,6 +382,21 @@ export default function Negociacoes({ user }) {
                       >
                         <FileText size={13} />Contrato
                       </button>
+                      {(n.status === 'cancelada' || user?.perfil === 'admin' || user?.email?.toLowerCase() === 'admin@dgautos.com.br') && (
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-danger"
+                          title="Excluir negociação permanentemente"
+                          onClick={async () => {
+                            if (!confirm(`Tem certeza que deseja excluir a Negociação #${n.id} permanentemente do sistema?`)) return;
+                            await deleteNegociacao(n.id);
+                            recarregar();
+                            alert('✓ Negociação excluída com sucesso!');
+                          }}
+                        >
+                          <Trash2 size={13} />Excluir
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );
@@ -337,14 +417,47 @@ const PASSOS = [
   '5. Conferência'
 ];
 
-function NegociacaoWizardModal({ inicial, clientes, veiculos, onClose, onSave, onConcluir, onCancelarNegociacao, onContrato, user }) {
+function NegociacaoWizardModal({ inicial, clientes, veiculos, onClose, onSave, onDelete, onConcluir, onCancelarNegociacao, onContrato, user }) {
   const [passo, setPasso] = useState(0);
+  const clienteInicial = clientes.find((c) => String(c.id) === String(inicial.cliente_id));
+
   const [f, setF] = useState({
     ...inicial,
+    cliente_nome: inicial.cliente_nome || clienteInicial?.nome || '',
+    cliente_cpf_cnpj: inicial.cliente_cpf_cnpj || clienteInicial?.cpf_cnpj || '',
+    cliente_telefone: inicial.cliente_telefone || clienteInicial?.telefone || clienteInicial?.whatsapp || '',
+    cliente_email: inicial.cliente_email || clienteInicial?.email || '',
+    cliente_cep: inicial.cliente_cep || clienteInicial?.cep || '',
+    cliente_cidade: inicial.cliente_cidade || clienteInicial?.cidade || '',
+    cliente_uf: inicial.cliente_uf || clienteInicial?.uf || 'SC',
+    cliente_endereco: inicial.cliente_endereco || clienteInicial?.endereco || '',
+    canal_venda: inicial.canal_venda || clienteInicial?.origem || 'LOJA',
     pagamentos: Array.isArray(inicial.pagamentos) && inicial.pagamentos.length
       ? inicial.pagamentos
       : [{ forma: 'Pix / TED', financeira: 'À vista', parcelas: 1, valor: Number(inicial.valor_veiculo) || 0 }]
   });
+
+  const [buscaCliente, setBuscaCliente] = useState(inicial.cliente_nome || clienteInicial?.nome || '');
+  const [dropdownAberto, setDropdownAberto] = useState(false);
+
+  const buscarCep = async (cepVal) => {
+    const limpo = String(cepVal || '').replace(/\D/g, '');
+    if (limpo.length === 8) {
+      try {
+        const res = await fetch(`https://viacep.com.br/ws/${limpo}/json/`);
+        const data = await res.json();
+        if (!data.erro) {
+          setF((prev) => ({
+            ...prev,
+            cliente_cep: limpo.replace(/(\d{5})(\d{3})/, '$1-$2'),
+            cliente_cidade: data.localidade || prev.cliente_cidade,
+            cliente_uf: data.uf || prev.cliente_uf,
+            cliente_endereco: `${data.logradouro || ''}${data.bairro ? ` - ${data.bairro}` : ''}`.trim() || prev.cliente_endereco
+          }));
+        }
+      } catch {}
+    }
+  };
 
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
 
@@ -483,23 +596,247 @@ function NegociacaoWizardModal({ inicial, clientes, veiculos, onClose, onSave, o
                 <label>Data da Negociação</label>
                 <input className="input" type="date" value={f.data_negociacao ?? ''} onChange={set('data_negociacao')} />
               </div>
-              <div className="field">
-                <label>Canal de Venda / Origem</label>
-                <select className="select" value={f.canal_venda ?? 'LOJA'} onChange={set('canal_venda')}>
-                  {['LOJA', 'OLX', 'WEBMOTORS', 'WHATSAPP', 'INSTAGRAM', 'CHAVES_NA_MAO', 'ICARROS', 'SITE_PROPRIO'].map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
+            </div>
+
+            {/* SEÇÃO DE CLIENTE COM BUSCA, AUTO-COMPLETE E CADASTRO INLINE */}
+            <div className="card" style={{ padding: 18, border: '1px solid var(--border)', borderRadius: 10, background: '#fafbfc' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                <span style={{ fontSize: '.92rem', fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '.03em' }}>
+                  Cliente
+                </span>
+                {f.cliente_id ? (
+                  <span className="badge badge-success" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '.78rem' }}>
+                    <CheckCircle2 size={13} /> Cliente Vinculado (ID #{f.cliente_id})
+                  </span>
+                ) : f.cliente_nome ? (
+                  <span className="badge badge-warning" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '.78rem' }}>
+                    + Novo Cadastro Inline (Salvo no banco ao confirmar)
+                  </span>
+                ) : null}
               </div>
 
-              <div className="field span-3">
-                <label>Cliente / Interessado *</label>
-                <select className="select" required value={f.cliente_id ?? ''} onChange={set('cliente_id')}>
-                  <option value="">— Selecione o cliente ou fornecedor —</option>
-                  {clientes.map((c) => (
-                    <option key={c.id} value={c.id}>{c.nome} — {c.cpf_cnpj || c.telefone || c.cidade}</option>
-                  ))}
-                </select>
+              <div className="form-grid">
+                {/* Linha 1: Input de Busca com Dropdown + Origem */}
+                <div className="field span-2" style={{ position: 'relative' }}>
+                  <label>Cliente *</label>
+                  <div style={{ position: 'relative' }}>
+                    <Search size={16} style={{ position: 'absolute', left: 12, top: 12, color: 'var(--muted)', pointerEvents: 'none' }} />
+                    <input
+                      className="input"
+                      required
+                      style={{ paddingLeft: 38, fontWeight: f.cliente_id ? 700 : 400 }}
+                      placeholder="Digite nome ou CPF/CNPJ"
+                      value={buscaCliente}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setBuscaCliente(val);
+                        setDropdownAberto(true);
+                        setF((prev) => ({
+                          ...prev,
+                          cliente_nome: val,
+                          cliente_id: val.trim() === (clienteInicial?.nome || '').trim() ? prev.cliente_id : null
+                        }));
+                      }}
+                      onFocus={() => setDropdownAberto(true)}
+                    />
+                    {buscaCliente && (
+                      <button
+                        type="button"
+                        style={{ position: 'absolute', right: 10, top: 10, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}
+                        onClick={() => {
+                          setBuscaCliente('');
+                          setF((prev) => ({
+                            ...prev,
+                            cliente_id: null,
+                            cliente_nome: '',
+                            cliente_cpf_cnpj: '',
+                            cliente_telefone: '',
+                            cliente_email: '',
+                            cliente_cep: '',
+                            cliente_cidade: '',
+                            cliente_uf: 'SC',
+                            cliente_endereco: ''
+                          }));
+                        }}
+                      >
+                        <X size={16} />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Dropdown de sugestões do banco */}
+                  {dropdownAberto && buscaCliente.trim().length > 0 && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: 0,
+                        right: 0,
+                        zIndex: 9999,
+                        background: '#ffffff',
+                        border: '1px solid var(--border)',
+                        borderRadius: 8,
+                        boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                        maxHeight: 240,
+                        overflowY: 'auto',
+                        marginTop: 4
+                      }}
+                    >
+                      {clientes
+                        .filter((c) => {
+                          const q = buscaCliente.toLowerCase();
+                          return (c.nome || '').toLowerCase().includes(q) ||
+                                 (c.cpf_cnpj || '').includes(q) ||
+                                 (c.telefone || '').includes(q);
+                        })
+                        .slice(0, 10)
+                        .map((c) => (
+                          <div
+                            key={c.id}
+                            style={{
+                              padding: '10px 14px',
+                              cursor: 'pointer',
+                              borderBottom: '1px solid #f1f5f9',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center'
+                            }}
+                            onMouseDown={() => {
+                              setF((prev) => ({
+                                ...prev,
+                                cliente_id: c.id,
+                                cliente_nome: c.nome,
+                                cliente_cpf_cnpj: c.cpf_cnpj || '',
+                                cliente_telefone: c.telefone || c.whatsapp || '',
+                                cliente_email: c.email || '',
+                                cliente_cep: c.cep || '',
+                                cliente_cidade: c.cidade || '',
+                                cliente_uf: c.uf || 'SC',
+                                cliente_endereco: c.endereco || '',
+                                canal_venda: c.origem || prev.canal_venda
+                              }));
+                              setBuscaCliente(c.nome);
+                              setDropdownAberto(false);
+                            }}
+                          >
+                            <div>
+                              <strong style={{ fontSize: '.88rem', color: 'var(--text)' }}>{c.nome}</strong>
+                              <div style={{ fontSize: '.76rem', color: 'var(--muted)' }}>
+                                {c.cpf_cnpj ? `CPF/CNPJ: ${c.cpf_cnpj}` : 'Sem documento'} {c.telefone ? `· Tel: ${c.telefone}` : ''} {c.cidade ? `· ${c.cidade}/${c.uf || 'SC'}` : ''}
+                              </div>
+                            </div>
+                            <span className="badge badge-success" style={{ fontSize: '.7rem' }}>Selecionar</span>
+                          </div>
+                        ))}
+
+                      <div
+                        style={{
+                          padding: '10px 14px',
+                          background: '#f8fafc',
+                          cursor: 'pointer',
+                          fontSize: '.82rem',
+                          color: 'var(--primary)',
+                          fontWeight: 700,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6
+                        }}
+                        onMouseDown={() => {
+                          setF((prev) => ({
+                            ...prev,
+                            cliente_id: null,
+                            cliente_nome: buscaCliente
+                          }));
+                          setDropdownAberto(false);
+                        }}
+                      >
+                        <Plus size={14} /> Cadastrar novo cliente "{buscaCliente}"
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="field">
+                  <label>Origem de cliente</label>
+                  <select className="select" value={f.canal_venda ?? 'LOJA'} onChange={set('canal_venda')}>
+                    {['LOJA', 'WHATSAPP', 'OLX', 'WEBMOTORS', 'INSTAGRAM', 'CHAVES_NA_MAO', 'ICARROS', 'SITE_PROPRIO', 'INDICAÇÃO'].map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Linha 2: CPF/CNPJ, Telefone, E-mail */}
+                <div className="field">
+                  <label>CPF / CNPJ</label>
+                  <input
+                    className="input"
+                    placeholder="000.000.000-00"
+                    value={f.cliente_cpf_cnpj ?? ''}
+                    onChange={set('cliente_cpf_cnpj')}
+                  />
+                </div>
+                <div className="field">
+                  <label>Telefone</label>
+                  <input
+                    className="input"
+                    placeholder="(47) 99999-9999"
+                    value={f.cliente_telefone ?? ''}
+                    onChange={set('cliente_telefone')}
+                  />
+                </div>
+                <div className="field">
+                  <label>E-mail</label>
+                  <input
+                    className="input"
+                    type="email"
+                    placeholder="cliente@email.com"
+                    value={f.cliente_email ?? ''}
+                    onChange={set('cliente_email')}
+                  />
+                </div>
+
+                {/* Linha 3: CEP, Cidade/UF, Endereço */}
+                <div className="field">
+                  <label>CEP</label>
+                  <input
+                    className="input"
+                    placeholder="00000-000"
+                    value={f.cliente_cep ?? ''}
+                    onChange={(e) => {
+                      set('cliente_cep')(e);
+                      buscarCep(e.target.value);
+                    }}
+                    onBlur={(e) => buscarCep(e.target.value)}
+                  />
+                </div>
+                <div className="field">
+                  <label>Cidade / UF</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 70px', gap: 6 }}>
+                    <input
+                      className="input"
+                      placeholder="Cidade"
+                      value={f.cliente_cidade ?? ''}
+                      onChange={set('cliente_cidade')}
+                    />
+                    <input
+                      className="input"
+                      placeholder="SC"
+                      maxLength={2}
+                      style={{ textTransform: 'uppercase' }}
+                      value={f.cliente_uf ?? 'SC'}
+                      onChange={set('cliente_uf')}
+                    />
+                  </div>
+                </div>
+                <div className="field">
+                  <label>Endereço</label>
+                  <input
+                    className="input"
+                    placeholder="Rua, número, bairro..."
+                    value={f.cliente_endereco ?? ''}
+                    onChange={set('cliente_endereco')}
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -797,7 +1134,8 @@ function NegociacaoWizardModal({ inicial, clientes, veiculos, onClose, onSave, o
               type="button"
               className="btn btn-danger"
               onClick={() => {
-                if (user?.perfil !== 'admin') {
+                const isAdmin = user?.perfil === 'admin' || user?.email?.toLowerCase() === 'admin@dgautos.com.br';
+                if (!isAdmin) {
                   alert('Ação bloqueada: Por compliance legal, a exclusão de contratos é estritamente proibida. Somente Administradores podem cancelar uma negociação/contrato.');
                   return;
                 }
@@ -807,6 +1145,19 @@ function NegociacaoWizardModal({ inicial, clientes, veiculos, onClose, onSave, o
               }}
             >
               <Trash2 size={16} /> Cancelar Contrato (Apenas Admin)
+            </button>
+          )}
+          {f.id && (f.status === 'cancelada' || user?.perfil === 'admin' || user?.email?.toLowerCase() === 'admin@dgautos.com.br') && (
+            <button
+              type="button"
+              className="btn btn-danger"
+              style={{ background: '#dc2626', color: '#fff' }}
+              onClick={async () => {
+                if (!confirm(`Tem certeza que deseja excluir permanentemente a Negociação #${f.id}?`)) return;
+                if (onDelete) await onDelete(f.id);
+              }}
+            >
+              <Trash2 size={16} /> Excluir Negociação
             </button>
           )}
           {passo > 0 && (

@@ -306,22 +306,39 @@ export async function saveCliente(c) {
     tipo_pessoa: c.tipo_pessoa || 'PF',
     papel: c.papel || 'cliente',
     cpf_cnpj: c.cpf_cnpj || '',
+    rg_ie: c.rg_ie || '',
     telefone: c.telefone || '',
-    whatsapp: c.whatsapp || '',
+    whatsapp: c.whatsapp || c.telefone || '',
     email: c.email || '',
-    cidade: c.cidade || 'Balneário Camboriú',
-    uf: c.uf || 'SC'
+    cep: c.cep || '',
+    endereco: c.endereco || '',
+    numero: c.numero || '',
+    complemento: c.complemento || '',
+    bairro: c.bairro || '',
+    cidade: c.cidade || 'Rio do Sul',
+    uf: c.uf || 'SC',
+    origem: c.origem || 'LOJA',
+    observacoes: c.observacoes || ''
   };
 
+  let savedItem = null;
   try {
     if (isUpdate) {
-      await supabase.from('clientes_DGAUTOS').update(payload).eq('id', Number(c.id));
+      const { data } = await supabase.from('clientes_DGAUTOS').update(payload).eq('id', Number(c.id)).select();
+      if (data && data[0]) savedItem = data[0];
     } else {
-      await supabase.from('clientes_DGAUTOS').insert([payload]);
+      const { data } = await supabase.from('clientes_DGAUTOS').insert([payload]).select();
+      if (data && data[0]) savedItem = data[0];
     }
-  } catch {}
+  } catch (err) {
+    console.warn('Supabase saveCliente:', err);
+  }
 
-  return await getClientes();
+  const lista = await getClientes();
+  if (savedItem) {
+    lista.savedItem = savedItem;
+  }
+  return lista;
 }
 
 export async function deleteCliente(id) {
@@ -448,8 +465,44 @@ export async function getNegociacoes() {
   try {
     const { data, error } = await supabase.from('negociacoes_DGAUTOS').select('*').order('id', { ascending: false });
     if (!error && Array.isArray(data)) {
-      salvarCache('negociacoes', data);
-      return data;
+      // Enriquecer cada negociação com os dados cadastrais do cliente e veículo para contratos
+      let clientesMap = {};
+      let veiculosMap = {};
+      try {
+        const [cRes, vRes] = await Promise.all([
+          supabase.from('clientes_DGAUTOS').select('id, nome, cpf_cnpj, telefone, email, cep, endereco, cidade, uf'),
+          supabase.from('veiculos_DGAUTOS').select('id, marca, modelo, ano, placa, cor, chassi, renavam, km, preco, custo')
+        ]);
+        if (Array.isArray(cRes.data)) cRes.data.forEach((c) => { clientesMap[c.id] = c; });
+        if (Array.isArray(vRes.data)) vRes.data.forEach((v) => { veiculosMap[v.id] = v; });
+      } catch {}
+
+      const formatados = data.map((n) => {
+        const cli = clientesMap[n.cliente_id] || {};
+        const veic = veiculosMap[n.veiculo_id] || {};
+        return {
+          ...n,
+          cliente_nome: n.cliente_nome || cli.nome || '',
+          cliente_cpf_cnpj: n.cliente_cpf_cnpj || cli.cpf_cnpj || '',
+          cliente_telefone: n.cliente_telefone || cli.telefone || '',
+          cliente_email: n.cliente_email || cli.email || '',
+          cliente_cep: n.cliente_cep || cli.cep || '',
+          cliente_endereco: n.cliente_endereco || cli.endereco || '',
+          cliente_cidade: n.cliente_cidade || cli.cidade || '',
+          cliente_uf: n.cliente_uf || cli.uf || '',
+          veic_marca: n.veic_marca || veic.marca || '',
+          veic_modelo: n.veic_modelo || veic.modelo || '',
+          veic_ano: n.veic_ano || veic.ano || '',
+          veic_placa: n.veic_placa || veic.placa || '',
+          veic_cor: n.veic_cor || veic.cor || '',
+          veic_chassi: n.veic_chassi || veic.chassi || '',
+          veic_renavam: n.veic_renavam || veic.renavam || '',
+          veic_km: n.veic_km || veic.km || 0
+        };
+      });
+
+      salvarCache('negociacoes', formatados);
+      return formatados;
     }
   } catch {}
 
@@ -468,10 +521,16 @@ export async function saveNegociacao(n) {
     valor_veiculo: Number(n.valor_veiculo) || 0,
     desconto: Number(n.desconto) || 0,
     canal_venda: n.canal_venda || 'LOJA',
+    troca_marca: n.troca_marca || '',
     troca_modelo: n.troca_modelo || '',
+    troca_ano: n.troca_ano || '',
+    troca_placa: n.troca_placa || '',
+    troca_km: Number(n.troca_km) || 0,
+    troca_cor: n.troca_cor || '',
     troca_valor: Number(n.troca_valor) || 0,
-    pagamentos: Array.isArray(n.pagamentos) ? n.pagamentos : [],
-    observacoes: n.observacoes || ''
+    comissao_vendedor: Number(n.comissao_vendedor) || 0,
+    observacoes: n.observacoes || '',
+    data_negociacao: n.data_negociacao || new Date().toISOString().slice(0, 10)
   };
 
   try {
@@ -480,7 +539,9 @@ export async function saveNegociacao(n) {
     } else {
       await supabase.from('negociacoes_DGAUTOS').insert([payload]);
     }
-  } catch {}
+  } catch (err) {
+    console.warn('Supabase saveNegociacao error:', err);
+  }
 
   return await getNegociacoes();
 }
@@ -565,15 +626,15 @@ export async function deleteFinanceiro(id) {
 const CONFIG_LOJA_PADRAO = {
   razao_social: 'DG Automóveis Comércio de Veículos Ltda',
   nome_fantasia: 'DG Automóveis',
-  cnpj: '12.345.678/0001-90',
-  telefone: '(47) 3333-4444',
-  whatsapp: '(47) 99999-8888',
+  cnpj: '35.236.994/0001-24',
+  telefone: '(47) 98916-9598',
+  whatsapp: '(47) 98916-9598',
   email: 'contato@dgautomoveis.com.br',
-  site_url: 'https://dgautomoveis.com.br',
-  endereco: 'Av. Brasil, 1500 - Centro',
-  cidade: 'Balneário Camboriú',
+  site_url: 'https://dgautos-site.vercel.app',
+  endereco: 'Rua Dom Pedro II, 461 - Canoas',
+  cidade: 'Rio do Sul',
   uf: 'SC',
-  cep: '88330-000',
+  cep: '89164-138',
   termos_garantia: 'Garantia legal de 90 (noventa) dias para motor e câmbio, conforme Art. 26 do Código de Defesa do Consumidor.'
 };
 

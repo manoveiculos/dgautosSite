@@ -1248,10 +1248,24 @@ async function startServer() {
   } else {
     // Serve static files in production
     const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
+    const sistemaDist = path.join(distPath, 'sistema');
+
+    if (fs.existsSync(sistemaDist)) {
+      app.use('/sistema', express.static(sistemaDist));
+      app.get('/sistema/*', (req, res) => {
+        res.sendFile(path.join(sistemaDist, 'index.html'));
+      });
+      app.get('/sistema', (req, res) => {
+        res.sendFile(path.join(sistemaDist, 'index.html'));
+      });
+    }
+
+    if (fs.existsSync(distPath)) {
+      app.use(express.static(distPath));
+      app.get('*', (req, res) => {
+        res.sendFile(path.join(distPath, 'index.html'));
+      });
+    }
   }
 
   app.listen(PORT, "0.0.0.0", () => {

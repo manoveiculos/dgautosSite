@@ -20,15 +20,15 @@ export default function Configuracoes({ user }) {
   const [loja, setLoja] = useState({
     razao_social: 'DG Automóveis Comércio de Veículos Ltda',
     nome_fantasia: 'DG Automóveis',
-    cnpj: '12.345.678/0001-90',
-    telefone: '(47) 3333-4444',
-    whatsapp: '(47) 99999-8888',
+    cnpj: '35.236.994/0001-24',
+    telefone: '(47) 98916-9598',
+    whatsapp: '(47) 98916-9598',
     email: 'contato@dgautomoveis.com.br',
-    site_url: 'https://dgautomoveis.com.br',
-    endereco: 'Av. Brasil, 1500 - Centro',
-    cidade: 'Balneário Camboriú',
+    site_url: 'https://dgautos-site.vercel.app',
+    endereco: 'Rua Dom Pedro II, 461 - Canoas',
+    cidade: 'Rio do Sul',
     uf: 'SC',
-    cep: '88330-000',
+    cep: '89164-138',
     termos_garantia: 'Garantia legal de 90 (noventa) dias para motor e câmbio, conforme Art. 26 do Código de Defesa do Consumidor.'
   });
   const [usuarios, setUsuarios] = useState([]);
@@ -51,6 +51,7 @@ export default function Configuracoes({ user }) {
       const atualizada = await saveConfigLoja(loja);
       setLoja(atualizada);
       setMsg('Dados da revenda salvos com sucesso!');
+      alert('✓ Dados da revenda salvos com sucesso no Supabase!');
       setTimeout(() => setMsg(''), 3000);
     } catch (err) {
       alert(err.message);
@@ -63,6 +64,7 @@ export default function Configuracoes({ user }) {
       const lista = await createUsuario(novoUser);
       setUsuarios(lista);
       setNovoUser({ nome: '', email: '', senha: '', perfil: 'vendedor' });
+      alert('✓ Usuário cadastrado com sucesso!');
     } catch (err) {
       alert(err.message);
     }

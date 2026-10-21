@@ -268,9 +268,14 @@ export default function Estoque({ user }) {
         user={user}
         onClose={() => setEditando(null)}
         onSave={async (v) => {
-          const r = await saveVeiculo(v);
-          setLista(r);
-          setEditando(null);
+          try {
+            const r = await saveVeiculo(v);
+            setLista(Array.isArray(r) ? r : []);
+            setEditando(null);
+            alert(`✓ Veículo ${v.marca} ${v.modelo} salvo com sucesso no banco de dados!`);
+          } catch (err) {
+            alert('Erro ao salvar veículo: ' + err.message);
+          }
         }}
         onCancelarVeiculo={async (v, motivo) => {
           if (user?.perfil !== 'admin') {
