@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import {
   Car, LayoutDashboard, LogOut, Users, Handshake, Wallet,
@@ -218,10 +218,50 @@ function Shell({ user, onLogout }) {
   );
 }
 
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.error('ErrorBoundary capturou erro:', error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: 40, textAlign: 'center', background: '#f8fafc', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'sans-serif' }}>
+          <div style={{ background: '#ffffff', padding: 32, borderRadius: 16, boxShadow: '0 10px 30px rgba(0,0,0,.08)', maxWidth: 480, width: '100%', border: '1px solid #e2e8f0' }}>
+            <h2 style={{ color: '#0f172a', fontSize: '1.25rem', fontWeight: 800, marginBottom: 8 }}>DG AUTOS — Carregando Painel</h2>
+            <p style={{ color: '#64748b', fontSize: '.88rem', marginBottom: 20, lineHeight: 1.5 }}>
+              Ocorreu uma reinicialização de sessão. Clique abaixo para atualizar o painel.
+            </p>
+            <button
+              className="btn btn-primary"
+              style={{ width: '100%', padding: '12px', fontSize: '.95rem', fontWeight: 700 }}
+              onClick={() => {
+                localStorage.removeItem('dgautos_sessao');
+                window.location.reload();
+              }}
+            >
+              Recarregar Painel
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
   const [user, setUser] = useState(() => getUser());
 
-  if (!user) return <Login onLogin={setUser} />;
-
-  return <Shell user={user} onLogout={() => { logout(); setUser(null); }} />;
+  return (
+    <ErrorBoundary>
+      {!user ? <Login onLogin={setUser} /> : <Shell user={user} onLogout={() => { logout(); setUser(null); }} />}
+    </ErrorBoundary>
+  );
 }

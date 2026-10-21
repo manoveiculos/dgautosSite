@@ -16,25 +16,33 @@ export default function Dashboard({ user }) {
   const [fin, setFin] = useState([]);
 
   useEffect(() => {
-    getVeiculos().then(setVs).catch(() => {});
-    getOportunidades().then(setOps).catch(() => {});
-    getNegociacoes().then(setNegs).catch(() => {});
-    getFinanceiro().then(setFin).catch(() => {});
+    getVeiculos().then((r) => setVs(Array.isArray(r) ? r : [])).catch(() => setVs([]));
+    getOportunidades().then((r) => setOps(Array.isArray(r) ? r : [])).catch(() => setOps([]));
+    getNegociacoes().then((r) => setNegs(Array.isArray(r) ? r : [])).catch(() => setNegs([]));
+    getFinanceiro().then((r) => setFin(Array.isArray(r) ? r : [])).catch(() => setFin([]));
   }, []);
 
-  const emEstoque = vs.filter((v) => v.status !== 'vendido');
-  const vendidos = vs.filter((v) => v.status === 'vendido');
-  const valorEstoque = emEstoque.reduce((s, v) => s + v.preco, 0);
-  const lucro = vendidos.reduce((s, v) => s + (v.preco - v.custo - Number(v.despesas_veiculo || 0)), 0);
+  const listaVs = Array.isArray(vs) ? vs : [];
+  const listaOps = Array.isArray(ops) ? ops : [];
+  const listaNegs = Array.isArray(negs) ? negs : [];
+  const listaFin = Array.isArray(fin) ? fin : [];
+
+  const emEstoque = listaVs.filter((v) => v && v.status !== 'vendido');
+  const vendidos = listaVs.filter((v) => v && v.status === 'vendido');
+  const valorEstoque = emEstoque.reduce((s, v) => s + Number(v.preco || 0), 0);
+  const lucro = vendidos.reduce((s, v) => s + (Number(v.preco || 0) - Number(v.custo || 0) - Number(v.despesas_veiculo || 0)), 0);
   const giro = emEstoque.length ? Math.round(emEstoque.reduce((s, v) => s + dias(v.entrada), 0) / emEstoque.length) : 0;
 
-  const leadsAtivos = ops.filter((o) => !['concluido', 'perdido'].includes(o.estagio));
-  const negsAtivas = negs.filter((n) => ['aberta', 'conferencia'].includes(n.status));
-  const saldoCaixa = fin.reduce((s, f) => f.status === 'pago' ? s + (f.tipo === 'receita' ? f.valor : -f.valor) : s, 0);
+  const leadsAtivos = listaOps.filter((o) => o && !['concluido', 'perdido'].includes(o.estagio));
+  const negsAtivas = listaNegs.filter((n) => n && ['aberta', 'conferencia'].includes(n.status));
+  const saldoCaixa = listaFin.reduce((s, f) => f && f.status === 'pago' ? s + (f.tipo === 'receita' ? Number(f.valor || 0) : -Number(f.valor || 0)) : s, 0);
 
-  const porMarca = Object.entries(emEstoque.reduce((m, v) => ({ ...m, [v.marca]: (m[v.marca] || 0) + 1 }), {}));
+  const porMarca = Object.entries(emEstoque.reduce((m, v) => {
+    const k = (v && v.marca) ? v.marca : 'Outros';
+    return { ...m, [k]: (m[k] || 0) + 1 };
+  }, {}));
   const max = Math.max(1, ...porMarca.map(([, n]) => n));
-  const parados = [...emEstoque].sort((a, b) => new Date(a.entrada) - new Date(b.entrada)).slice(0, 4);
+  const parados = [...emEstoque].sort((a, b) => new Date(a.entrada || Date.now()) - new Date(b.entrada || Date.now())).slice(0, 4);
 
   const stats = [
     { label: 'Carros no Pátio', value: emEstoque.length, sub: `${brl(valorEstoque)} disponíveis para venda`, icon: Car, link: '/estoque' },
