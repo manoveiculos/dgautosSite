@@ -189,6 +189,66 @@ const VEICULOS_SHOWROOM_DEMO = [
   }
 ];
 
+// Upload de foto para o Supabase Storage (bucket público 'veiculos')
+export async function uploadFotoVeiculo(fileOrBase64, veiculoId, index = 0) {
+  if (!fileOrBase64) return null;
+  if (typeof fileOrBase64 === 'string' && (fileOrBase64.startsWith('http://') || fileOrBase64.startsWith('https://'))) {
+    return fileOrBase64;
+  }
+
+  try {
+    let blob;
+    let extension = 'jpg';
+
+    if (typeof fileOrBase64 === 'string' && fileOrBase64.startsWith('data:')) {
+      const match = fileOrBase64.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+      if (match) {
+        const mime = match[1];
+        extension = mime.split('/')[1] || 'jpg';
+        if (extension === 'jpeg') extension = 'jpg';
+        const bstr = atob(match[2]);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        while (n--) {
+          u8arr[n] = bstr.charCodeAt(n);
+        }
+        blob = new Blob([u8arr], { type: mime });
+      } else {
+        return fileOrBase64;
+      }
+    } else if (typeof Blob !== 'undefined' && (fileOrBase64 instanceof Blob || fileOrBase64 instanceof File)) {
+      blob = fileOrBase64;
+      extension = (fileOrBase64.name?.split('.').pop() || 'jpg').toLowerCase();
+    } else {
+      return null;
+    }
+
+    const uniqueName = `veiculo_${veiculoId || 'novo'}_${index}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${extension}`;
+    const filePath = `fotos/${uniqueName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('veiculos')
+      .upload(filePath, blob, {
+        contentType: blob.type || 'image/jpeg',
+        upsert: true
+      });
+
+    if (uploadError) {
+      console.warn('Upload bucket veiculos aviso (usando fallback):', uploadError);
+      return null;
+    }
+
+    const { data: urlData } = supabase.storage
+      .from('veiculos')
+      .getPublicUrl(filePath);
+
+    return urlData?.publicUrl || null;
+  } catch (err) {
+    console.warn('Erro ao fazer upload da foto:', err);
+    return null;
+  }
+}
+
 export async function getVeiculos() {
   if (IS_LOCAL) {
     try {
@@ -198,25 +258,44 @@ export async function getVeiculos() {
   }
 
   try {
-    const { data, error } = await supabase
-      .from('veiculos_DGAUTOS')
-      .select('*')
-      .order('id', { ascending: false });
+    const [resVeic, resFotos] = await Promise.all([
+      supabase.from('veiculos_DGAUTOS').select('*').order('id', { ascending: false }),
+      supabase.from('veiculos_fotos_DGAUTOS').select('*').order('ordem', { ascending: true })
+    ]);
+
+    const { data, error } = resVeic;
+    const fotosData = Array.isArray(resFotos.data) ? resFotos.data : [];
 
     if (!error && Array.isArray(data)) {
-      const formatados = data.map((v) => ({
-        ...v,
-        preco: Number(v.preco || 0),
-        custo: Number(v.custo || 0),
-        despesas_veiculo: Number(v.despesas_veiculo || 0),
-        foto: v.foto_capa || (Array.isArray(v.fotos) ? v.fotos[0] : ''),
-        fotos: Array.isArray(v.fotos) ? v.fotos : (v.foto_capa ? [v.foto_capa] : []),
-        itens_opcionais: Array.isArray(v.itens_opcionais) ? v.itens_opcionais : (v.dados_altimus?.itens_opcionais || []),
-        itens_destaques: Array.isArray(v.itens_destaques) ? v.itens_destaques : (v.dados_altimus?.itens_destaques || []),
-        pendencias: Array.isArray(v.pendencias) ? v.pendencias : (v.dados_altimus?.pendencias || []),
-        reservas: Array.isArray(v.reservas) ? v.reservas : (v.dados_altimus?.reservas || []),
-        documentos_anexos: Array.isArray(v.documentos_anexos) ? v.documentos_anexos : (v.dados_altimus?.documentos_anexos || [])
-      }));
+      const formatados = data.map((v) => {
+        // Carrega fotos oficiais persistidas na tabela veiculos_fotos_DGAUTOS
+        const fotosCarro = fotosData
+          .filter((f) => Number(f.veiculo_id) === Number(v.id))
+          .map((f) => f.url_foto);
+
+        const listaFotos = fotosCarro.length > 0
+          ? fotosCarro
+          : (Array.isArray(v.fotos) && v.fotos.length ? v.fotos : (v.foto_capa ? [v.foto_capa] : []));
+
+        const capa = fotosCarro.length > 0
+          ? (fotosData.find((f) => Number(f.veiculo_id) === Number(v.id) && f.is_capa)?.url_foto || fotosCarro[0])
+          : (v.foto_capa || listaFotos[0] || '');
+
+        return {
+          ...v,
+          preco: Number(v.preco || 0),
+          custo: Number(v.custo || 0),
+          despesas_veiculo: Number(v.despesas_veiculo || 0),
+          foto: capa,
+          foto_capa: capa,
+          fotos: listaFotos,
+          itens_opcionais: Array.isArray(v.itens_opcionais) ? v.itens_opcionais : (v.dados_altimus?.itens_opcionais || []),
+          itens_destaques: Array.isArray(v.itens_destaques) ? v.itens_destaques : (v.dados_altimus?.itens_destaques || []),
+          pendencias: Array.isArray(v.pendencias) ? v.pendencias : (v.dados_altimus?.pendencias || []),
+          reservas: Array.isArray(v.reservas) ? v.reservas : (v.dados_altimus?.reservas || []),
+          documentos_anexos: Array.isArray(v.documentos_anexos) ? v.documentos_anexos : (v.dados_altimus?.documentos_anexos || [])
+        };
+      });
       salvarCache('veiculos', formatados);
       return formatados;
     }
@@ -231,6 +310,27 @@ export async function getVeiculos() {
 
 export async function saveVeiculo(v) {
   const isUpdate = Boolean(v.id && Number(v.id) > 0 && Number(v.id) < 1000000000);
+  
+  // 1. Processa cada foto: envia para Supabase Storage se for arquivo/base64
+  const fotosBrutas = Array.isArray(v.fotos) ? v.fotos : (v.foto ? [v.foto] : []);
+  const fotosUrls = [];
+
+  for (let i = 0; i < fotosBrutas.length; i++) {
+    const item = fotosBrutas[i];
+    if (typeof item === 'string' && (item.startsWith('http://') || item.startsWith('https://'))) {
+      fotosUrls.push(item);
+    } else {
+      const subida = await uploadFotoVeiculo(item, v.id, i);
+      if (subida) {
+        fotosUrls.push(subida);
+      } else if (typeof item === 'string' && item.startsWith('data:')) {
+        fotosUrls.push(item);
+      }
+    }
+  }
+
+  const fotoCapaUrl = fotosUrls[0] || (typeof v.foto === 'string' && v.foto.startsWith('http') ? v.foto : '');
+
   const payload = {
     marca: v.marca,
     modelo: v.modelo,
@@ -249,18 +349,45 @@ export async function saveVeiculo(v) {
     status: v.status || 'disponivel',
     publicar_site: v.publicar_site !== false,
     destaque_site: !!v.destaque_site,
-    foto_capa: v.foto || (Array.isArray(v.fotos) ? v.fotos[0] : ''),
-    dados_altimus: v
+    foto_capa: fotoCapaUrl,
+    dados_altimus: {
+      ...v,
+      fotos: fotosUrls,
+      foto: fotoCapaUrl
+    }
   };
 
+  let veiculoId = v.id;
   try {
     if (isUpdate) {
       await supabase.from('veiculos_DGAUTOS').update(payload).eq('id', Number(v.id));
     } else {
-      await supabase.from('veiculos_DGAUTOS').insert([payload]);
+      const { data: inserted } = await supabase.from('veiculos_DGAUTOS').insert([payload]).select();
+      if (inserted && inserted[0]) {
+        veiculoId = inserted[0].id;
+      }
     }
   } catch (err) {
     console.warn('Supabase saveVeiculo fallback:', err);
+  }
+
+  // 2. Grava as URLs em veiculos_fotos_DGAUTOS (ordem + is_capa) e apaga as removidas
+  if (veiculoId) {
+    try {
+      await supabase.from('veiculos_fotos_DGAUTOS').delete().eq('veiculo_id', Number(veiculoId));
+
+      if (fotosUrls.length > 0) {
+        const registrosFotos = fotosUrls.map((url, idx) => ({
+          veiculo_id: Number(veiculoId),
+          url_foto: url,
+          ordem: idx + 1,
+          is_capa: idx === 0
+        }));
+        await supabase.from('veiculos_fotos_DGAUTOS').insert(registrosFotos);
+      }
+    } catch (errFotos) {
+      console.warn('Erro ao sincronizar veiculos_fotos_DGAUTOS:', errFotos);
+    }
   }
 
   return await getVeiculos();
@@ -268,6 +395,7 @@ export async function saveVeiculo(v) {
 
 export async function deleteVeiculo(id) {
   try {
+    await supabase.from('veiculos_fotos_DGAUTOS').delete().eq('veiculo_id', Number(id));
     await supabase.from('veiculos_DGAUTOS').delete().eq('id', Number(id));
   } catch {}
   return await getVeiculos();
@@ -558,6 +686,42 @@ export async function deleteNegociacao(id) {
     await supabase.from('negociacoes_DGAUTOS').delete().eq('id', Number(id));
   } catch {}
   return await getNegociacoes();
+}
+
+export async function saveContratoGerado(c) {
+  try {
+    const payload = {
+      negociacao_id: c.negociacao_id ? Number(c.negociacao_id) : null,
+      veiculo_id: c.veiculo_id ? Number(c.veiculo_id) : null,
+      cliente_id: c.cliente_id ? Number(c.cliente_id) : null,
+      modelo_codigo: c.modelo_codigo || 'venda_padrao',
+      texto_integral: c.texto_integral || '',
+      autorizacao_lgpd_imagem: c.autorizacao_lgpd_imagem !== false,
+      hodometro_comprado: Number(c.hodometro_comprado) || 0,
+      hodometro_troca: Number(c.hodometro_troca) || 0,
+      status: c.status || 'emitido',
+      data_emissao: new Date().toISOString()
+    };
+    const { data, error } = await supabase.from('contratos_gerados_DGAUTOS').insert([payload]).select();
+    if (error) {
+      console.warn('Erro ao salvar em contratos_gerados_DGAUTOS:', error);
+      throw error;
+    }
+    return data?.[0] || null;
+  } catch (err) {
+    console.error('saveContratoGerado falhou:', err);
+    throw err;
+  }
+}
+
+export async function getContratosGerados(negociacaoId) {
+  try {
+    let q = supabase.from('contratos_gerados_DGAUTOS').select('*').order('id', { ascending: false });
+    if (negociacaoId) q = q.eq('negociacao_id', Number(negociacaoId));
+    const { data, error } = await q;
+    if (!error && Array.isArray(data)) return data;
+  } catch {}
+  return [];
 }
 
 // ==============================================================================

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Printer, FileText, CheckCircle2, ShieldCheck, DollarSign, Handshake } from 'lucide-react';
-import { getNegociacoes, getConfig, brl, dataBr } from '../store';
+import { Printer, FileText, CheckCircle2, ShieldCheck, DollarSign, Handshake, Save } from 'lucide-react';
+import { getNegociacoes, getConfig, saveContratoGerado, getContratosGerados, brl, dataBr } from '../store';
 
 const MODELOS_CONTRATO = [
   { id: 'venda_padrao', label: '1. Venda Padrão (LGPD)', sub: '10 Cláusulas · Transf. 30d, Comunicação, LGPD' },
@@ -20,6 +20,8 @@ export default function Documentos({ user }) {
   const [negId, setNegId] = useState(params.get('negociacao') || '');
   const [modelo, setModelo] = useState('venda_padrao');
   const [autorizaImagem, setAutorizaImagem] = useState(true);
+  const [salvandoContrato, setSalvandoContrato] = useState(false);
+  const [contratoGravado, setContratoGravado] = useState(null);
 
   useEffect(() => {
     getNegociacoes().then((ns) => {
@@ -37,6 +39,44 @@ export default function Documentos({ user }) {
     return arr.find((n) => String(n.id) === String(negId)) || arr[0] || null;
   }, [negociacoes, negId]);
 
+  useEffect(() => {
+    if (neg?.id) {
+      getContratosGerados(neg.id).then((regs) => {
+        if (Array.isArray(regs) && regs.length > 0) {
+          setContratoGravado(regs[0]);
+        } else {
+          setContratoGravado(null);
+        }
+      }).catch(() => {});
+    }
+  }, [neg?.id]);
+
+  const gravarContrato = async () => {
+    if (!neg) return alert('Selecione uma negociação antes de gerar o contrato.');
+    setSalvandoContrato(true);
+    try {
+      const docElement = document.querySelector('.doc-preview');
+      const texto = docElement ? docElement.innerText : '';
+      const salvo = await saveContratoGerado({
+        negociacao_id: neg.id,
+        veiculo_id: neg.veiculo_id || null,
+        cliente_id: neg.cliente_id || null,
+        modelo_codigo: modelo,
+        texto_integral: texto,
+        autorizacao_lgpd_imagem: autorizaImagem,
+        hodometro_comprado: Number(neg.veic_km) || 0,
+        hodometro_troca: Number(neg.troca_km) || 0,
+        status: 'emitido'
+      });
+      setContratoGravado(salvo);
+      alert(`✓ Contrato gravado com sucesso em contratos_gerados_DGAUTOS (Registro #${salvo?.id || 'OK'})!`);
+    } catch (err) {
+      alert(`Erro ao gravar contrato: ${err.message || 'Erro de conexão'}`);
+    } finally {
+      setSalvandoContrato(false);
+    }
+  };
+
   const valorLiquido = neg ? Number(neg.valor_veiculo || 0) - Number(neg.desconto || 0) : 0;
   const cidEmp = loja?.cidade || 'Rio do Sul';
   const sigEmp = loja?.uf || 'SC';
@@ -51,38 +91,82 @@ export default function Documentos({ user }) {
           <h1>Minutas & Contratos Oficiais — DG Automóveis</h1>
           <p>Emissão jurídica preenchida em tempo real com substituição de cláusulas, hodômetro, LGPD e foro.</p>
         </div>
-        <button className="btn btn-primary" onClick={() => window.print()}>
-          <Printer size={16} />Imprimir / Salvar PDF
-        </button>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={salvandoContrato || !neg}
+            onClick={gravarContrato}
+          >
+            <FileText size={16} /> {salvandoContrato ? 'Gravando...' : 'Gerar & Gravar Contrato'}
+          </button>
+          <button className="btn" onClick={() => window.print()}>
+            <Printer size={16} />Imprimir / Salvar PDF
+          </button>
+        </div>
       </header>
 
-      <div className="toolbar no-print" style={{ alignItems: 'flex-start' }}>
-        <div className="field" style={{ minWidth: 320, flex: 1 }}>
-          <label>Selecionar Negociação Vinculada</label>
-          <select className="select" value={neg?.id || ''} onChange={(e) => setNegId(e.target.value)}>
-            {(Array.isArray(negociacoes) ? negociacoes : []).map((n) => (
-              <option key={n.id} value={n.id}>
-                #{n.id} — {n.cliente_nome || 'Cliente'} · {n.veic_marca || ''} {n.veic_modelo || ''} ({brl(Number(n.valor_veiculo || 0) - Number(n.desconto || 0))}) [{n.tipo?.toUpperCase()}]
-              </option>
-            ))}
-          </select>
+      {/* PAINEL DE CONTROLE DE EMISSÃO E MODELOS (SEM SOBREPOSIÇÃO) */}
+      <div className="card no-print" style={{ padding: 18, marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+          <div className="field" style={{ minWidth: 320, flex: 1, margin: 0 }}>
+            <label style={{ fontWeight: 700, fontSize: '.88rem', marginBottom: 6, display: 'block' }}>
+              Selecionar Negociação Vinculada
+            </label>
+            <select className="select" value={neg?.id || ''} onChange={(e) => setNegId(e.target.value)}>
+              {(Array.isArray(negociacoes) ? negociacoes : []).map((n) => (
+                <option key={n.id} value={n.id}>
+                  #{n.id} — {n.cliente_nome || 'Cliente'} · {n.veic_marca || ''} {n.veic_modelo || ''} ({brl(Number(n.valor_veiculo || 0) - Number(n.desconto || 0))}) [{n.tipo?.toUpperCase()}]
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            {contratoGravado ? (
+              <span className="badge badge-success" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <CheckCircle2 size={14} /> Contrato Emitido e Gravado (#{contratoGravado.id})
+              </span>
+            ) : (
+              <span className="badge badge-warning" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                Pendente de Gravação
+              </span>
+            )}
+          </div>
         </div>
 
-        <div className="field" style={{ flex: 2 }}>
-          <label>Modelo do Contrato Oficial</label>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 6 }}>
-            {MODELOS_CONTRATO.map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                className={`tab ${modelo === m.id ? 'active' : ''}`}
-                style={{ textAlign: 'left', padding: '8px 12px', height: 'auto', borderRadius: 8 }}
-                onClick={() => setModelo(m.id)}
-              >
-                <strong style={{ fontSize: '.84rem', display: 'block' }}>{m.label}</strong>
-                <span style={{ fontSize: '.7rem', opacity: .8, display: 'block' }}>{m.sub}</span>
-              </button>
-            ))}
+        <div>
+          <label style={{ fontWeight: 700, fontSize: '.88rem', marginBottom: 8, display: 'block' }}>
+            Modelo do Contrato Oficial (Clique para alternar minuta)
+          </label>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 8 }}>
+            {MODELOS_CONTRATO.map((m) => {
+              const ativo = modelo === m.id;
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  className="card"
+                  style={{
+                    textAlign: 'left',
+                    padding: '10px 14px',
+                    borderRadius: 8,
+                    cursor: 'pointer',
+                    border: ativo ? '2px solid var(--primary)' : '1px solid var(--border)',
+                    background: ativo ? 'hsla(217, 91%, 60%, .08)' : '#ffffff',
+                    transition: 'all .15s ease'
+                  }}
+                  onClick={() => setModelo(m.id)}
+                >
+                  <strong style={{ fontSize: '.84rem', display: 'block', color: ativo ? 'var(--primary)' : 'var(--text)' }}>
+                    {m.label}
+                  </strong>
+                  <span style={{ fontSize: '.72rem', color: 'var(--muted)', display: 'block', marginTop: 3 }}>
+                    {m.sub}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>

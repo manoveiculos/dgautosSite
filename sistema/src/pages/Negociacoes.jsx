@@ -36,6 +36,15 @@ const STATUS_NEG = {
   cancelada: 'Cancelada'
 };
 
+const STATUS_VEICULO = {
+  disponivel: 'Disponível',
+  reservado: 'Reservado',
+  vendido: 'Vendido',
+  em_preparacao: 'Em preparação',
+  cancelado: 'Cancelado'
+};
+const STATUS = STATUS_VEICULO;
+
 export default function Negociacoes({ user }) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -853,7 +862,7 @@ function NegociacaoWizardModal({ inicial, clientes, veiculos, onClose, onSave, o
                     <option value="">— Selecione o veículo em estoque —</option>
                     {veiculos.map((v) => (
                       <option key={v.id} value={v.id}>
-                        {v.marca} {v.modelo} ({v.ano}) — Placa {v.placa || '—'} — Preço: {brl(v.preco)} [{STATUS[v.status] || v.status}]
+                        {v.marca} {v.modelo} ({v.ano}) — Placa {v.placa || '—'} — Preço: {brl(v.preco)} [{STATUS?.[v?.status] || v?.status || 'Disponível'}]
                       </option>
                     ))}
                   </select>
