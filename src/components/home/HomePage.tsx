@@ -132,7 +132,7 @@ export default function HomePage() {
       setCambioPref('todos');
     }
 
-    // 4. Categoria
+    // 4. Categoria & Filtros Especiais
     if (txtLower.includes('suv') || txtLower.includes('família') || txtLower.includes('familia') || txtLower.includes('7 lugares')) {
       setCategoriaPref('suv');
     } else if (txtLower.includes('moto')) {
@@ -380,10 +380,10 @@ export default function HomePage() {
                   </div>
                 </a>
 
-                {/* 4. Repasses */}
+                {/* 4. Repasses (Direto no Estoque da DG Automóveis) */}
                 <button
                   type="button"
-                  onClick={() => navigate('/repasse-publico')}
+                  onClick={() => handleConsultorSearch('Repasse')}
                   className="group flex items-center gap-3 p-3 rounded-2xl bg-[#060B14]/90 border border-blue-500/30 hover:border-sky-400 hover:bg-blue-950/40 transition-all text-left shadow-md cursor-pointer active:scale-95"
                 >
                   <div className="w-9 h-9 rounded-xl bg-purple-500/15 border border-purple-400/30 flex items-center justify-center text-purple-400 group-hover:scale-110 transition-transform">
@@ -391,9 +391,9 @@ export default function HomePage() {
                   </div>
                   <div>
                     <strong className="text-xs font-bold text-white block group-hover:text-purple-300 transition-colors">
-                      Repasses
+                      Repasses DG
                     </strong>
-                    <span className="text-[10px] text-slate-400 block">Abaixo da FIPE / Lojista</span>
+                    <span className="text-[10px] text-slate-400 block">Oportunidades no Pátio</span>
                   </div>
                 </button>
               </div>
@@ -406,12 +406,28 @@ export default function HomePage() {
         {activeSearch && (
           <section id="consultor-home-results" className="space-y-6 p-6 sm:p-8 bg-slate-100 rounded-3xl border-2 border-[#0052FF]/30 shadow-xl scroll-mt-6">
             {ehBuscaAproximada && (
-              <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-2xl flex items-start gap-3 text-[#0B1120]">
-                <Sparkles className="w-5 h-5 text-[#0052FF] flex-shrink-0 mt-0.5" />
-                <div className="text-xs sm:text-sm space-y-0.5">
-                  <strong className="font-bold text-[#0052FF] block">Opções Recomendadas no Pátio da DG:</strong>
-                  <span>Selecionamos os veículos disponíveis no pátio da DG Automóveis mais próximos do que você procura:</span>
+              <div className="p-4 sm:p-5 bg-gradient-to-r from-blue-900/10 via-sky-500/15 to-blue-900/10 border-2 border-[#0052FF]/40 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-[#0B1120]">
+                <div className="flex items-start gap-3">
+                  <Sparkles className="w-6 h-6 text-[#0052FF] shrink-0 mt-0.5" />
+                  <div className="text-xs sm:text-sm space-y-1">
+                    <strong className="font-bold text-[#0052FF] text-sm block">
+                      Não encontramos esse modelo exato no pátio agora?
+                    </strong>
+                    <span className="text-slate-700">
+                      O estoque da <strong>DG Automóveis</strong> gira semanalmente! Veja as opções mais próximas abaixo ou chame a equipe no WhatsApp para buscar pra você:
+                    </span>
+                  </div>
                 </div>
+
+                <a
+                  href={waLink(`Olá! Fiz uma busca no site da DG Automóveis por "${searchSummary}" e gostaria de saber se vocês têm opções semelhantes ou chegando no estoque!`)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs uppercase tracking-wider rounded-xl inline-flex items-center gap-2 shadow-md shrink-0 transition-all"
+                >
+                  <MessageCircle className="w-4 h-4 text-white" />
+                  <span>Falar com a DG no WhatsApp</span>
+                </a>
               </div>
             )}
 
