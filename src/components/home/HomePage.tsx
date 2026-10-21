@@ -16,7 +16,10 @@ import {
   Car,
   Trophy,
   MapPin,
-  X
+  X,
+  Building2,
+  RefreshCw,
+  Landmark
 } from 'lucide-react';
 import { SiteShell } from '../ManosUI';
 import { LOJA, SOCIAL, CONTATO, waLink, brl } from '../../lib/manos';
@@ -114,6 +117,8 @@ export default function HomePage() {
     const matchMil = txtLower.match(/(?:até|ate|max|máximo)?\s*(\d{2,3})\s*(?:mil|k)/);
     if (matchMil && matchMil[1]) {
       setPrecoMaxInput(parseInt(matchMil[1], 10) * 1000);
+    } else if (txtLower.includes('30 mil') || txtLower.includes('30mil') || txtLower.includes('30.000') || txtLower.includes('30000')) {
+      setPrecoMaxInput(30000);
     } else {
       setPrecoMaxInput(null);
     }
@@ -228,64 +233,68 @@ export default function HomePage() {
     <SiteShell variant="default" showTrustCards={false}>
       <div className="space-y-10 lg:space-y-14">
         
-        {/* 1. HERO CONSULTOR DG AUTOMÓVEIS */}
-        <section className="bg-[#0B1120] text-white rounded-3xl p-6 sm:p-10 shadow-2xl relative overflow-hidden border border-blue-500/30">
-          {/* Imagem de Fundo da Loja (Fachada DG Automóveis) */}
+        {/* 1. HERO CONSULTOR DG AUTOMÓVEIS COM UPGRADE VISUAL */}
+        <section className="bg-gradient-to-b from-[#060B14] via-[#0B1120] to-[#060B14] text-white rounded-3xl p-6 sm:p-10 shadow-2xl relative overflow-hidden border border-blue-500/30">
+          {/* Imagem de Fundo da Loja (Fachada DG Automóveis) com overlay dinâmico */}
           <div className="absolute inset-0 z-0 pointer-events-none">
             <img 
               src="/fachada-dg.png" 
               alt="Fachada DG Automóveis Rio do Sul" 
-              className="w-full h-full object-cover opacity-45 scale-105"
+              className="w-full h-full object-cover opacity-35 scale-105"
             />
-            <div className="absolute inset-0 bg-gradient-to-r from-[#060B14]/95 via-[#0B1120]/85 to-[#0B1120]/50" />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#060B14]/95 via-transparent to-[#060B14]/40" />
+            <div className="absolute inset-0 bg-gradient-to-r from-[#060B14]/98 via-[#0B1120]/90 to-[#0B1120]/60" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#060B14] via-transparent to-[#060B14]/80" />
           </div>
 
-          <div className="relative z-10 max-w-3xl space-y-6">
+          <div className="relative z-10 max-w-4xl space-y-7">
             
-            {/* Consultor Header + Badge +250 Carros Vendidos */}
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="relative">
-                  <div className="w-12 h-12 rounded-full bg-[#060B14] border-2 border-[#0052FF] flex items-center justify-center shadow-[0_0_15px_rgba(0,82,255,0.5)]">
-                    <Bot className="w-7 h-7 text-sky-400" />
-                  </div>
-                  <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-emerald-500 border-2 border-[#0B1120] rounded-full animate-pulse" />
-                </div>
-                <div>
-                  <span className="font-serif font-bold text-sm text-white">Consultor DG Automóveis IA</span>
-                  <p className="text-xs text-slate-300 font-medium flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400" /> Responde na hora · Busca inteligente de parcelas
-                  </p>
+            {/* TOPO COM LOGO GRANDE DG + BADGES OFICIAIS */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5 border-b border-white/10 pb-6">
+              <div className="flex items-center gap-4">
+                <a href="/" className="inline-block transition-transform hover:scale-105">
+                  <img 
+                    src="/logo-dg.png" 
+                    alt="DG Automóveis" 
+                    className="h-14 sm:h-16 md:h-20 w-auto object-contain drop-shadow-[0_4px_25px_rgba(0,82,255,0.65)]" 
+                  />
+                </a>
+                <div className="hidden sm:block border-l border-white/15 pl-4 py-1">
+                  <span className="text-[11px] font-bold text-sky-400 tracking-wider uppercase block">Rio do Sul / SC</span>
+                  <span className="text-xs text-slate-300 font-medium">Estoque Selecionado & Garantia</span>
                 </div>
               </div>
 
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-blue-500/15 border border-sky-400/30 rounded-full text-xs font-extrabold text-sky-300">
-                <Trophy className="w-3.5 h-3.5 text-amber-400" />
-                <span>+250 Carros Vendidos em Rio do Sul</span>
-              </div>
+              <div className="flex flex-wrap items-center gap-2.5">
+                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-blue-500/15 border border-sky-400/30 rounded-full text-xs font-extrabold text-sky-300 shadow-sm">
+                  <Trophy className="w-3.5 h-3.5 text-amber-400" />
+                  <span>+250 Carros Vendidos em Rio do Sul</span>
+                </div>
 
-              {activeSearch && (
-                <button
-                  onClick={handleLimparBuscaInteligente}
-                  className="px-3 py-1.5 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-xs font-bold text-white transition-all flex items-center gap-1"
-                >
-                  <X className="w-4 h-4" />
-                  <span>Limpar Busca</span>
-                </button>
-              )}
+                {activeSearch && (
+                  <button
+                    onClick={handleLimparBuscaInteligente}
+                    className="px-3.5 py-1.5 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-xs font-bold text-white transition-all flex items-center gap-1.5"
+                  >
+                    <X className="w-4 h-4" />
+                    <span>Limpar Filtro</span>
+                  </button>
+                )}
+              </div>
             </div>
 
-            {/* Title */}
-            <div className="space-y-2.5">
-              <div className="inline-flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-widest text-sky-400">
-                <span>• COMPRA • VENDE • TROCA • FINANCIA •</span>
+            {/* Slogan Principal & Posicionamento */}
+            <div className="space-y-3">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-sky-500/10 border border-sky-400/30 text-[11px] font-black uppercase tracking-widest text-sky-300">
+                <Sparkles className="w-3.5 h-3.5 text-sky-400" />
+                <span>COMPRA • VENDE • TROCA • FINANCIA</span>
               </div>
+              
               <h1 className="font-serif font-extrabold text-2xl sm:text-4xl lg:text-5xl text-white leading-tight">
-                Entre populares e exclusividades, <span className="text-sky-400">seu carro tá aqui.</span>
+                Entre populares e exclusividades, <span className="text-transparent bg-clip-text bg-gradient-to-r from-sky-400 to-blue-400">seu carro tá aqui.</span>
               </h1>
-              <p className="text-sm sm:text-base text-slate-300 max-w-xl">
-                Descreva o que você procura: valor de parcela, carro econômico pro dia a dia, familiar 7 lugares ou esportivo exclusivo.
+              
+              <p className="text-sm sm:text-base text-slate-300 max-w-2xl leading-relaxed">
+                Descreva o que você procura no pátio da <strong>DG Automóveis</strong>: valor de parcela, carro econômico pro dia a dia, familiar ou esportivo exclusivo.
               </p>
             </div>
 
@@ -294,39 +303,100 @@ export default function HomePage() {
               <div className="relative flex-1">
                 <input
                   type="text"
-                  placeholder="Ex: Carro até 50 mil, parcela de 900, ou Golf / BMW automática..."
+                  placeholder="Ex: Carro até 30 mil, parcela de 900, ou Golf / BMW automática..."
                   value={consultorPrompt}
                   onChange={(e) => setConsultorPrompt(e.target.value)}
-                  className="w-full px-5 py-4 text-sm rounded-2xl bg-[#060B14]/90 border border-blue-500/40 text-white placeholder:text-slate-400 focus:outline-hidden focus:border-sky-400 transition-all"
+                  className="w-full px-5 py-4 text-sm sm:text-base rounded-2xl bg-[#060B14]/90 border border-blue-500/40 text-white placeholder:text-slate-400 focus:outline-hidden focus:border-sky-400 transition-all shadow-inner"
                 />
               </div>
               <button
                 type="submit"
-                className="py-4 px-6 bg-[#0052FF] hover:bg-[#003ECC] text-white font-bold text-sm rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 shadow-[0_0_25px_rgba(0,82,255,0.45)] min-h-[52px]"
+                className="py-4 px-7 bg-[#0052FF] hover:bg-[#003ECC] text-white font-bold text-sm sm:text-base rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 shadow-[0_0_30px_rgba(0,82,255,0.5)] min-h-[52px]"
               >
                 <span>Achar no Pátio</span>
                 <ArrowRight className="w-5 h-5" />
               </button>
             </form>
 
-            {/* Quick Suggestion Chips */}
-            <div className="flex flex-wrap items-center gap-2 pt-1">
-              <span className="text-xs text-slate-400 font-semibold mr-1">Sugestões rápidas:</span>
-              {[
-                'Populares até 50 mil',
-                'Cabe na parcela de 900',
-                'Exclusivos & Automáticos',
-                'Espaço pra família (7 lugares)',
-              ].map((chip) => (
+            {/* ATALHOS DE PESQUISAS SOLICITADOS PELO CLIENTE (CARAS DO NEGÓCIO) */}
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center gap-2">
+                <Bot className="w-4 h-4 text-sky-400" />
+                <span className="text-xs text-slate-300 font-bold uppercase tracking-wider">
+                  Pesquisas Mais Pedidas na Loja:
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                {/* 1. Carros até 30 mil */}
                 <button
-                  key={chip}
                   type="button"
-                  onClick={() => handleConsultorSearch(chip)}
-                  className="px-3.5 py-1.5 text-xs font-semibold bg-[#060B14]/90 border border-blue-500/30 hover:border-sky-400 text-slate-200 hover:text-white rounded-full transition-all active:scale-95 cursor-pointer"
+                  onClick={() => handleConsultorSearch('Carros até 30 mil')}
+                  className="group flex items-center gap-3 p-3 rounded-2xl bg-[#060B14]/90 border border-blue-500/30 hover:border-sky-400 hover:bg-blue-950/40 transition-all text-left shadow-md cursor-pointer active:scale-95"
                 >
-                  {chip}
+                  <div className="w-9 h-9 rounded-xl bg-sky-500/15 border border-sky-400/30 flex items-center justify-center text-sky-400 group-hover:scale-110 transition-transform">
+                    <Car className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <strong className="text-xs font-bold text-white block group-hover:text-sky-300 transition-colors">
+                      Carros até 30 mil
+                    </strong>
+                    <span className="text-[10px] text-slate-400 block">Populares & Econômicos</span>
+                  </div>
                 </button>
-              ))}
+
+                {/* 2. Financiamento Bancário */}
+                <button
+                  type="button"
+                  onClick={() => navigate('/financiamento')}
+                  className="group flex items-center gap-3 p-3 rounded-2xl bg-[#060B14]/90 border border-blue-500/30 hover:border-sky-400 hover:bg-blue-950/40 transition-all text-left shadow-md cursor-pointer active:scale-95"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-400/30 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform">
+                    <Landmark className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <strong className="text-xs font-bold text-white block group-hover:text-emerald-300 transition-colors">
+                      Financiamento Bancário
+                    </strong>
+                    <span className="text-[10px] text-slate-400 block">Simule até 48x online</span>
+                  </div>
+                </button>
+
+                {/* 3. Parcelas Diretamente com a Loja */}
+                <a
+                  href={waLink('Olá! Gostaria de saber sobre as condições de parcelamento e negociação direta com a loja na DG Automóveis.')}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group flex items-center gap-3 p-3 rounded-2xl bg-[#060B14]/90 border border-blue-500/30 hover:border-emerald-400 hover:bg-emerald-950/20 transition-all text-left shadow-md active:scale-95"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-400/30 flex items-center justify-center text-amber-400 group-hover:scale-110 transition-transform">
+                    <Handshake className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <strong className="text-xs font-bold text-white block group-hover:text-amber-300 transition-colors">
+                      Parcelas com a Loja
+                    </strong>
+                    <span className="text-[10px] text-slate-400 block">Negociação flexível</span>
+                  </div>
+                </a>
+
+                {/* 4. Repasses */}
+                <button
+                  type="button"
+                  onClick={() => navigate('/repasse-publico')}
+                  className="group flex items-center gap-3 p-3 rounded-2xl bg-[#060B14]/90 border border-blue-500/30 hover:border-sky-400 hover:bg-blue-950/40 transition-all text-left shadow-md cursor-pointer active:scale-95"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-purple-500/15 border border-purple-400/30 flex items-center justify-center text-purple-400 group-hover:scale-110 transition-transform">
+                    <RefreshCw className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <strong className="text-xs font-bold text-white block group-hover:text-purple-300 transition-colors">
+                      Repasses
+                    </strong>
+                    <span className="text-[10px] text-slate-400 block">Abaixo da FIPE / Lojista</span>
+                  </div>
+                </button>
+              </div>
             </div>
 
           </div>
