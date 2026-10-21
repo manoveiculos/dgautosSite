@@ -5,7 +5,7 @@ import bcrypt from 'bcryptjs';
 import { db, audit } from './db.js';
 
 const SECRET = process.env.JWT_SECRET || 'troque-este-segredo-em-producao';
-const PORT = process.env.PORT || 3333;
+const MOTRIZ_PORT = process.env.MOTRIZ_PORT || 3333;
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
@@ -728,4 +728,8 @@ app.delete('/api/usuarios/:id', auth, perfil('admin'), (req, res) => {
   res.json(db.prepare('SELECT id, nome, email, perfil FROM usuarios ORDER BY id').all());
 });
 
-app.listen(PORT, () => console.log(`Motriz API em http://localhost:${PORT}`));
+if (process.env.STANDALONE_MOTRIZ === '1') {
+  app.listen(MOTRIZ_PORT, () => console.log(`Motriz API em http://localhost:${MOTRIZ_PORT}`));
+}
+
+export default app;

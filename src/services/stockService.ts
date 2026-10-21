@@ -289,11 +289,11 @@ export async function fetchStock(): Promise<Vehicle[]> {
     const response = await fetch(STOCK_JSON_URL);
     if (response.ok) {
       const data = await response.json();
-      if (Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data)) {
         const vehicles: Vehicle[] = data.map((v: any) => {
           const imgs: string[] = Array.isArray(v.images) && v.images.length > 0
             ? v.images
-            : [v.image || '/logo-dg.png'];
+            : (Array.isArray(v.fotos) && v.fotos.length > 0 ? v.fotos : [v.image || '/logo-dg.png']);
           const vSlug = v.slug || `${slugify(v.title || v.description)}-${v.id}`;
 
           return {
@@ -320,9 +320,9 @@ export async function fetchStock(): Promise<Vehicle[]> {
       }
     }
 
-    return DG_SHOWROOM_STOCK;
+    return [];
   } catch (error) {
-    console.error('Error fetching stock, using DG Showroom Stock:', error);
-    return DG_SHOWROOM_STOCK;
+    console.error('Error fetching stock from live API:', error);
+    return [];
   }
 }

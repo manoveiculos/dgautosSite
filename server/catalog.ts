@@ -509,7 +509,6 @@ export const DG_DEFAULT_VEHICLES: FeedVehicle[] = [
 ];
 
 export async function getVehicles(): Promise<FeedVehicle[]> {
-  if (!FEED_URL) return DG_DEFAULT_VEHICLES;
   if (cache && Date.now() - cache.at < CACHE_TTL_MS) return cache.vehicles;
   try {
     const res = await fetch(FEED_URL);
@@ -517,10 +516,10 @@ export async function getVehicles(): Promise<FeedVehicle[]> {
     const xml = await res.text();
     const vehicles = await aplicarMapeamento(parseFeed(xml));
     cache = { at: Date.now(), vehicles };
-    return vehicles.length > 0 ? vehicles : DG_DEFAULT_VEHICLES;
+    return vehicles;
   } catch (err) {
-    console.error('Feed error, using DG default vehicles:', err);
-    return cache?.vehicles ?? DG_DEFAULT_VEHICLES;
+    console.error('Feed error fetching live DG stock:', err);
+    return cache?.vehicles ?? [];
   }
 }
 
