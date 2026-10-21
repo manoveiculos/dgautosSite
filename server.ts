@@ -190,6 +190,7 @@ async function startServer() {
   // sempre 127.0.0.1 — e o IP do visitante é um dos sinais que a Meta usa para
   // casar o evento do Conversions API com a pessoa certa.
   app.set("trust proxy", 1);
+  app.disable("x-powered-by");
 
   // Security Headers (Hardening contra clickjacking, MIME sniffing e XSS)
   app.use((_req, res, next) => {

@@ -271,256 +271,33 @@ export function ordenarPorRecencia<T extends { id: string }>(lista: T[]): T[] {
   });
 }
 
-export const DG_DEFAULT_VEHICLES: FeedVehicle[] = [
-  {
-    id: '101',
-    slug: 'vw-golf-1-4-tsi-highline-automatico-teto-solar-101',
-    title: 'VW GOLF 1.4 TSI HIGHLINE AUTOMÁTICO C/ TETO SOLAR',
-    description: 'VW GOLF 1.4 TSI HIGHLINE AUTOMÁTICO C/ TETO SOLAR',
-    brand: 'VW',
-    tipo: '1',
-    year: '2015/2015',
-    price: 89900,
-    priceFormatted: 'R$ 89.900',
-    km: '88.000 km',
-    kmNumber: 88000,
-    color: 'Vermelho Tornado',
-    fuel: 'Gasolina / Flex',
-    transmission: 'Automático',
-    options: [
-      'Teto Solar Panorâmico',
-      'Rodas Esportivas Aro 18 Pretas',
-      'Câmbio Automático c/ Paddle Shifts',
-      'Ar-Condicionado Digital Dual Zone',
-      'Bancos em Couro',
-      'Central Multimídia c/ GPS e Bluetooth',
-      'Controle de Estabilidade e Tração',
-      '7 Airbags',
-    ],
-    images: ['/carros/vw-golf-card.png', '/carros/vw-golf.png', '/fachada-dg.png'],
-    placa: 'QHJ1A01',
-  },
-  {
-    id: '102',
-    slug: 'bmw-320i-2-0-16v-sport-automatico-teto-solar-102',
-    title: 'BMW 320I 2.0 16V AUTOMÁTICO C/ TETO SOLAR',
-    description: 'BMW 320I 2.0 16V AUTOMÁTICO C/ TETO SOLAR',
-    brand: 'BMW',
-    tipo: '1',
-    year: '2012/2012',
-    price: 78900,
-    priceFormatted: 'R$ 78.900',
-    km: '96.000 km',
-    kmNumber: 96000,
-    color: 'Branco Alpino',
-    fuel: 'Gasolina',
-    transmission: 'Automático',
-    options: [
-      'Teto Solar Elétrico',
-      'Bancos em Couro com Ajuste Elétrico',
-      'Rodas de Liga Leve Esportivas Pretas',
-      'Faróis Bi-Xenon com Angel Eyes',
-      'Ar-Condicionado Digital Dual Zone',
-      'Partida Start/Stop',
-      '6 Airbags',
-    ],
-    images: ['/carros/bmw-320i-card.png', '/carros/bmw-320i.png', '/fachada-dg.png'],
-    placa: 'MLK2B02',
-  },
-  {
-    id: '103',
-    slug: 'vw-jetta-2-0-comfortline-automatico-couro-103',
-    title: 'VW JETTA 2.0 COMFORTLINE AUTOMÁTICO TIPTRONIC',
-    description: 'VW JETTA 2.0 COMFORTLINE AUTOMÁTICO TIPTRONIC',
-    brand: 'VW',
-    tipo: '1',
-    year: '2014/2014',
-    price: 67900,
-    priceFormatted: 'R$ 67.900',
-    km: '94.000 km',
-    kmNumber: 94000,
-    color: 'Branco Cristal',
-    fuel: 'Flex',
-    transmission: 'Automático',
-    options: [
-      'Câmbio Automático Tiptronic de 6 Marchas',
-      'Bancos em Couro',
-      'Rodas de Liga Leve Diamantadas Aro 17',
-      'Ar-Condicionado Digital Dual Zone',
-      'Sensores de Estacionamento Dianteiro e Traseiro',
-      'Volante Multifuncional com Paddle Shifts',
-    ],
-    images: ['/carros/vw-jetta.png', '/fachada-dg.png'],
-    placa: 'QWE3C03',
-  },
-  {
-    id: '104',
-    slug: 'chevrolet-spin-1-8-ltz-7-lugares-automatica-104',
-    title: 'CHEVROLET SPIN 1.8 LTZ 7 LUGARES AUTOMÁTICA',
-    description: 'CHEVROLET SPIN 1.8 LTZ 7 LUGARES AUTOMÁTICA',
-    brand: 'CHEVROLET',
-    tipo: '1',
-    year: '2017/2017',
-    price: 62900,
-    priceFormatted: 'R$ 62.900',
-    km: '82.000 km',
-    kmNumber: 82000,
-    color: 'Branco Summit',
-    fuel: 'Flex',
-    transmission: 'Automático',
-    options: [
-      '7 Lugares (Espaço Ideal para Família)',
-      'Câmbio Automático de 6 Velocidades',
-      'Central Multimídia MyLink com Câmera de Ré',
-      'Ar-Condicionado e Direção',
-      'Rodas de Liga Leve Originais',
-      'Rack de Teto Funcional',
-    ],
-    images: ['/carros/chevrolet-spin-card.png', '/carros/chevrolet-spin.png', '/fachada-dg.png'],
-    placa: 'QRT4D04',
-  },
-  {
-    id: '105',
-    slug: 'fiat-mobi-1-0-like-flex-4p-completo-105',
-    title: 'FIAT MOBI 1.0 LIKE FLEX 4P COMPLETO',
-    description: 'FIAT MOBI 1.0 LIKE FLEX 4P COMPLETO',
-    brand: 'FIAT',
-    tipo: '1',
-    year: '2020/2020',
-    price: 47900,
-    priceFormatted: 'R$ 47.900',
-    km: '54.000 km',
-    kmNumber: 54000,
-    color: 'Branco Banchisa',
-    fuel: 'Flex',
-    transmission: 'Manual',
-    options: [
-      'Ar-Condicionado Gelando',
-      'Direção Assistida',
-      'Vidros e Travas Elétricas',
-      'Computador de Bordo',
-      'Super Econômico (Até 15 km/l)',
-      'Freios ABS e Airbags Duplos',
-    ],
-    images: ['/carros/fiat-mobi-card.png', '/carros/fiat-mobi.png', '/fachada-dg.png'],
-    placa: 'RAA5E05',
-  },
-  {
-    id: '106',
-    slug: 'renault-sandero-1-6-expression-8v-flex-completo-106',
-    title: 'RENAULT SANDERO 1.6 EXPRESSION 8V FLEX COMPLETO',
-    description: 'RENAULT SANDERO 1.6 EXPRESSION 8V FLEX COMPLETO',
-    brand: 'RENAULT',
-    tipo: '1',
-    year: '2014/2014',
-    price: 38900,
-    priceFormatted: 'R$ 38.900',
-    km: '98.000 km',
-    kmNumber: 98000,
-    color: 'Prata Étoile',
-    fuel: 'Flex',
-    transmission: 'Manual',
-    options: [
-      'Motor 1.6 Forte e Econômico',
-      'Ar-Condicionado',
-      'Direção Hidráulica',
-      'Rodas de Liga Leve',
-      'Faróis de Neblina',
-      'Vidros e Travas Elétricas',
-    ],
-    images: ['/carros/renault-sandero.png', '/carros/patio-dg-1.png', '/fachada-dg.png'],
-    placa: 'MNO6F06',
-  },
-  {
-    id: '107',
-    slug: 'ford-new-fiesta-1-6-se-titanium-flex-107',
-    title: 'FORD NEW FIESTA 1.6 SE FLEX COMPLETO',
-    description: 'FORD NEW FIESTA 1.6 SE FLEX COMPLETO',
-    brand: 'FORD',
-    tipo: '1',
-    year: '2015/2015',
-    price: 46900,
-    priceFormatted: 'R$ 46.900',
-    km: '85.000 km',
-    kmNumber: 85000,
-    color: 'Branco Ártico',
-    fuel: 'Flex',
-    transmission: 'Manual',
-    options: [
-      'Direção Elétrica Progressiva',
-      'Ar-Condicionado Digital',
-      'Assistente de Partida em Rampa',
-      'Controle de Estabilidade (AdvanceTrac)',
-      'Sistema de Som SYNC com Bluetooth',
-    ],
-    images: ['/carros/patio-dg-1.png', '/fachada-dg.png'],
-    placa: 'QJK7G07',
-  },
-  {
-    id: '108',
-    slug: 'hyundai-i30-2-0-16v-automatico-teto-solar-108',
-    title: 'HYUNDAI I30 2.0 16V AUTOMÁTICO C/ TETO SOLAR',
-    description: 'HYUNDAI I30 2.0 16V AUTOMÁTICO C/ TETO SOLAR',
-    brand: 'HYUNDAI',
-    tipo: '1',
-    year: '2012/2012',
-    price: 52900,
-    priceFormatted: 'R$ 52.900',
-    km: '102.000 km',
-    kmNumber: 102000,
-    color: 'Preto',
-    fuel: 'Gasolina',
-    transmission: 'Automático',
-    options: [
-      'Teto Solar Elétrico',
-      'Câmbio Automático',
-      'Bancos em Couro',
-      'Ar-Condicionado Digital',
-      'Rodas de Liga Leve Aro 17',
-    ],
-    images: ['/carros/patio-dg-2.png', '/fachada-dg.png'],
-    placa: 'MKL8H08',
-  },
-  {
-    id: '109',
-    slug: 'vw-voyage-1-6-msi-comfortline-flex-completo-109',
-    title: 'VW VOYAGE 1.6 MSI COMFORTLINE FLEX COMPLETO',
-    description: 'VW VOYAGE 1.6 MSI COMFORTLINE FLEX COMPLETO',
-    brand: 'VW',
-    tipo: '1',
-    year: '2016/2016',
-    price: 48900,
-    priceFormatted: 'R$ 48.900',
-    km: '89.000 km',
-    kmNumber: 89000,
-    color: 'Branco Cristal',
-    fuel: 'Flex',
-    transmission: 'Manual',
-    options: [
-      'Motor 1.6 MSI Flex',
-      'Ar-Condicionado',
-      'Direção Hidráulica',
-      'Porta-Malas Amplo de 480 Litros',
-      'Faróis de Neblina',
-    ],
-    images: ['/fachada-dg.png', '/carros/patio-dg-2.png'],
-    placa: 'QPL9I09',
-  },
-];
+export const DG_DEFAULT_VEHICLES: FeedVehicle[] = [];
 
 export async function getVehicles(): Promise<FeedVehicle[]> {
-  if (cache && Date.now() - cache.at < CACHE_TTL_MS) return cache.vehicles;
-  try {
-    const res = await fetch(FEED_URL);
-    if (!res.ok) throw new Error(`Feed responded ${res.status}`);
-    const xml = await res.text();
-    const vehicles = await aplicarMapeamento(parseFeed(xml));
-    cache = { at: Date.now(), vehicles };
-    return vehicles;
-  } catch (err) {
-    console.error('Feed error fetching live DG stock:', err);
-    return cache?.vehicles ?? [];
+  if (cache && Date.now() - cache.at < CACHE_TTL_MS && cache.vehicles.length > 0) return cache.vehicles;
+
+  const urlsToTry = [
+    FEED_URL,
+    'http://127.0.0.1:3333/api/estoquejson?estoque=20706bbe-4a09-4a03-8e2a-1f47e73d7a14',
+    `http://127.0.0.1:${process.env.PORT || 3030}/api/estoquejson?estoque=20706bbe-4a09-4a03-8e2a-1f47e73d7a14`
+  ];
+
+  for (const url of Array.from(new Set(urlsToTry))) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(3000) });
+      if (!res.ok) continue;
+      const text = await res.text();
+      const vehicles = await aplicarMapeamento(parseFeed(text));
+      if (vehicles.length > 0) {
+        cache = { at: Date.now(), vehicles };
+        return vehicles;
+      }
+    } catch {
+      // Tenta próximo endpoint
+    }
   }
+
+  return cache?.vehicles ?? [];
 }
 
 // ---------------------------------------------------------------------------

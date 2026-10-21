@@ -1,21 +1,65 @@
+import crypto from 'node:crypto';
 import express from 'express';
 import cors from 'cors';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { db, audit } from './db.js';
 
-const SECRET = process.env.JWT_SECRET || 'troque-este-segredo-em-producao';
-const MOTRIZ_PORT = process.env.MOTRIZ_PORT || 3333;
+let SECRET = process.env.JWT_SECRET;
+if (!SECRET) {
+  if (process.env.NODE_ENV === 'production') {
+    SECRET = crypto.randomBytes(32).toString('hex');
+    console.warn('[SEGURANÇA] JWT_SECRET não configurado. Gerado segredo temporário aleatório para a sessão.');
+  } else {
+    SECRET = 'dgautos-dev-secret-key-35236994000124';
+  }
+}
+
+const MOTRIZ_PORT = Number(process.env.MOTRIZ_PORT) || 3333;
 const app = express();
+
+// Proteção contra brute force no login
+const loginAttempts = new Map();
+const LOGIN_WINDOW_MS = 5 * 60 * 1000;
+const MAX_LOGIN_ATTEMPTS = 8;
+
+function checkLoginRateLimit(ip) {
+  const now = Date.now();
+  const entry = loginAttempts.get(ip);
+  if (!entry || now - entry.firstAttempt > LOGIN_WINDOW_MS) {
+    loginAttempts.set(ip, { count: 1, firstAttempt: now });
+    return true;
+  }
+  if (entry.count >= MAX_LOGIN_ATTEMPTS) {
+    return false;
+  }
+  entry.count++;
+  return true;
+}
+
+app.disable('x-powered-by');
 app.use(cors());
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // ---------- Auth ----------
 app.post('/api/auth/login', (req, res) => {
+  const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
+  if (!checkLoginRateLimit(clientIp)) {
+    return res.status(429).json({ erro: 'Muitas tentativas de login. Aguarde 5 minutos antes de tentar novamente.' });
+  }
+
   const { email, senha } = req.body || {};
-  const u = db.prepare('SELECT * FROM usuarios WHERE email = ?').get(String(email || '').toLowerCase());
-  if (!u || !bcrypt.compareSync(String(senha || ''), u.senha_hash)) return res.status(401).json({ erro: 'E-mail ou senha inválidos.' });
+  if (!email || !senha) {
+    return res.status(400).json({ erro: 'E-mail e senha são obrigatórios.' });
+  }
+
+  const u = db.prepare('SELECT * FROM usuarios WHERE email = ?').get(String(email).trim().toLowerCase());
+  if (!u || !bcrypt.compareSync(String(senha), u.senha_hash)) {
+    return res.status(401).json({ erro: 'E-mail ou senha inválidos.' });
+  }
+
+  loginAttempts.delete(clientIp);
   const user = { id: u.id, nome: u.nome, email: u.email, perfil: u.perfil };
   res.json({ token: jwt.sign(user, SECRET, { expiresIn: '12h' }), user });
 });
@@ -728,8 +772,20 @@ app.delete('/api/usuarios/:id', auth, perfil('admin'), (req, res) => {
   res.json(db.prepare('SELECT id, nome, email, perfil FROM usuarios ORDER BY id').all());
 });
 
-if (process.env.STANDALONE_MOTRIZ === '1') {
-  app.listen(MOTRIZ_PORT, () => console.log(`Motriz API em http://localhost:${MOTRIZ_PORT}`));
+try {
+  const motrizServer = app.listen(MOTRIZ_PORT, () => {
+    console.log(`[Motriz API] Ativa em http://localhost:${MOTRIZ_PORT}`);
+  });
+  motrizServer.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.log(`[Motriz API] Porta ${MOTRIZ_PORT} ocupada, servindo integrado.`);
+    } else {
+      console.error('[Motriz API] Erro no listener:', err);
+    }
+  });
+} catch (e) {
+  // Ignora se não for possível abrir socket dedicado
 }
 
 export default app;
+
