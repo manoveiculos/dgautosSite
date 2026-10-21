@@ -6,7 +6,7 @@ export default defineConfig({
   base: '/sistema/',
   plugins: [react()],
   build: {
-    outDir: '../dist-sistema',
+    outDir: '../dist/sistema',
     emptyOutDir: true,
   },
 })

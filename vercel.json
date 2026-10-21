@@ -1,0 +1,16 @@
+{
+  "rewrites": [
+    {
+      "source": "/sistema/(.*)",
+      "destination": "/sistema/$1"
+    },
+    {
+      "source": "/sistema",
+      "destination": "/sistema/index.html"
+    },
+    {
+      "source": "/((?!sistema).*)",
+      "destination": "/index.html"
+    }
+  ]
+}

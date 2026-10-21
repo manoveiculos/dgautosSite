@@ -197,7 +197,9 @@ async function startServer() {
   app.use(motrizBackendApp);
 
   // Servir frontend do sistema administrativo em /sistema
-  const sistemaDist = path.join(process.cwd(), "dist-sistema");
+  const sistemaDist = fs.existsSync(path.join(process.cwd(), "dist", "sistema"))
+    ? path.join(process.cwd(), "dist", "sistema")
+    : path.join(process.cwd(), "dist-sistema");
   app.use("/sistema", express.static(sistemaDist));
   app.get(["/sistema", "/sistema/*"], (_req, res) => {
     const indexPath = path.join(sistemaDist, "index.html");
