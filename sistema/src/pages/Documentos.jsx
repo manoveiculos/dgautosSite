@@ -40,6 +40,13 @@ export default function Documentos({ user }) {
   }, [negociacoes, negId]);
 
   useEffect(() => {
+    if (neg) {
+      if (neg.tipo === 'compra') setModelo('compra_estoque');
+      else if (neg.tipo === 'consignacao') setModelo('consignacao');
+    }
+  }, [neg?.id, neg?.tipo]);
+
+  useEffect(() => {
     if (neg?.id) {
       getContratosGerados(neg.id).then((regs) => {
         if (Array.isArray(regs) && regs.length > 0) {
@@ -50,6 +57,21 @@ export default function Documentos({ user }) {
       }).catch(() => {});
     }
   }, [neg?.id]);
+
+  const veicObj = useMemo(() => {
+    if (!neg) return {};
+    const isCompraOuConsig = neg.tipo === 'compra' || neg.tipo === 'consignacao';
+    return {
+      marca: isCompraOuConsig ? (neg.troca_marca || neg.veic_marca || '') : (neg.veic_marca || neg.troca_marca || ''),
+      modelo: isCompraOuConsig ? (neg.troca_modelo || neg.veic_modelo || '') : (neg.veic_modelo || neg.troca_modelo || ''),
+      ano: isCompraOuConsig ? (neg.troca_ano || neg.veic_ano || '') : (neg.veic_ano || neg.troca_ano || ''),
+      placa: isCompraOuConsig ? (neg.troca_placa || neg.veic_placa || '') : (neg.veic_placa || neg.troca_placa || ''),
+      cor: neg.veic_cor || neg.troca_cor || 'Não informada',
+      chassi: neg.veic_chassi || '—',
+      renavam: neg.veic_renavam || '—',
+      km: isCompraOuConsig ? (neg.troca_km || neg.veic_km || 0) : (neg.veic_km || 0),
+    };
+  }, [neg]);
 
   const gravarContrato = async () => {
     if (!neg) return alert('Selecione uma negociação antes de gerar o contrato.');
@@ -64,7 +86,7 @@ export default function Documentos({ user }) {
         modelo_codigo: modelo,
         texto_integral: texto,
         autorizacao_lgpd_imagem: autorizaImagem,
-        hodometro_comprado: Number(neg.veic_km) || 0,
+        hodometro_comprado: Number(veicObj.km) || 0,
         hodometro_troca: Number(neg.troca_km) || 0,
         status: 'emitido'
       });
@@ -80,9 +102,13 @@ export default function Documentos({ user }) {
   const valorLiquido = neg ? Number(neg.valor_veiculo || 0) - Number(neg.desconto || 0) : 0;
   const cidEmp = loja?.cidade || 'Rio do Sul';
   const sigEmp = loja?.uf || 'SC';
-  const nomCli = neg?.cliente_nome || 'Cliente Comprador';
-  const qvnAut = neg?.veic_km ? `${Number(neg.veic_km).toLocaleString('pt-BR')} km` : 'Não informado';
-  const qcmvTr = neg?.troca_km ? `${Number(neg.troca_km).toLocaleString('pt-BR')} km` : (neg?.troca_modelo ? 'Hodômetro não informado' : 'Não se aplica (Sem veículo na troca)');
+  const nomCli = neg?.cliente_nome || 'Cliente';
+  const kmPrincipal = veicObj.km || neg?.veic_km || (neg?.tipo === 'compra' ? neg?.troca_km : 0);
+  const qvnAut = kmPrincipal ? `${Number(kmPrincipal).toLocaleString('pt-BR')} km` : 'Não informado';
+  const qcmvTr = neg?.tipo === 'troca'
+    ? (neg?.troca_km ? `${Number(neg.troca_km).toLocaleString('pt-BR')} km` : (neg?.troca_modelo ? 'Hodômetro não informado' : 'Não se aplica (Sem veículo na troca)'))
+    : 'Não se aplica (Operação direta)';
+  const pagamentosLista = Array.isArray(neg?.pagamentos) ? neg.pagamentos : [];
 
   return (
     <>
@@ -197,14 +223,28 @@ export default function Documentos({ user }) {
 
           {/* DADOS DAS PARTES */}
           <div className="doc-box" style={{ background: '#f8fafc', border: '1px solid #cbd5e1', padding: 12, borderRadius: 6, marginBottom: 16 }}>
-            <strong>VENDEDOR(A) / LOJA:</strong> {loja?.razao_social || 'DG Automóveis Comércio de Veículos Ltda'}, CNPJ nº {loja?.cnpj || '35.236.994/0001-24'}, com sede em {loja?.endereco || 'Rua Dom Pedro II, 461 - Canoas'}, {cidEmp}/{sigEmp}.<br />
-            <strong>COMPRADOR(A) / CLIENTE:</strong> <strong>{nomCli}</strong>, inscrito(a) no CPF/CNPJ sob nº <strong>{neg.cliente_cpf_cnpj || '___.___.___-__'}</strong>, telefone {neg.cliente_telefone || '__________'}, residente e domiciliado(a) em {neg.cliente_endereco || '________________'}, {neg.cliente_cidade || cidEmp}/{neg.cliente_uf || sigEmp}.
+            {neg.tipo === 'compra' ? (
+              <>
+                <strong>VENDEDOR(A) / PROPRIETÁRIO(A):</strong> <strong>{nomCli}</strong>, inscrito(a) no CPF/CNPJ sob nº <strong>{neg.cliente_cpf_cnpj || '___.___.___-__'}</strong>, telefone {neg.cliente_telefone || '__________'}, residente e domiciliado(a) em {neg.cliente_endereco || '________________'}, {neg.cliente_cidade || cidEmp}/{neg.cliente_uf || sigEmp}.<br />
+                <strong>COMPRADORA / REVENDEDORA:</strong> {loja?.razao_social || 'DG Automóveis Comércio de Veículos Ltda'}, CNPJ nº {loja?.cnpj || '35.236.994/0001-24'}, com sede em {loja?.endereco || 'Rua Dom Pedro II, 461 - Canoas'}, {cidEmp}/{sigEmp}.
+              </>
+            ) : neg.tipo === 'consignacao' ? (
+              <>
+                <strong>CONSIGNANTE / PROPRIETÁRIO(A):</strong> <strong>{nomCli}</strong>, inscrito(a) no CPF/CNPJ sob nº <strong>{neg.cliente_cpf_cnpj || '___.___.___-__'}</strong>, telefone {neg.cliente_telefone || '__________'}, residente e domiciliado(a) em {neg.cliente_endereco || '________________'}, {neg.cliente_cidade || cidEmp}/{neg.cliente_uf || sigEmp}.<br />
+                <strong>CONSIGNATÁRIA / INTERMEDIADORA:</strong> {loja?.razao_social || 'DG Automóveis Comércio de Veículos Ltda'}, CNPJ nº {loja?.cnpj || '35.236.994/0001-24'}, com sede em {loja?.endereco || 'Rua Dom Pedro II, 461 - Canoas'}, {cidEmp}/{sigEmp}.
+              </>
+            ) : (
+              <>
+                <strong>VENDEDOR(A) / LOJA:</strong> {loja?.razao_social || 'DG Automóveis Comércio de Veículos Ltda'}, CNPJ nº {loja?.cnpj || '35.236.994/0001-24'}, com sede em {loja?.endereco || 'Rua Dom Pedro II, 461 - Canoas'}, {cidEmp}/{sigEmp}.<br />
+                <strong>COMPRADOR(A) / CLIENTE:</strong> <strong>{nomCli}</strong>, inscrito(a) no CPF/CNPJ sob nº <strong>{neg.cliente_cpf_cnpj || '___.___.___-__'}</strong>, telefone {neg.cliente_telefone || '__________'}, residente e domiciliado(a) em {neg.cliente_endereco || '________________'}, {neg.cliente_cidade || cidEmp}/{neg.cliente_uf || sigEmp}.
+              </>
+            )}
           </div>
 
           {/* DADOS DO OBJETO (VEÍCULO PRINCIPAL) */}
           <div className="doc-box" style={{ background: '#f8fafc', border: '1px solid #cbd5e1', padding: 12, borderRadius: 6, marginBottom: 16 }}>
-            <strong>VEÍCULO OBJETO DO CONTRATO:</strong> Marca/Modelo: <strong>{neg.veic_marca} {neg.veic_modelo}</strong> · Ano: <strong>{neg.veic_ano}</strong> · Cor: <strong>{neg.veic_cor || 'Não informada'}</strong><br />
-            Placa: <strong>{neg.veic_placa || '—'}</strong> · Renavam: <strong>{neg.veic_renavam || '—'}</strong> · Chassi: <strong>{neg.veic_chassi || '—'}</strong> · Hodômetro Marcando: <strong>{qvnAut}</strong>.
+            <strong>VEÍCULO OBJETO DO CONTRATO:</strong> Marca/Modelo: <strong>{veicObj.marca} {veicObj.modelo}</strong> · Ano: <strong>{veicObj.ano || '—'}</strong> · Cor: <strong>{veicObj.cor || 'Não informada'}</strong><br />
+            Placa: <strong>{veicObj.placa || '—'}</strong> · Renavam: <strong>{veicObj.renavam || '—'}</strong> · Chassi: <strong>{veicObj.chassi || '—'}</strong> · Hodômetro Marcando: <strong>{qvnAut}</strong>.
           </div>
 
           {/* PREÇO E FORMA DE PAGAMENTO */}
@@ -212,13 +252,17 @@ export default function Documentos({ user }) {
             <strong>VALOR E CONDIÇÕES DE PAGAMENTO:</strong><br />
             O valor total e certo ajustado é de <strong>{brl(valorLiquido)}</strong>{neg.desconto > 0 ? ` (com desconto promocional de ${brl(neg.desconto)})` : ''}, liquidado da seguinte forma:
             <ul style={{ paddingLeft: 22, marginTop: 6, marginBottom: 6 }}>
-              {(neg.pagamentos || []).map((p, idx) => (
-                <li key={idx}>
-                  <strong>{p.forma}</strong> ({p.financeira || 'Direto / À vista'}): <strong>{brl(p.valor)}</strong>
-                </li>
-              ))}
+              {pagamentosLista.length > 0 ? (
+                pagamentosLista.map((p, idx) => (
+                  <li key={idx}>
+                    <strong>{p.forma}</strong> ({p.financeira || 'Direto / À vista'}): <strong>{brl(p.valor)}</strong>
+                  </li>
+                ))
+              ) : (
+                <li><strong>{neg.tipo === 'compra' ? 'Pagamento Direto / À vista' : 'Pix / TED'}:</strong> {brl(valorLiquido)}</li>
+              )}
             </ul>
-            {neg.troca_modelo && (
+            {neg.tipo === 'troca' && neg.troca_modelo && (
               <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px dashed #94a3b8' }}>
                 <strong>VEÍCULO RECEBIDO NA TROCA:</strong> {neg.troca_marca} {neg.troca_modelo}, Ano {neg.troca_ano}, Placa {neg.troca_placa || '—'}, Hodômetro: <strong>{qcmvTr}</strong>, avaliado em <strong>{brl(neg.troca_valor)}</strong>, entregue livre de quaisquer multas ou gravames anteriores a esta data.
               </div>
@@ -498,14 +542,18 @@ export default function Documentos({ user }) {
                 RECIBO DE PAGAMENTO E QUITAÇÃO DE VEÍCULO — {brl(valorLiquido)}
               </h3>
               <p style={{ marginBottom: 16 }}>
-                Recebemos de <strong>{nomCli}</strong>, inscrito(a) no CPF/CNPJ nº <strong>{neg.cliente_cpf_cnpj || '___.___.___-__'}</strong>, a importância total de <strong>{brl(valorLiquido)}</strong> referente à operação comercial sobre o veículo <strong>{neg.veic_marca} {neg.veic_modelo}</strong>, Ano <strong>{neg.veic_ano}</strong>, Placa <strong>{neg.veic_placa || '—'}</strong>, Chassi <strong>{neg.veic_chassi || '—'}</strong>.
+                Recebemos de <strong>{nomCli}</strong>, inscrito(a) no CPF/CNPJ nº <strong>{neg.cliente_cpf_cnpj || '___.___.___-__'}</strong>, a importância total de <strong>{brl(valorLiquido)}</strong> referente à operação comercial sobre o veículo <strong>{veicObj.marca} {veicObj.modelo}</strong>, Ano <strong>{veicObj.ano || '—'}</strong>, Placa <strong>{veicObj.placa || '—'}</strong>, Chassi <strong>{veicObj.chassi || '—'}</strong>.
               </p>
               <div className="doc-box" style={{ background: '#f8fafc', padding: 14, borderRadius: 8, marginBottom: 14 }}>
                 <strong>Discriminação dos Pagamentos Compensados:</strong>
                 <ul style={{ paddingLeft: 22, marginTop: 6, marginBottom: 0 }}>
-                  {(neg.pagamentos || []).map((p, idx) => (
-                    <li key={idx}>{p.forma} ({p.financeira || 'À vista'}): <strong>{brl(p.valor)}</strong></li>
-                  ))}
+                  {pagamentosLista.length > 0 ? (
+                    pagamentosLista.map((p, idx) => (
+                      <li key={idx}>{p.forma} ({p.financeira || 'À vista'}): <strong>{brl(p.valor)}</strong></li>
+                    ))
+                  ) : (
+                    <li>{neg.tipo === 'compra' ? 'Pagamento Direto / À vista' : 'Pix / TED'}: <strong>{brl(valorLiquido)}</strong></li>
+                  )}
                 </ul>
               </div>
               <p>
@@ -523,7 +571,7 @@ export default function Documentos({ user }) {
                 TERMO DE ENTREGA DE VEÍCULO E RESPONSABILIDADE CIVIL / CRIMINAL
               </h3>
               <p style={{ textAlign: 'justify', lineHeight: 1.8 }}>
-                Declaro para os devidos fins de direito que recebi nesta data, após inspeção e conferência presencial de lataria, pintura, tapeçaria, mecânica e componentes de bordo, o veículo <strong>{neg.veic_marca} {neg.veic_modelo}</strong>, Placa <strong>{neg.veic_placa || '—'}</strong>, Renavam <strong>{neg.veic_renavam || '—'}</strong>, Chassi <strong>{neg.veic_chassi || '—'}</strong>, com <strong>{qvnAut}</strong> registrados no hodômetro.
+                Declaro para os devidos fins de direito que recebi nesta data, após inspeção e conferência presencial de lataria, pintura, tapeçaria, mecânica e componentes de bordo, o veículo <strong>{veicObj.marca} {veicObj.modelo}</strong>, Placa <strong>{veicObj.placa || '—'}</strong>, Renavam <strong>{veicObj.renavam || '—'}</strong>, Chassi <strong>{veicObj.chassi || '—'}</strong>, com <strong>{qvnAut}</strong> registrados no hodômetro.
               </p>
               <p style={{ textAlign: 'justify', lineHeight: 1.8 }}>
                 Assumo expressamente a partir deste ato e horário de saída da loja integral responsabilidade civil, administrativa e criminal pelo uso e circulação do veículo, respondendo por quaisquer sinistros, danos a terceiros, pedágios, autuações e multas de trânsito, comprometendo-me a adotar as providências de transferência do CRV/ATPV-e junto ao órgão de trânsito no prazo de 30 (trinta) dias.
@@ -539,12 +587,20 @@ export default function Documentos({ user }) {
 
             <div className="doc-sign-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 30, marginTop: 20 }}>
               <div className="doc-sign-line" style={{ textAlign: 'center', borderTop: '1px solid #111827', paddingTop: 8 }}>
-                <strong>{loja?.nome_fantasia || 'DG Automóveis'}</strong><br />
-                <span style={{ fontSize: '.78rem', color: '#4b5563' }}>Vendedora / Loja ({loja?.cnpj || '35.236.994/0001-24'})</span>
+                <strong>{neg.tipo === 'compra' ? nomCli : (loja?.nome_fantasia || 'DG Automóveis')}</strong><br />
+                <span style={{ fontSize: '.78rem', color: '#4b5563' }}>
+                  {neg.tipo === 'compra'
+                    ? `Vendedor(a) / Proprietário(a) (${neg.cliente_cpf_cnpj || 'CPF/CNPJ'})`
+                    : `Vendedora / Loja (${loja?.cnpj || '35.236.994/0001-24'})`}
+                </span>
               </div>
               <div className="doc-sign-line" style={{ textAlign: 'center', borderTop: '1px solid #111827', paddingTop: 8 }}>
-                <strong>{nomCli}</strong><br />
-                <span style={{ fontSize: '.78rem', color: '#4b5563' }}>Comprador(a) / Consignante ({neg.cliente_cpf_cnpj || 'CPF/CNPJ'})</span>
+                <strong>{neg.tipo === 'compra' ? (loja?.nome_fantasia || 'DG Automóveis') : nomCli}</strong><br />
+                <span style={{ fontSize: '.78rem', color: '#4b5563' }}>
+                  {neg.tipo === 'compra'
+                    ? `Compradora / Loja (${loja?.cnpj || '35.236.994/0001-24'})`
+                    : `Comprador(a) / Consignante (${neg.cliente_cpf_cnpj || 'CPF/CNPJ'})`}
+                </span>
               </div>
             </div>
 

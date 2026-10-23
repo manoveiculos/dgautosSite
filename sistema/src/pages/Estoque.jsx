@@ -1048,18 +1048,27 @@ function VeiculoModal({ inicial, clientes, onClose, onSave, onCancelarVeiculo, o
     });
   };
 
-  const handleUploadFotoLocal = (e) => {
+  const handleUploadFotoLocal = async (e) => {
     const files = Array.from(e.target.files || []);
-    files.forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        setF((prev) => {
-          const novas = [...(prev.fotos || []), reader.result];
-          return { ...prev, fotos: novas, foto: prev.foto || novas[0] };
-        });
-      };
-      reader.readAsDataURL(file);
+    if (!files.length) return;
+
+    const promises = files.map((file) => {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(file);
+      });
     });
+
+    const resultados = await Promise.all(promises);
+    const validas = resultados.filter(Boolean);
+
+    setF((prev) => {
+      const novas = [...(prev.fotos || []), ...validas];
+      return { ...prev, fotos: novas, foto: prev.foto || novas[0] };
+    });
+    e.target.value = '';
   };
 
   const [arrastandoIdx, setArrastandoIdx] = useState(null);

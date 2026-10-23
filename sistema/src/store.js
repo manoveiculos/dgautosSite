@@ -234,8 +234,14 @@ export async function uploadFotoVeiculo(fileOrBase64, veiculoId, index = 0) {
       });
 
     if (uploadError) {
-      console.warn('Upload bucket veiculos aviso (usando fallback):', uploadError);
-      return null;
+      console.warn('Upload bucket veiculos aviso (usando fallback base64):', uploadError);
+      if (typeof fileOrBase64 === 'string' && fileOrBase64.startsWith('data:')) return fileOrBase64;
+      return await new Promise((resolve) => {
+        const r = new FileReader();
+        r.onload = () => resolve(r.result);
+        r.onerror = () => resolve(null);
+        r.readAsDataURL(blob);
+      });
     }
 
     const { data: urlData } = supabase.storage
@@ -245,7 +251,7 @@ export async function uploadFotoVeiculo(fileOrBase64, veiculoId, index = 0) {
     return urlData?.publicUrl || null;
   } catch (err) {
     console.warn('Erro ao fazer upload da foto:', err);
-    return null;
+    return typeof fileOrBase64 === 'string' ? fileOrBase64 : null;
   }
 }
 
@@ -273,13 +279,15 @@ export async function getVeiculos() {
           .filter((f) => Number(f.veiculo_id) === Number(v.id))
           .map((f) => f.url_foto);
 
+        const altimusFotos = Array.isArray(v.dados_altimus?.fotos) ? v.dados_altimus.fotos : [];
+
         const listaFotos = fotosCarro.length > 0
           ? fotosCarro
-          : (Array.isArray(v.fotos) && v.fotos.length ? v.fotos : (v.foto_capa ? [v.foto_capa] : []));
+          : (altimusFotos.length > 0 ? altimusFotos : (v.foto_capa ? [v.foto_capa] : []));
 
-        const capa = fotosCarro.length > 0
+        const capa = (fotosCarro.length > 0
           ? (fotosData.find((f) => Number(f.veiculo_id) === Number(v.id) && f.is_capa)?.url_foto || fotosCarro[0])
-          : (v.foto_capa || listaFotos[0] || '');
+          : null) || v.foto_capa || listaFotos[0] || '';
 
         return {
           ...v,
@@ -591,23 +599,26 @@ export async function getNegociacoes() {
   }
 
   try {
-    const { data, error } = await supabase.from('negociacoes_DGAUTOS').select('*').order('id', { ascending: false });
-    if (!error && Array.isArray(data)) {
-      // Enriquecer cada negociação com os dados cadastrais do cliente e veículo para contratos
-      let clientesMap = {};
-      let veiculosMap = {};
-      try {
-        const [cRes, vRes] = await Promise.all([
-          supabase.from('clientes_DGAUTOS').select('id, nome, cpf_cnpj, telefone, email, cep, endereco, cidade, uf'),
-          supabase.from('veiculos_DGAUTOS').select('id, marca, modelo, ano, placa, cor, chassi, renavam, km, preco, custo')
-        ]);
-        if (Array.isArray(cRes.data)) cRes.data.forEach((c) => { clientesMap[c.id] = c; });
-        if (Array.isArray(vRes.data)) vRes.data.forEach((v) => { veiculosMap[v.id] = v; });
-      } catch {}
+    const [resNegs, resPags, cRes, vRes] = await Promise.all([
+      supabase.from('negociacoes_DGAUTOS').select('*').order('id', { ascending: false }),
+      supabase.from('negociacoes_pagamentos_DGAUTOS').select('*'),
+      supabase.from('clientes_DGAUTOS').select('id, nome, cpf_cnpj, telefone, email, cep, endereco, cidade, uf'),
+      supabase.from('veiculos_DGAUTOS').select('id, marca, modelo, ano, placa, cor, chassi, renavam, km, preco, custo')
+    ]);
 
+    const { data, error } = resNegs;
+    const pagamentosData = Array.isArray(resPags.data) ? resPags.data : [];
+    let clientesMap = {};
+    let veiculosMap = {};
+    if (Array.isArray(cRes.data)) cRes.data.forEach((c) => { clientesMap[c.id] = c; });
+    if (Array.isArray(vRes.data)) vRes.data.forEach((v) => { veiculosMap[v.id] = v; });
+
+    if (!error && Array.isArray(data)) {
       const formatados = data.map((n) => {
         const cli = clientesMap[n.cliente_id] || {};
         const veic = veiculosMap[n.veiculo_id] || {};
+        const pags = pagamentosData.filter((p) => Number(p.negociacao_id) === Number(n.id));
+
         return {
           ...n,
           cliente_nome: n.cliente_nome || cli.nome || '',
@@ -618,21 +629,24 @@ export async function getNegociacoes() {
           cliente_endereco: n.cliente_endereco || cli.endereco || '',
           cliente_cidade: n.cliente_cidade || cli.cidade || '',
           cliente_uf: n.cliente_uf || cli.uf || '',
-          veic_marca: n.veic_marca || veic.marca || '',
-          veic_modelo: n.veic_modelo || veic.modelo || '',
-          veic_ano: n.veic_ano || veic.ano || '',
-          veic_placa: n.veic_placa || veic.placa || '',
-          veic_cor: n.veic_cor || veic.cor || '',
+          veic_marca: n.veic_marca || veic.marca || (n.tipo === 'compra' ? n.troca_marca : ''),
+          veic_modelo: n.veic_modelo || veic.modelo || (n.tipo === 'compra' ? n.troca_modelo : ''),
+          veic_ano: n.veic_ano || veic.ano || (n.tipo === 'compra' ? n.troca_ano : ''),
+          veic_placa: n.veic_placa || veic.placa || (n.tipo === 'compra' ? n.troca_placa : ''),
+          veic_cor: n.veic_cor || veic.cor || (n.tipo === 'compra' ? n.troca_cor : ''),
           veic_chassi: n.veic_chassi || veic.chassi || '',
           veic_renavam: n.veic_renavam || veic.renavam || '',
-          veic_km: n.veic_km || veic.km || 0
+          veic_km: n.veic_km || veic.km || (n.tipo === 'compra' ? n.troca_km : 0),
+          pagamentos: pags.length > 0 ? pags : (Array.isArray(n.pagamentos) ? n.pagamentos : [])
         };
       });
 
       salvarCache('negociacoes', formatados);
       return formatados;
     }
-  } catch {}
+  } catch (err) {
+    console.warn('Supabase getNegociacoes erro:', err);
+  }
 
   const emCache = lerCache('negociacoes', null);
   if (Array.isArray(emCache)) return emCache;
@@ -641,18 +655,66 @@ export async function getNegociacoes() {
 
 export async function saveNegociacao(n) {
   const isUpdate = Boolean(n.id && Number(n.id) > 0 && Number(n.id) < 1000000000);
+
+  // 1. COMPRA PARA ESTOQUE: Criar ou atualizar veículo automaticamente no estoque (veiculos_DGAUTOS)
+  let veiculoId = n.veiculo_id ? Number(n.veiculo_id) : null;
+  const modeloAdquirido = n.troca_modelo || n.veic_modelo;
+  const marcaAdquirida = n.troca_marca || n.veic_marca || 'Diversos';
+  const placaAdquirida = (n.troca_placa || n.veic_placa || '').toUpperCase();
+  const valorAdquirido = Number(n.valor_veiculo || n.troca_valor || 0);
+
+  if (n.tipo === 'compra' && modeloAdquirido) {
+    try {
+      const veiculoPayload = {
+        marca: marcaAdquirida,
+        modelo: modeloAdquirido,
+        ano: n.troca_ano || n.veic_ano || '2023/2024',
+        placa: placaAdquirida,
+        km: Number(n.troca_km || n.veic_km || 0),
+        cor: n.troca_cor || n.veic_cor || 'Branco',
+        custo: valorAdquirido,
+        preco: valorAdquirido,
+        status: 'disponivel',
+        propriedade: 'PROPRIO',
+        cliente_origem_id: n.cliente_id ? Number(n.cliente_id) : null,
+        publicar_site: true,
+        observacao_interna: `Veículo adquirido via Contrato de Compra #${n.id || 'Novo'} em ${new Date().toLocaleDateString('pt-BR')}`
+      };
+
+      if (veiculoId) {
+        await supabase.from('veiculos_DGAUTOS').update(veiculoPayload).eq('id', veiculoId);
+      } else {
+        if (placaAdquirida) {
+          const { data: existente } = await supabase.from('veiculos_DGAUTOS').select('id').eq('placa', placaAdquirida).limit(1);
+          if (existente && existente[0]) {
+            veiculoId = existente[0].id;
+            await supabase.from('veiculos_DGAUTOS').update(veiculoPayload).eq('id', veiculoId);
+          }
+        }
+        if (!veiculoId) {
+          const { data: vInserido } = await supabase.from('veiculos_DGAUTOS').insert([veiculoPayload]).select();
+          if (vInserido && vInserido[0]) {
+            veiculoId = vInserido[0].id;
+          }
+        }
+      }
+    } catch (errVeic) {
+      console.warn('Erro ao auto-cadastrar veículo da compra no estoque:', errVeic);
+    }
+  }
+
   const payload = {
     tipo: n.tipo || 'venda',
     status: n.status || 'aberta',
     cliente_id: n.cliente_id ? Number(n.cliente_id) : null,
-    veiculo_id: n.veiculo_id ? Number(n.veiculo_id) : null,
+    veiculo_id: veiculoId,
     valor_veiculo: Number(n.valor_veiculo) || 0,
     desconto: Number(n.desconto) || 0,
     canal_venda: n.canal_venda || 'LOJA',
     troca_marca: n.troca_marca || '',
     troca_modelo: n.troca_modelo || '',
     troca_ano: n.troca_ano || '',
-    troca_placa: n.troca_placa || '',
+    troca_placa: (n.troca_placa || '').toUpperCase(),
     troca_km: Number(n.troca_km) || 0,
     troca_cor: n.troca_cor || '',
     troca_valor: Number(n.troca_valor) || 0,
@@ -661,14 +723,33 @@ export async function saveNegociacao(n) {
     data_negociacao: n.data_negociacao || new Date().toISOString().slice(0, 10)
   };
 
+  let savedNegId = n.id;
   try {
     if (isUpdate) {
       await supabase.from('negociacoes_DGAUTOS').update(payload).eq('id', Number(n.id));
     } else {
-      await supabase.from('negociacoes_DGAUTOS').insert([payload]);
+      const { data: ins } = await supabase.from('negociacoes_DGAUTOS').insert([payload]).select();
+      if (ins && ins[0]) savedNegId = ins[0].id;
     }
   } catch (err) {
     console.warn('Supabase saveNegociacao error:', err);
+  }
+
+  // 2. Persistir pagamentos na tabela negociacoes_pagamentos_DGAUTOS
+  if (savedNegId && Array.isArray(n.pagamentos) && n.pagamentos.length > 0) {
+    try {
+      await supabase.from('negociacoes_pagamentos_DGAUTOS').delete().eq('negociacao_id', Number(savedNegId));
+      const pagsPayload = n.pagamentos.map((p) => ({
+        negociacao_id: Number(savedNegId),
+        forma: p.forma || 'Pix / TED',
+        financeira: p.financeira || '',
+        valor: Number(p.valor) || 0,
+        status: p.status || 'pago'
+      }));
+      await supabase.from('negociacoes_pagamentos_DGAUTOS').insert(pagsPayload);
+    } catch (errPags) {
+      console.warn('Aviso ao sincronizar negociacoes_pagamentos_DGAUTOS:', errPags);
+    }
   }
 
   return await getNegociacoes();
@@ -676,8 +757,119 @@ export async function saveNegociacao(n) {
 
 export async function concluirNegociacao(id) {
   try {
-    await supabase.from('negociacoes_DGAUTOS').update({ status: 'concluida' }).eq('id', Number(id));
-  } catch {}
+    const { data: negs } = await supabase.from('negociacoes_DGAUTOS').select('*').eq('id', Number(id));
+    const neg = negs && negs[0] ? negs[0] : null;
+
+    if (neg) {
+      // 1. Se venda ou troca: baixa o veículo vendido no estoque
+      if (['venda', 'troca'].includes(neg.tipo) && neg.veiculo_id) {
+        await supabase.from('veiculos_DGAUTOS').update({
+          status: 'vendido',
+          cliente_comprador_id: neg.cliente_id,
+          data_venda: new Date().toISOString().slice(0, 10)
+        }).eq('id', Number(neg.veiculo_id));
+      }
+
+      // 2. Se troca: auto-insere o veículo de troca no estoque como disponível
+      if (neg.tipo === 'troca' && neg.troca_modelo) {
+        const placaTroca = (neg.troca_placa || '').toUpperCase();
+        let existe = false;
+        if (placaTroca) {
+          const { data: achado } = await supabase.from('veiculos_DGAUTOS').select('id').eq('placa', placaTroca).limit(1);
+          if (achado && achado.length) existe = true;
+        }
+        if (!existe) {
+          await supabase.from('veiculos_DGAUTOS').insert([{
+            marca: neg.troca_marca || 'Diversos',
+            modelo: neg.troca_modelo,
+            ano: neg.troca_ano || '2023/2024',
+            placa: placaTroca,
+            km: Number(neg.troca_km) || 0,
+            cor: neg.troca_cor || 'Branco',
+            custo: Number(neg.troca_valor) || 0,
+            preco: Number(neg.troca_valor) || 0,
+            status: 'disponivel',
+            propriedade: 'PROPRIO',
+            cliente_origem_id: neg.cliente_id,
+            publicar_site: true,
+            observacao_interna: `Entrada recebida na Troca da Negociação #${neg.id} em ${new Date().toLocaleDateString('pt-BR')}`
+          }]);
+        }
+      }
+
+      // 3. Se compra: garante que o veículo esteja no estoque disponível
+      if (neg.tipo === 'compra') {
+        const modeloComp = neg.troca_modelo || neg.veic_modelo;
+        const placaComp = (neg.troca_placa || neg.veic_placa || '').toUpperCase();
+        const valorComp = Number(neg.valor_veiculo || neg.troca_valor || 0);
+
+        if (neg.veiculo_id) {
+          await supabase.from('veiculos_DGAUTOS').update({
+            status: 'disponivel',
+            propriedade: 'PROPRIO',
+            cliente_origem_id: neg.cliente_id
+          }).eq('id', Number(neg.veiculo_id));
+        } else if (modeloComp) {
+          const { data: vCriado } = await supabase.from('veiculos_DGAUTOS').insert([{
+            marca: neg.troca_marca || 'Diversos',
+            modelo: modeloComp,
+            ano: neg.troca_ano || '2023/2024',
+            placa: placaComp,
+            km: Number(neg.troca_km) || 0,
+            cor: neg.troca_cor || 'Branco',
+            custo: valorComp,
+            preco: valorComp,
+            status: 'disponivel',
+            propriedade: 'PROPRIO',
+            cliente_origem_id: neg.cliente_id,
+            publicar_site: true,
+            observacao_interna: `Veículo adquirido via Compra #${neg.id} em ${new Date().toLocaleDateString('pt-BR')}`
+          }]).select();
+
+          if (vCriado && vCriado[0]) {
+            await supabase.from('negociacoes_DGAUTOS').update({ veiculo_id: vCriado[0].id }).eq('id', Number(id));
+          }
+        }
+      }
+
+      // 4. Se consignação: garante status disponível como terceiro consignado
+      if (neg.tipo === 'consignacao' && neg.veiculo_id) {
+        await supabase.from('veiculos_DGAUTOS').update({
+          status: 'disponivel',
+          propriedade: 'TERCEIRO_CONSIGNADO',
+          cliente_origem_id: neg.cliente_id
+        }).eq('id', Number(neg.veiculo_id));
+      }
+
+      // 5. Gera lançamento no Financeiro se houver valor
+      const valorLiquido = Number(neg.valor_veiculo || 0) - Number(neg.desconto || 0);
+      if (valorLiquido > 0) {
+        try {
+          const isVenda = ['venda', 'troca'].includes(neg.tipo);
+          await supabase.from('financeiro_DGAUTOS').insert([{
+            tipo: isVenda ? 'receita' : 'despesa',
+            categoria: isVenda ? 'Venda de Veículo' : 'Compra de Estoque',
+            descricao: `${isVenda ? 'Recebimento Venda' : 'Pagamento Compra'} Contrato #${neg.id} — ${neg.troca_modelo || ''}`,
+            valor: valorLiquido,
+            vencimento: new Date().toISOString().slice(0, 10),
+            pagamento_data: new Date().toISOString().slice(0, 10),
+            status: 'pago',
+            forma_pagamento: 'Pix / TED',
+            conta_bancaria: 'Conta Principal',
+            veiculo_id: neg.veiculo_id || null,
+            cliente_id: neg.cliente_id || null
+          }]);
+        } catch {}
+      }
+    }
+
+    await supabase.from('negociacoes_DGAUTOS').update({
+      status: 'concluida',
+      data_fechamento: new Date().toISOString()
+    }).eq('id', Number(id));
+  } catch (err) {
+    console.warn('Erro em concluirNegociacao:', err);
+  }
   return await getNegociacoes();
 }
 

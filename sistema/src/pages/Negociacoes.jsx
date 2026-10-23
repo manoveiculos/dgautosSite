@@ -261,13 +261,15 @@ export default function Negociacoes({ user }) {
                   <small style={{ color: 'var(--muted)' }}>Canal: {n.canal_venda || 'LOJA'} · Modalidade: <strong style={{ textTransform: 'uppercase' }}>{n.tipo}</strong></small>
                 </div>
 
-                <div className="vehicle-specs" style={{ gridTemplateColumns: n.troca_modelo ? '1fr 1fr' : '1fr' }}>
+                <div className="vehicle-specs" style={{ gridTemplateColumns: n.troca_modelo && n.tipo !== 'compra' ? '1fr 1fr' : '1fr' }}>
                   <div className="vehicle-spec-item" style={{ textAlign: 'left', padding: '8px 10px' }}>
-                    <span>🚗 Carro Vendido (Saída)</span>
-                    <strong style={{ fontSize: '.86rem' }}>{n.veic_modelo ? `${n.veic_marca} ${n.veic_modelo}` : 'A selecionar'}</strong>
-                    {n.veic_placa && <div style={{ fontSize: '.72rem', color: 'var(--muted)' }}>Placa: {n.veic_placa}</div>}
+                    <span>{n.tipo === 'compra' ? '📥 Carro Adquirido (Entrada no Estoque)' : '🚗 Carro Vendido (Saída)'}</span>
+                    <strong style={{ fontSize: '.86rem' }}>
+                      {n.veic_modelo ? `${n.veic_marca} ${n.veic_modelo}` : (n.troca_modelo ? `${n.troca_marca} ${n.troca_modelo}` : 'A selecionar')}
+                    </strong>
+                    {(n.veic_placa || (n.tipo === 'compra' && n.troca_placa)) && <div style={{ fontSize: '.72rem', color: 'var(--muted)' }}>Placa: {n.veic_placa || n.troca_placa}</div>}
                   </div>
-                  {n.troca_modelo && (
+                  {n.tipo !== 'compra' && n.troca_modelo && (
                     <div className="vehicle-spec-item" style={{ textAlign: 'left', padding: '8px 10px' }}>
                       <span>🔄 Carro na Troca (Entrada)</span>
                       <strong style={{ fontSize: '.86rem', color: 'var(--primary-2)' }}>{n.troca_marca} {n.troca_modelo}</strong>
@@ -359,11 +361,13 @@ export default function Negociacoes({ user }) {
                       <div style={{ fontSize: '.76rem', color: 'var(--muted)' }}>Canal: {n.canal_venda}</div>
                     </td>
                     <td>
-                      {n.veic_modelo ? `${n.veic_marca} ${n.veic_modelo}` : '—'}
-                      {n.veic_placa && <div style={{ fontSize: '.76rem', color: 'var(--muted)' }}>Placa: {n.veic_placa}</div>}
+                      {n.veic_modelo ? `${n.veic_marca} ${n.veic_modelo}` : (n.troca_modelo ? `${n.troca_marca} ${n.troca_modelo}` : '—')}
+                      {(n.veic_placa || (n.tipo === 'compra' && n.troca_placa)) && <div style={{ fontSize: '.76rem', color: 'var(--muted)' }}>Placa: {n.veic_placa || n.troca_placa}</div>}
                     </td>
                     <td>
-                      {n.troca_modelo ? (
+                      {n.tipo === 'compra' ? (
+                        <span className="badge badge-disponivel" style={{ fontSize: '.74rem' }}>Compra p/ Estoque</span>
+                      ) : n.troca_modelo ? (
                         <>
                           <span>{n.troca_marca} {n.troca_modelo}</span>
                           <div style={{ fontSize: '.76rem', color: 'var(--primary-2)' }}>Avaliado: {brl(n.troca_valor)}</div>
@@ -485,37 +489,40 @@ function NegociacaoWizardModal({ inicial, clientes, veiculos, onClose, onSave, o
   };
 
   const valorLiquido = (Number(f.valor_veiculo) || 0) - (Number(f.desconto) || 0);
-  const somaPagamentos = (f.pagamentos || []).reduce((s, p) => s + (Number(p.valor) || 0), 0);
+  const somaPagamentos = (Array.isArray(f.pagamentos) ? f.pagamentos : []).reduce((s, p) => s + (Number(p?.valor) || 0), 0);
   const diferenca = valorLiquido - somaPagamentos;
 
   const sincronizarTrocaNoPagamento = () => {
     const valTroca = Number(f.troca_valor) || 0;
-    if (valTroca <= 0) return;
-    const outros = (f.pagamentos || []).filter((p) => p.forma !== 'Veículo na Troca');
+    if (valTroca <= 0) {
+      alert('Informe o valor avaliado do veículo de troca antes de sincronizar.');
+      return;
+    }
+    const outros = (Array.isArray(f.pagamentos) ? f.pagamentos : []).filter((p) => p.forma !== 'Veículo na Troca');
     const restante = Math.max(0, valorLiquido - valTroca);
     setF({
       ...f,
       pagamentos: [
-        { forma: 'Veículo na Troca', financeira: `${f.troca_marca} ${f.troca_modelo} ${f.troca_placa || ''}`.trim(), parcelas: 1, valor: valTroca },
+        { forma: 'Veículo na Troca', financeira: `${f.troca_marca || ''} ${f.troca_modelo || ''} ${f.troca_placa || ''}`.trim() || 'Veículo Usado', parcelas: 1, valor: valTroca },
         ...(outros.length ? outros.map((p, i) => i === 0 ? { ...p, valor: restante } : p) : [{ forma: 'Pix / TED', financeira: 'Saldo', parcelas: 1, valor: restante }])
       ]
     });
   };
 
   const updatePag = (idx, key, val) => {
-    const copia = [...f.pagamentos];
+    const copia = [...(Array.isArray(f.pagamentos) ? f.pagamentos : [])];
     copia[idx] = { ...copia[idx], [key]: val };
     setF({ ...f, pagamentos: copia });
   };
 
   const addPag = () => setF({
     ...f,
-    pagamentos: [...f.pagamentos, { forma: 'Financiamento', financeira: 'Banco / Financeira', parcelas: 36, valor: Math.max(0, diferenca) }]
+    pagamentos: [...(Array.isArray(f.pagamentos) ? f.pagamentos : []), { forma: 'Financiamento', financeira: 'Banco / Financeira', parcelas: 36, valor: Math.max(0, diferenca) }]
   });
 
-  const rmPag = (idx) => setF({ ...f, pagamentos: f.pagamentos.filter((_, i) => i !== idx) });
+  const rmPag = (idx) => setF({ ...f, pagamentos: (Array.isArray(f.pagamentos) ? f.pagamentos : []).filter((_, i) => i !== idx) });
 
-  const veicSelecionado = veiculos.find((v) => String(v.id) === String(f.veiculo_id));
+  const veicSelecionado = (Array.isArray(veiculos) ? veiculos : []).find((v) => String(v?.id) === String(f.veiculo_id));
   const margemEstimada = veicSelecionado
     ? valorLiquido - Number(veicSelecionado.custo || 0) - Number(veicSelecionado.despesas_veiculo || 0) - Number(f.comissao_vendedor || 0)
     : 0;
@@ -860,9 +867,9 @@ function NegociacaoWizardModal({ inicial, clientes, veiculos, onClose, onSave, o
                   <label>Veículo Vendido (Estoque da Loja) *</label>
                   <select className="select" value={f.veiculo_id ?? ''} onChange={selecionarVeiculo}>
                     <option value="">— Selecione o veículo em estoque —</option>
-                    {veiculos.map((v) => (
+                    {(Array.isArray(veiculos) ? veiculos : []).filter(Boolean).map((v) => (
                       <option key={v.id} value={v.id}>
-                        {v.marca} {v.modelo} ({v.ano}) — Placa {v.placa || '—'} — Preço: {brl(v.preco)} [{STATUS?.[v?.status] || v?.status || 'Disponível'}]
+                        {v.marca || ''} {v.modelo || ''} ({v.ano || '—'}) — Placa {v.placa || '—'} — Preço: {brl(v.preco || 0)} [{STATUS?.[v?.status] || v?.status || 'Disponível'}]
                       </option>
                     ))}
                   </select>
