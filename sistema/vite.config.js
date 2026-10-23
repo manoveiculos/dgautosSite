@@ -6,6 +6,7 @@ export default defineConfig({
   base: '/sistema/',
   plugins: [react()],
   build: {
+    target: 'es2022',
     outDir: '../dist/sistema',
     emptyOutDir: true,
   },
