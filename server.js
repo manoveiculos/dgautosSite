@@ -7824,7 +7824,8 @@ async function startServer() {
       res.status(500).send("error");
     }
   });
-  const isProduction = process.env.NODE_ENV === "production" || Boolean(process.argv[1]?.endsWith("server.js"));
+  const isDev = process.env.NODE_ENV !== "production" && process.argv.some((arg) => String(arg).includes("tsx") || String(arg).includes("server.ts"));
+  const isProduction = !isDev;
   if (!isProduction) {
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
@@ -7833,7 +7834,7 @@ async function startServer() {
     });
     app2.use(vite.middlewares);
   } else {
-    const distPath = path2.resolve(process.cwd(), "dist");
+    const distPath = fs2.existsSync(path2.resolve(__dirname, "dist")) ? path2.resolve(__dirname, "dist") : path2.resolve(process.cwd(), "dist");
     const sistemaDist2 = path2.resolve(distPath, "sistema");
     if (fs2.existsSync(sistemaDist2)) {
       app2.use("/sistema", express2.static(sistemaDist2));

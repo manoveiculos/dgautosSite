@@ -1236,7 +1236,9 @@ async function startServer() {
     }
   });
 
-  const isProduction = process.env.NODE_ENV === "production" || Boolean(process.argv[1]?.endsWith("server.js"));
+  const isDev = process.env.NODE_ENV !== "production" &&
+    process.argv.some(arg => String(arg).includes("tsx") || String(arg).includes("server.ts"));
+  const isProduction = !isDev;
 
   if (!isProduction) {
     const { createServer: createViteServer } = await import("vite");
@@ -1247,7 +1249,9 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     // Serve static files in production
-    const distPath = path.resolve(process.cwd(), 'dist');
+    const distPath = fs.existsSync(path.resolve(__dirname, 'dist'))
+      ? path.resolve(__dirname, 'dist')
+      : path.resolve(process.cwd(), 'dist');
     const sistemaDist = path.resolve(distPath, 'sistema');
 
     if (fs.existsSync(sistemaDist)) {
