@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import {
   Car, LayoutDashboard, LogOut, Users, Handshake, Wallet,
-  FileText, Settings, Contact, Menu, X, PlusCircle, Building2, Globe
+  FileText, Settings, Contact, Menu, X, PlusCircle, Building2, Globe, KeyRound
 } from 'lucide-react';
-import { getUser, logout } from './store';
+import { getUser, logout, alterarSenhaUsuario } from './store';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Estoque from './pages/Estoque';
@@ -19,6 +19,9 @@ import IntegracaoSite from './pages/IntegracaoSite';
 function Shell({ user, onLogout }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [modalMinhaSenha, setModalMinhaSenha] = useState(false);
+  const [novaMinhaSenha, setNovaMinhaSenha] = useState('');
+  const [salvandoMinhaSenha, setSalvandoMinhaSenha] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -109,6 +112,15 @@ function Shell({ user, onLogout }) {
               <div style={{ fontWeight: 700, fontSize: '.82rem' }}>{user.nome.split(' ')[0]}</div>
               <small style={{ fontSize: '.7rem', color: 'var(--muted)' }}>{user.cargo}</small>
             </div>
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={() => { setModalMinhaSenha(true); setNovaMinhaSenha(''); }}
+              title="Alterar minha senha de acesso"
+              style={{ marginLeft: 4, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+            >
+              <KeyRound size={13} /> Senha
+            </button>
             <button
               type="button"
               className="btn btn-sm"
@@ -220,6 +232,56 @@ function Shell({ user, onLogout }) {
           <span>Mais</span>
         </button>
       </nav>
+
+      {modalMinhaSenha && (
+        <div className="modal-backdrop">
+          <div className="modal" style={{ maxWidth: 400 }}>
+            <h3 style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <KeyRound size={18} style={{ color: 'var(--primary)' }} />
+              Alterar Minha Senha
+            </h3>
+            <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 16 }}>
+              Olá, <strong>{user.nome}</strong> ({user.email}). Digite sua nova senha abaixo.
+            </p>
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              setSalvandoMinhaSenha(true);
+              try {
+                await alterarSenhaUsuario(user.id || user.email, novaMinhaSenha);
+                alert('✓ Sua senha foi atualizada com sucesso no banco de dados!');
+                setModalMinhaSenha(false);
+                setNovaMinhaSenha('');
+              } catch (err) {
+                alert(err.message || 'Erro ao alterar senha.');
+              } finally {
+                setSalvandoMinhaSenha(false);
+              }
+            }}>
+              <div className="field" style={{ marginBottom: 16 }}>
+                <label>Nova Senha</label>
+                <input
+                  className="input"
+                  type="password"
+                  autoFocus
+                  required
+                  minLength={4}
+                  value={novaMinhaSenha}
+                  onChange={(e) => setNovaMinhaSenha(e.target.value)}
+                  placeholder="Mínimo 4 caracteres"
+                />
+              </div>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <button type="button" className="btn" onClick={() => setModalMinhaSenha(false)}>
+                  Cancelar
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={salvandoMinhaSenha || !novaMinhaSenha}>
+                  {salvandoMinhaSenha ? 'Salvando...' : 'Salvar Nova Senha'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

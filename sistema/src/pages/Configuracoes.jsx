@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Building2, Users, ShieldCheck, Plus, Trash2, Save, Loader2 } from 'lucide-react';
-import { getConfig, saveConfigLoja, createUsuario, updateUsuario, deleteUsuario } from '../store';
+import { Building2, Users, ShieldCheck, Plus, Trash2, Save, Loader2, KeyRound } from 'lucide-react';
+import { getConfig, saveConfigLoja, createUsuario, updateUsuario, deleteUsuario, alterarSenhaUsuario } from '../store';
 
 export default function Configuracoes({ user }) {
   const emailAtual = (user?.email || '').trim().toLowerCase();
@@ -34,6 +34,8 @@ export default function Configuracoes({ user }) {
   const [usuarios, setUsuarios] = useState([]);
   const [auditoria, setAuditoria] = useState([]);
   const [novoUser, setNovoUser] = useState({ nome: '', email: '', senha: '', perfil: 'vendedor' });
+  const [usuarioEditandoSenha, setUsuarioEditandoSenha] = useState(null);
+  const [novaSenhaInput, setNovaSenhaInput] = useState('');
   const [loadingAcao, setLoadingAcao] = useState('');
   const [msg, setMsg] = useState('');
 
@@ -112,6 +114,24 @@ export default function Configuracoes({ user }) {
       setTimeout(() => setMsg(''), 4000);
     } catch (err) {
       alert(err.message || 'Erro ao remover usuário');
+    } finally {
+      setLoadingAcao('');
+    }
+  };
+
+  const handleSalvarSenhaUsuario = async (e) => {
+    e.preventDefault();
+    if (!usuarioEditandoSenha) return;
+    setLoadingAcao(`Atualizando senha de ${usuarioEditandoSenha.nome}...`);
+    try {
+      await alterarSenhaUsuario(usuarioEditandoSenha.id, novaSenhaInput);
+      setMsg(`✓ Senha de ${usuarioEditandoSenha.nome} alterada com sucesso!`);
+      alert(`✓ Senha de ${usuarioEditandoSenha.nome} alterada com sucesso no Supabase!`);
+      setUsuarioEditandoSenha(null);
+      setNovaSenhaInput('');
+      setTimeout(() => setMsg(''), 4000);
+    } catch (err) {
+      alert(err.message || 'Erro ao alterar senha');
     } finally {
       setLoadingAcao('');
     }
@@ -249,18 +269,33 @@ export default function Configuracoes({ user }) {
                       </select>
                     </td>
                     <td style={{ textAlign: 'center' }}>
-                      {u.email !== 'admin@dgautos.com.br' ? (
+                      <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
                         <button
-                          className="btn btn-sm btn-danger"
-                          title="Excluir este usuário"
+                          type="button"
+                          className="btn btn-sm"
+                          title={`Alterar senha de ${u.nome}`}
                           disabled={Boolean(loadingAcao)}
-                          onClick={() => handleDeleteUser(u)}
+                          onClick={() => {
+                            setUsuarioEditandoSenha(u);
+                            setNovaSenhaInput('');
+                          }}
+                          style={{ padding: '4px 8px', fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }}
                         >
-                          <Trash2 size={13} />
+                          <KeyRound size={13} /> Senha
                         </button>
-                      ) : (
-                        <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>PADRÃO</span>
-                      )}
+                        {u.email !== 'admin@dgautos.com.br' ? (
+                          <button
+                            className="btn btn-sm btn-danger"
+                            title="Excluir este usuário"
+                            disabled={Boolean(loadingAcao)}
+                            onClick={() => handleDeleteUser(u)}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        ) : (
+                          <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, padding: '0 4px' }}>PADRÃO</span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -332,6 +367,50 @@ export default function Configuracoes({ user }) {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {usuarioEditandoSenha && (
+        <div className="modal-backdrop">
+          <div className="modal" style={{ maxWidth: 420 }}>
+            <h3 style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <KeyRound size={18} style={{ color: 'var(--primary)' }} />
+              Alterar Senha do Usuário
+            </h3>
+            <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 16 }}>
+              Defina a nova senha para <strong>{usuarioEditandoSenha.nome}</strong> ({usuarioEditandoSenha.email}).
+            </p>
+            <form onSubmit={handleSalvarSenhaUsuario}>
+              <div className="field" style={{ marginBottom: 16 }}>
+                <label>Nova Senha</label>
+                <input
+                  className="input"
+                  type="password"
+                  autoFocus
+                  required
+                  minLength={4}
+                  value={novaSenhaInput}
+                  onChange={(e) => setNovaSenhaInput(e.target.value)}
+                  placeholder="Mínimo 4 caracteres"
+                />
+              </div>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => {
+                    setUsuarioEditandoSenha(null);
+                    setNovaSenhaInput('');
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={Boolean(loadingAcao) || !novaSenhaInput}>
+                  Salvar Nova Senha
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </>
