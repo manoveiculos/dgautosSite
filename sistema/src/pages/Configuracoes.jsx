@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Building2, Users, ShieldCheck, Plus, Trash2, Save } from 'lucide-react';
-import { getConfig, saveConfigLoja, createUsuario, deleteUsuario } from '../store';
+import { Building2, Users, ShieldCheck, Plus, Trash2, Save, Loader2 } from 'lucide-react';
+import { getConfig, saveConfigLoja, createUsuario, updateUsuario, deleteUsuario } from '../store';
 
 export default function Configuracoes({ user }) {
   const emailAtual = (user?.email || '').trim().toLowerCase();
@@ -34,44 +34,99 @@ export default function Configuracoes({ user }) {
   const [usuarios, setUsuarios] = useState([]);
   const [auditoria, setAuditoria] = useState([]);
   const [novoUser, setNovoUser] = useState({ nome: '', email: '', senha: '', perfil: 'vendedor' });
+  const [loadingAcao, setLoadingAcao] = useState('');
   const [msg, setMsg] = useState('');
 
   const recarregar = () => {
+    setLoadingAcao('Carregando dados...');
     getConfig().then((c) => {
       if (c?.loja) setLoja(c.loja);
       setUsuarios(Array.isArray(c?.usuarios) ? c.usuarios : []);
       setAuditoria(Array.isArray(c?.auditoria) ? c.auditoria : []);
-    }).catch(() => {});
+    }).catch((err) => {
+      console.warn('Erro ao carregar configurações:', err);
+    }).finally(() => {
+      setLoadingAcao('');
+    });
   };
   useEffect(recarregar, []);
 
   const salvarLoja = async (e) => {
     e.preventDefault();
+    setLoadingAcao('Salvando dados da revenda no Supabase...');
     try {
       const atualizada = await saveConfigLoja(loja);
       setLoja(atualizada);
       setMsg('Dados da revenda salvos com sucesso!');
       alert('✓ Dados da revenda salvos com sucesso no Supabase!');
-      setTimeout(() => setMsg(''), 3000);
+      setTimeout(() => setMsg(''), 4000);
     } catch (err) {
-      alert(err.message);
+      alert(err.message || 'Erro ao salvar dados');
+    } finally {
+      setLoadingAcao('');
     }
   };
 
   const addUser = async (e) => {
     e.preventDefault();
+    setLoadingAcao(`Cadastrando usuário ${novoUser.nome}...`);
     try {
       const lista = await createUsuario(novoUser);
       setUsuarios(lista);
       setNovoUser({ nome: '', email: '', senha: '', perfil: 'vendedor' });
-      alert('✓ Usuário cadastrado com sucesso!');
+      setMsg('Usuário cadastrado com sucesso!');
+      setTimeout(() => setMsg(''), 4000);
+      alert('✓ Usuário cadastrado com sucesso no Supabase!');
     } catch (err) {
-      alert(err.message);
+      alert(err.message || 'Erro ao cadastrar usuário');
+    } finally {
+      setLoadingAcao('');
+    }
+  };
+
+  const handleMudarPerfil = async (id, novoPerfil, nome) => {
+    setLoadingAcao(`Atualizando poderes de ${nome}...`);
+    try {
+      const lista = await updateUsuario(id, { perfil: novoPerfil });
+      setUsuarios(lista);
+      setMsg(`Poderes de ${nome} atualizados para ${novoPerfil.toUpperCase()}!`);
+      setTimeout(() => setMsg(''), 4000);
+    } catch (err) {
+      alert(err.message || 'Erro ao atualizar poderes');
+    } finally {
+      setLoadingAcao('');
+    }
+  };
+
+  const handleDeleteUser = async (u) => {
+    if (u.email === 'admin@dgautos.com.br') {
+      alert('O administrador geral principal não pode ser excluído.');
+      return;
+    }
+    if (!confirm(`Tem certeza que deseja excluir o usuário ${u.nome} (${u.email})?`)) return;
+    setLoadingAcao(`Excluindo usuário ${u.nome}...`);
+    try {
+      const lista = await deleteUsuario(u.id);
+      setUsuarios(lista);
+      setMsg(`Usuário ${u.nome} removido.`);
+      setTimeout(() => setMsg(''), 4000);
+    } catch (err) {
+      alert(err.message || 'Erro ao remover usuário');
+    } finally {
+      setLoadingAcao('');
     }
   };
 
   return (
     <>
+      {/* Aviso global de carregamento na tela para operações */}
+      {loadingAcao && (
+        <div className="loading-toast">
+          <div className="spinner-sm" />
+          <span>{loadingAcao}</span>
+        </div>
+      )}
+
       <header className="topbar">
         <div>
           <h1>Configurações & Administração</h1>
@@ -141,7 +196,19 @@ export default function Configuracoes({ user }) {
           </div>
           <div className="modal-actions">
             {msg && <span style={{ color: 'var(--success)', marginRight: 'auto', fontWeight: 500 }}>{msg}</span>}
-            <button type="submit" className="btn btn-primary"><Save size={16} />Salvar Dados da Loja</button>
+            <button type="submit" className="btn btn-primary" disabled={Boolean(loadingAcao)}>
+              {loadingAcao ? (
+                <>
+                  <div className="spinner-sm" />
+                  <span>Salvando...</span>
+                </>
+              ) : (
+                <>
+                  <Save size={16} />
+                  <span>Salvar Dados da Loja</span>
+                </>
+              )}
+            </button>
           </div>
         </form>
       )}
@@ -149,13 +216,17 @@ export default function Configuracoes({ user }) {
       {aba === 'usuarios' && (
         <div className="grid-2">
           <div className="card table-wrap">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <h3>Equipe & Permissões ({usuarios.length})</h3>
+              {msg && <span style={{ color: 'var(--success)', fontSize: 13, fontWeight: 500 }}>{msg}</span>}
+            </div>
             <table className="table">
               <thead>
                 <tr>
                   <th>Nome</th>
                   <th>E-mail</th>
-                  <th>Perfil</th>
-                  <th>Ações</th>
+                  <th>Poderes / Perfil</th>
+                  <th style={{ textAlign: 'center' }}>Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -163,17 +234,33 @@ export default function Configuracoes({ user }) {
                   <tr key={u.id}>
                     <td><strong>{u.nome}</strong></td>
                     <td>{u.email}</td>
-                    <td><span className="badge badge-consignado">{u.perfil.toUpperCase()}</span></td>
                     <td>
-                      <button
-                        className="btn btn-sm btn-danger"
-                        onClick={async () => {
-                          if (!confirm(`Remover usuário ${u.nome}?`)) return;
-                          try { setUsuarios(await deleteUsuario(u.id)); } catch (e) { alert(e.message); }
-                        }}
+                      <select
+                        className="select"
+                        style={{ padding: '4px 8px', fontSize: 13, height: 32, minWidth: 150 }}
+                        value={u.perfil || 'vendedor'}
+                        disabled={Boolean(loadingAcao) || u.email === 'admin@dgautos.com.br'}
+                        onChange={(e) => handleMudarPerfil(u.id, e.target.value, u.nome)}
                       >
-                        <Trash2 size={13} />
-                      </button>
+                        <option value="vendedor">Vendedor (CRM, Estoque)</option>
+                        <option value="financeiro">Financeiro</option>
+                        <option value="gerente">Gerente</option>
+                        <option value="admin">Administrador Geral</option>
+                      </select>
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      {u.email !== 'admin@dgautos.com.br' ? (
+                        <button
+                          className="btn btn-sm btn-danger"
+                          title="Excluir este usuário"
+                          disabled={Boolean(loadingAcao)}
+                          onClick={() => handleDeleteUser(u)}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      ) : (
+                        <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>PADRÃO</span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -185,27 +272,37 @@ export default function Configuracoes({ user }) {
             <h3>Novo Usuário / Vendedor</h3>
             <div className="field">
               <label>Nome Completo</label>
-              <input className="input" required value={novoUser.nome} onChange={(e) => setNovoUser({ ...novoUser, nome: e.target.value })} />
+              <input className="input" required value={novoUser.nome} onChange={(e) => setNovoUser({ ...novoUser, nome: e.target.value })} placeholder="Ex: Lucas Silva" />
             </div>
             <div className="field">
               <label>E-mail de Acesso</label>
-              <input className="input" type="email" required value={novoUser.email} onChange={(e) => setNovoUser({ ...novoUser, email: e.target.value })} />
+              <input className="input" type="email" required value={novoUser.email} onChange={(e) => setNovoUser({ ...novoUser, email: e.target.value })} placeholder="lucas@dgautos.com.br" />
             </div>
             <div className="field">
               <label>Senha Inicial</label>
-              <input className="input" type="password" required value={novoUser.senha} onChange={(e) => setNovoUser({ ...novoUser, senha: e.target.value })} />
+              <input className="input" type="password" required value={novoUser.senha} onChange={(e) => setNovoUser({ ...novoUser, senha: e.target.value })} placeholder="••••••••" />
             </div>
             <div className="field">
-              <label>Perfil de Permissão</label>
+              <label>Perfil de Permissão (Poderes)</label>
               <select className="select" value={novoUser.perfil} onChange={(e) => setNovoUser({ ...novoUser, perfil: e.target.value })}>
                 <option value="vendedor">Vendedor (CRM, Estoque, Negociações)</option>
-                <option value="financeiro">Financeiro</option>
-                <option value="gerente">Gerente</option>
-                <option value="admin">Administrador Geral</option>
+                <option value="financeiro">Financeiro (Caixa, Despesas, Relatórios)</option>
+                <option value="gerente">Gerente (Acesso total exceto configs de sistema)</option>
+                <option value="admin">Administrador Geral (Acesso irrestrito)</option>
               </select>
             </div>
-            <button type="submit" className="btn btn-primary" style={{ justifyContent: 'center', marginTop: 6 }}>
-              <Plus size={16} />Cadastrar Usuário
+            <button type="submit" className="btn btn-primary" disabled={Boolean(loadingAcao)} style={{ justifyContent: 'center', marginTop: 6 }}>
+              {loadingAcao ? (
+                <>
+                  <div className="spinner-sm" />
+                  <span>Cadastrando...</span>
+                </>
+              ) : (
+                <>
+                  <Plus size={16} />
+                  <span>Cadastrar Usuário</span>
+                </>
+              )}
             </button>
           </form>
         </div>

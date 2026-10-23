@@ -1152,3 +1152,51 @@ button, input, select, textarea { font: inherit; color: inherit; }
   .main { margin: 0 !important; padding: 0 !important; }
   .doc-preview { border: none; padding: 0; max-width: 100%; }
 }
+
+/* ==============================================================================
+   AVISOS DE CARREGAMENTO & SPINNERS
+   ============================================================================== */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.spinner-sm {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.loading-toast {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  background: #1a1d23;
+  color: #ffffff;
+  padding: 12px 20px;
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 99999;
+  font-weight: 600;
+  font-size: 14px;
+  border-left: 4px solid var(--primary-80);
+}

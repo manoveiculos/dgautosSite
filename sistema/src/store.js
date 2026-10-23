@@ -73,18 +73,27 @@ export async function login(email, senha) {
 
   // 2. Consulta no Supabase
   try {
-    const { data: usuario } = await supabase
+    const { data: usuario, error: errUser } = await supabase
       .from('usuarios_DGAUTOS')
       .select('*')
       .eq('email', emailLimpo)
       .maybeSingle();
 
-    if (usuario) {
+    if (!errUser && usuario) {
+      if (usuario.ativo === false) {
+        throw new Error('Usuário inativo. Entre em contato com a administração.');
+      }
+      if (usuario.senha_hash && usuario.senha_hash !== senhaLimpa) {
+        throw new Error('E-mail ou senha incorretos.');
+      }
       const user = { id: usuario.id, nome: usuario.nome, email: usuario.email, perfil: usuario.perfil || 'admin' };
       localStorage.setItem(AUTH, JSON.stringify({ token: 'sb-' + usuario.id, user }));
       return user;
     }
   } catch (err) {
+    if (err.message && (err.message.includes('incorretos') || err.message.includes('inativo'))) {
+      throw err;
+    }
     console.warn('Supabase auth fallback:', err);
   }
 
@@ -1008,15 +1017,22 @@ export async function getConfig() {
     if (data) loja = { ...CONFIG_LOJA_PADRAO, ...data };
   } catch {}
 
-  let usuarios = [
-    { id: 1, nome: 'Administrador DG', email: 'admin@dgautos.com.br', perfil: 'admin' },
-    { id: 2, nome: 'Alexandre Gorges', email: 'alexandre@dgautos.com.br', perfil: 'gerente' },
-    { id: 3, nome: 'Carlos Mendes', email: 'carlos@dgautos.com.br', perfil: 'vendedor' }
-  ];
+  let usuarios = [];
   try {
-    const { data: us } = await supabase.from('usuarios_DGAUTOS').select('id, nome, email, perfil');
-    if (Array.isArray(us) && us.length > 0) usuarios = us;
+    const { data: us, error } = await supabase
+      .from('usuarios_DGAUTOS')
+      .select('id, nome, email, perfil, ativo')
+      .order('id', { ascending: true });
+    if (!error && Array.isArray(us) && us.length > 0) {
+      usuarios = us;
+    }
   } catch {}
+
+  if (usuarios.length === 0) {
+    usuarios = [
+      { id: 6, nome: 'Administrador DG', email: 'admin@dgautos.com.br', perfil: 'admin', ativo: true }
+    ];
+  }
 
   return { loja, usuarios, auditoria: [] };
 }
@@ -1024,31 +1040,53 @@ export async function getConfig() {
 export async function saveConfigLoja(loja) {
   salvarCache('config_loja', loja);
   try {
-    await supabase.from('config_loja_DGAUTOS').upsert({ id: 1, ...loja });
+    const { error } = await supabase.from('config_loja_DGAUTOS').upsert({ id: 1, ...loja });
+    if (error) throw error;
   } catch (e) {
     console.warn('Supabase saveConfigLoja:', e);
+    throw new Error('Falha ao salvar dados da loja: ' + (e.message || 'Erro desconhecido'));
   }
   return loja;
 }
 
 export async function createUsuario(u) {
   try {
-    await supabase.from('usuarios_DGAUTOS').insert([{
+    const { data, error } = await supabase.from('usuarios_DGAUTOS').insert([{
       nome: u.nome,
-      email: u.email,
+      email: String(u.email || '').trim().toLowerCase(),
       senha_hash: u.senha || 'admin123',
       perfil: u.perfil || 'vendedor',
       ativo: true
-    }]);
-  } catch {}
+    }]).select();
+    if (error) throw error;
+  } catch (err) {
+    console.error('Supabase createUsuario error:', err);
+    throw new Error(err.message || 'Falha ao cadastrar usuário no banco de dados');
+  }
+  const { usuarios } = await getConfig();
+  return usuarios;
+}
+
+export async function updateUsuario(id, dados) {
+  try {
+    const { error } = await supabase.from('usuarios_DGAUTOS').update(dados).eq('id', id);
+    if (error) throw error;
+  } catch (err) {
+    console.error('Supabase updateUsuario error:', err);
+    throw new Error(err.message || 'Falha ao atualizar usuário no banco de dados');
+  }
   const { usuarios } = await getConfig();
   return usuarios;
 }
 
 export async function deleteUsuario(id) {
   try {
-    await supabase.from('usuarios_DGAUTOS').delete().eq('id', id);
-  } catch {}
+    const { error } = await supabase.from('usuarios_DGAUTOS').delete().eq('id', id);
+    if (error) throw error;
+  } catch (err) {
+    console.error('Supabase deleteUsuario error:', err);
+    throw new Error(err.message || 'Falha ao excluir usuário no banco de dados');
+  }
   const { usuarios } = await getConfig();
   return usuarios.filter((u) => u.id !== id);
 }

@@ -149,8 +149,10 @@ export default function Estoque({ user }) {
   const [fichaImpressao, setFichaImpressao] = useState(null);
   const [modalEntrada, setModalEntrada] = useState(false);
   const [menuAbertoId, setMenuAbertoId] = useState(null);
+  const [carregandoEstoque, setCarregandoEstoque] = useState(false);
 
   const recarregar = async () => {
+    setCarregandoEstoque(true);
     try {
       const [vs, cs] = await Promise.all([getVeiculos(), getClientes()]);
       const listaArray = Array.isArray(vs) ? vs : [];
@@ -163,6 +165,8 @@ export default function Estoque({ user }) {
       }
     } catch (e) {
       console.warn('Erro ao carregar estoque:', e);
+    } finally {
+      setCarregandoEstoque(false);
     }
   };
 
@@ -308,6 +312,12 @@ export default function Estoque({ user }) {
 
   return (
     <>
+      {carregandoEstoque && (
+        <div className="loading-toast">
+          <div className="spinner-sm" />
+          <span>Carregando estoque e fotos...</span>
+        </div>
+      )}
       <header className="topbar">
         <div>
           <h1>Estoque de Veículos</h1>
@@ -999,6 +1009,8 @@ function VeiculoModal({ inicial, clientes, onClose, onSave, onCancelarVeiculo, o
   const [novoSocio, setNovoSocio] = useState({ nome: '', percentual: 50 });
   const [novoDoc, setNovoDoc] = useState({ tipo: 'CRLV Digital', numero: '', status: 'Validado' });
   const [novaFotoUrl, setNovaFotoUrl] = useState('');
+  const [salvando, setSalvando] = useState(false);
+  const [loadingFotos, setLoadingFotos] = useState('');
   const [novaDespesa, setNovaDespesa] = useState({
     categoria: 'Preparação / Estética',
     descricao: '',
@@ -1048,27 +1060,62 @@ function VeiculoModal({ inicial, clientes, onClose, onSave, onCancelarVeiculo, o
     });
   };
 
+  const comprimirImagem = (file, maxWidth = 1280, maxHeight = 960, quality = 0.8) => {
+    return new Promise((resolve) => {
+      if (!file || typeof file === 'string') return resolve(file);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          let width = img.width;
+          let height = img.height;
+          if (width > maxWidth || height > maxHeight) {
+            const ratio = Math.min(maxWidth / width, maxHeight / height);
+            width = Math.round(width * ratio);
+            height = Math.round(height * ratio);
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return resolve(e.target.result);
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, 0, 0, width, height);
+          let dataUrl = canvas.toDataURL('image/webp', quality);
+          if (!dataUrl || dataUrl.length < 100 || !dataUrl.startsWith('data:image/webp')) {
+            dataUrl = canvas.toDataURL('image/jpeg', quality);
+          }
+          resolve(dataUrl);
+        };
+        img.onerror = () => resolve(e.target.result);
+        img.src = e.target.result;
+      };
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleUploadFotoLocal = async (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
 
-    const promises = files.map((file) => {
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = () => resolve(null);
-        reader.readAsDataURL(file);
+    setLoadingFotos(`Otimizando e acelerando ${files.length} foto(s)... Aguarde um instante.`);
+    try {
+      const promises = files.map((file) => comprimirImagem(file));
+      const resultados = await Promise.all(promises);
+      const validas = resultados.filter(Boolean);
+
+      setF((prev) => {
+        const novas = [...(prev.fotos || []), ...validas];
+        return { ...prev, fotos: novas, foto: prev.foto || novas[0] };
       });
-    });
-
-    const resultados = await Promise.all(promises);
-    const validas = resultados.filter(Boolean);
-
-    setF((prev) => {
-      const novas = [...(prev.fotos || []), ...validas];
-      return { ...prev, fotos: novas, foto: prev.foto || novas[0] };
-    });
-    e.target.value = '';
+    } catch (err) {
+      console.warn('Erro ao processar fotos:', err);
+    } finally {
+      setLoadingFotos('');
+      e.target.value = '';
+    }
   };
 
   const [arrastandoIdx, setArrastandoIdx] = useState(null);
@@ -1103,8 +1150,22 @@ function VeiculoModal({ inicial, clientes, onClose, onSave, onCancelarVeiculo, o
   return (
     <form
       className="altimus-crud-page"
-      onSubmit={(e) => { e.preventDefault(); onSave(f); }}
+      onSubmit={async (e) => {
+        e.preventDefault();
+        setSalvando(true);
+        try {
+          await onSave(f);
+        } finally {
+          setSalvando(false);
+        }
+      }}
     >
+      {(salvando || loadingFotos) && (
+        <div className="loading-toast">
+          <div className="spinner-sm" />
+          <span>{salvando ? 'Gravando ficha do veículo e fotos no banco de dados...' : loadingFotos}</span>
+        </div>
+      )}
       {/* TOPO DE PÁGINA INTEIRA (/veiculo/:id) */}
       <div className="altimus-crud-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
@@ -2491,8 +2552,23 @@ function VeiculoModal({ inicial, clientes, onClose, onSave, onCancelarVeiculo, o
           )}
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button type="button" className="btn" onClick={onClose}>Fechar / Voltar</button>
-          <button id="btn-salvar-veiculo" type="submit" className="btn btn-primary">✓ Salvar Ficha do Veículo</button>
+          <button type="button" className="btn" onClick={onClose} disabled={salvando}>Fechar / Voltar</button>
+          <button
+            id="btn-salvar-veiculo"
+            type="submit"
+            className="btn btn-primary"
+            disabled={salvando || Boolean(loadingFotos)}
+            style={{ minWidth: 220, justifyContent: 'center' }}
+          >
+            {salvando ? (
+              <>
+                <div className="spinner-sm" />
+                <span>Gravando Veículo...</span>
+              </>
+            ) : (
+              <>✓ Salvar Ficha do Veículo</>
+            )}
+          </button>
         </div>
       </div>
     </form>

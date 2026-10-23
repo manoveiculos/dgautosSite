@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx watch server.ts",
     "start": "node server.js",
-    "build:sistema": "cd sistema && npm install --prefer-offline --no-audit && npm run build && cd .. && npm run build:server",
+    "build:sistema": "vite build && cd sistema && npm install --prefer-offline --no-audit && npm run build && cd .. && npm run build:server",
     "build": "vite build && npm run build:sistema",
     "build:server": "esbuild server.ts --bundle --platform=node --format=esm --outfile=server.js --external:vite --external:express --external:path --external:url --external:dotenv --external:bcryptjs --external:cors --external:jsonwebtoken --external:node:sqlite",
     "preview": "vite preview",
@@ -39,10 +39,15 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22.14.0",
     "autoprefixer": "^10.4.21",
-    "esbuild": "^0.28.0",
+    "esbuild": "^0.28.2",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "vite": "^6.4.2"
+  },
+  "overrides": {
+    "@grpc/grpc-js": "^1.14.6",
+    "qs": "^6.16.1",
+    "esbuild": "^0.28.2"
   }
 }

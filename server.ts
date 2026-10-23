@@ -1247,25 +1247,39 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     // Serve static files in production
-    const distPath = path.join(process.cwd(), 'dist');
-    const sistemaDist = path.join(distPath, 'sistema');
+    const distPath = path.resolve(process.cwd(), 'dist');
+    const sistemaDist = path.resolve(distPath, 'sistema');
 
     if (fs.existsSync(sistemaDist)) {
       app.use('/sistema', express.static(sistemaDist));
-      app.get('/sistema/*', (req, res) => {
-        res.sendFile(path.join(sistemaDist, 'index.html'));
-      });
-      app.get('/sistema', (req, res) => {
-        res.sendFile(path.join(sistemaDist, 'index.html'));
+      app.get(['/sistema', '/sistema/*'], (_req, res) => {
+        const sistemaHtml = path.join(sistemaDist, 'index.html');
+        if (fs.existsSync(sistemaHtml)) {
+          return res.sendFile(sistemaHtml);
+        }
+        res.status(404).send('Sistema Altimus index não encontrado.');
       });
     }
 
     if (fs.existsSync(distPath)) {
       app.use(express.static(distPath));
-      app.get('*', (req, res) => {
-        res.sendFile(path.join(distPath, 'index.html'));
-      });
     }
+
+    app.get('*', async (req, res) => {
+      const rootHtml = path.join(distPath, 'index.html');
+      if (fs.existsSync(rootHtml)) {
+        return res.sendFile(rootHtml);
+      }
+      try {
+        const todos = await getVehicles();
+        const vehicles = aplicarFiltro(todos, {});
+        return res
+          .set("Content-Type", "text/html; charset=utf-8")
+          .send(renderCatalog(vehicles, {}, todos));
+      } catch (err) {
+        return res.status(200).send("<!DOCTYPE html><html><head><title>DG Automóveis</title></head><body><h1>DG Automóveis</h1><p>Sistema inicializado com sucesso.</p></body></html>");
+      }
+    });
   }
 
   app.listen(PORT, "0.0.0.0", () => {

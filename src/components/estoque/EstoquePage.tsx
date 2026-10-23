@@ -227,6 +227,8 @@ export default function EstoquePage() {
                     <img
                       src={v.image}
                       alt={v.description}
+                      loading="lazy"
+                      decoding="async"
                       className="w-full h-[200px] object-cover group-hover:scale-105 transition-transform duration-300"
                     />
                     <span className="absolute top-3 right-3 px-2.5 py-1 bg-[#0B1120]/85 backdrop-blur-xs text-sky-400 border border-blue-500/30 text-[10px] font-extrabold uppercase rounded-lg">

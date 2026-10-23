@@ -7833,23 +7833,34 @@ async function startServer() {
     });
     app2.use(vite.middlewares);
   } else {
-    const distPath = path2.join(process.cwd(), "dist");
-    const sistemaDist2 = path2.join(distPath, "sistema");
+    const distPath = path2.resolve(process.cwd(), "dist");
+    const sistemaDist2 = path2.resolve(distPath, "sistema");
     if (fs2.existsSync(sistemaDist2)) {
       app2.use("/sistema", express2.static(sistemaDist2));
-      app2.get("/sistema/*", (req, res) => {
-        res.sendFile(path2.join(sistemaDist2, "index.html"));
-      });
-      app2.get("/sistema", (req, res) => {
-        res.sendFile(path2.join(sistemaDist2, "index.html"));
+      app2.get(["/sistema", "/sistema/*"], (_req, res) => {
+        const sistemaHtml = path2.join(sistemaDist2, "index.html");
+        if (fs2.existsSync(sistemaHtml)) {
+          return res.sendFile(sistemaHtml);
+        }
+        res.status(404).send("Sistema Altimus index n\xE3o encontrado.");
       });
     }
     if (fs2.existsSync(distPath)) {
       app2.use(express2.static(distPath));
-      app2.get("*", (req, res) => {
-        res.sendFile(path2.join(distPath, "index.html"));
-      });
     }
+    app2.get("*", async (req, res) => {
+      const rootHtml = path2.join(distPath, "index.html");
+      if (fs2.existsSync(rootHtml)) {
+        return res.sendFile(rootHtml);
+      }
+      try {
+        const todos = await getVehicles();
+        const vehicles = aplicarFiltro(todos, {});
+        return res.set("Content-Type", "text/html; charset=utf-8").send(renderCatalog(vehicles, {}, todos));
+      } catch (err) {
+        return res.status(200).send("<!DOCTYPE html><html><head><title>DG Autom\xF3veis</title></head><body><h1>DG Autom\xF3veis</h1><p>Sistema inicializado com sucesso.</p></body></html>");
+      }
+    });
   }
   app2.listen(PORT2, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT2}`);

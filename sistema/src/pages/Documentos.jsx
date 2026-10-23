@@ -112,6 +112,12 @@ export default function Documentos({ user }) {
 
   return (
     <>
+      {salvandoContrato && (
+        <div className="loading-toast">
+          <div className="spinner-sm" />
+          <span>Gravando contrato no banco de dados Supabase...</span>
+        </div>
+      )}
       <header className="topbar no-print">
         <div>
           <h1>Minutas & Contratos Oficiais — DG Automóveis</h1>

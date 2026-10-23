@@ -55,11 +55,15 @@ export default function Negociacoes({ user }) {
   const [busca, setBusca] = useState('');
   const [filtroStatus, setFiltroStatus] = useState('');
   const [editando, setEditando] = useState(null);
+  const [loadingAcao, setLoadingAcao] = useState('');
 
   const recarregar = () => {
-    getNegociacoes().then((res) => setLista(Array.isArray(res) ? res : [])).catch(() => {});
-    getClientes().then((res) => setClientes(Array.isArray(res) ? res : [])).catch(() => {});
-    getVeiculos().then((res) => setVeiculos(Array.isArray(res) ? res : [])).catch(() => {});
+    setLoadingAcao('Carregando negociações...');
+    Promise.all([
+      getNegociacoes().then((res) => setLista(Array.isArray(res) ? res : [])),
+      getClientes().then((res) => setClientes(Array.isArray(res) ? res : [])),
+      getVeiculos().then((res) => setVeiculos(Array.isArray(res) ? res : []))
+    ]).catch(() => {}).finally(() => setLoadingAcao(''));
   };
   useEffect(recarregar, []);
 
@@ -191,6 +195,12 @@ export default function Negociacoes({ user }) {
 
   return (
     <>
+      {loadingAcao && (
+        <div className="loading-toast">
+          <div className="spinner-sm" />
+          <span>{loadingAcao}</span>
+        </div>
+      )}
       <header className="topbar">
         <div>
           <h1>Contratos, Vendas & Trocas</h1>
@@ -450,6 +460,7 @@ function NegociacaoWizardModal({ inicial, clientes, veiculos, onClose, onSave, o
       : [{ forma: 'Pix / TED', financeira: 'À vista', parcelas: 1, valor: Number(inicial.valor_veiculo) || 0 }]
   });
 
+  const [salvandoNeg, setSalvandoNeg] = useState(false);
   const [buscaCliente, setBuscaCliente] = useState(inicial.cliente_nome || clienteInicial?.nome || '');
   const [dropdownAberto, setDropdownAberto] = useState(false);
 
@@ -528,16 +539,42 @@ function NegociacaoWizardModal({ inicial, clientes, veiculos, onClose, onSave, o
     : 0;
 
   return (
-    <form className="altimus-crud-page" onSubmit={(e) => { e.preventDefault(); onSave(f); }}>
+    <form
+      className="altimus-crud-page"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        setSalvandoNeg(true);
+        try {
+          await onSave(f);
+        } finally {
+          setSalvandoNeg(false);
+        }
+      }}
+    >
+      {salvandoNeg && (
+        <div className="loading-toast">
+          <div className="spinner-sm" />
+          <span>Salvando negociação e gerando contratos...</span>
+        </div>
+      )}
       <div className="altimus-crud-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button type="button" className="btn" onClick={onClose}>← Voltar para Lista</button>
+          <button type="button" className="btn" onClick={onClose} disabled={salvandoNeg}>← Voltar para Lista</button>
           <h2 style={{ fontSize: '1.2rem', fontWeight: 800 }}>
             {f.id ? `Contrato / Negociação #${f.id}` : 'Nova Negociação & Contrato'}
           </h2>
           <span className={`badge badge-${f.status}`}>{STATUS_NEG[f.status] || f.status}</span>
         </div>
-        <button type="submit" className="btn btn-primary">✓ Salvar Proposta</button>
+        <button type="submit" className="btn btn-primary" disabled={salvandoNeg}>
+          {salvandoNeg ? (
+            <>
+              <div className="spinner-sm" />
+              <span>Salvando...</span>
+            </>
+          ) : (
+            <>✓ Salvar Proposta</>
+          )}
+        </button>
       </div>
 
       <div className="altimus-crud-body">
@@ -1184,8 +1221,17 @@ function NegociacaoWizardModal({ inicial, clientes, veiculos, onClose, onSave, o
           )}
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <button type="button" className="btn" onClick={onClose}>Fechar</button>
-          <button type="submit" className="btn btn-primary">✓ Salvar Proposta</button>
+          <button type="button" className="btn" onClick={onClose} disabled={salvandoNeg}>Fechar</button>
+          <button type="submit" className="btn btn-primary" disabled={salvandoNeg}>
+            {salvandoNeg ? (
+              <>
+                <div className="spinner-sm" />
+                <span>Salvando...</span>
+              </>
+            ) : (
+              <>✓ Salvar Proposta</>
+            )}
+          </button>
           {f.status !== 'concluida' && (
             <button
               type="button"

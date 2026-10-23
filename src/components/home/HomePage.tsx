@@ -472,6 +472,8 @@ export default function HomePage() {
                         <img
                           src={v.image}
                           alt={v.description}
+                          loading="lazy"
+                          decoding="async"
                           className="w-full h-[220px] object-cover group-hover:scale-105 transition-transform duration-300"
                         />
                         <span className="absolute top-3 right-3 px-2.5 py-1 bg-[#0B1120]/85 backdrop-blur-xs text-sky-400 border border-blue-500/30 text-[10px] font-extrabold uppercase rounded-lg">
@@ -568,6 +570,8 @@ export default function HomePage() {
                     <img
                       src={v.image}
                       alt={v.description}
+                      loading="lazy"
+                      decoding="async"
                       className="w-[112px] h-[112px] object-cover bg-[#0B1120] flex-shrink-0"
                     />
                     <div className="p-3.5 flex flex-col justify-between flex-1 min-w-0">
@@ -698,6 +702,8 @@ export default function HomePage() {
                       <img
                         src={v.image}
                         alt={v.description}
+                        loading="lazy"
+                        decoding="async"
                         className="w-full h-[220px] object-cover group-hover:scale-105 transition-transform duration-300"
                       />
                       <span className="absolute top-3 right-3 px-2.5 py-1 bg-[#0B1120]/85 backdrop-blur-xs text-sky-400 border border-blue-500/30 text-[10px] font-extrabold uppercase rounded-lg">
