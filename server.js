@@ -2602,7 +2602,7 @@ app.delete("/api/usuarios/:id", auth, perfil("admin"), (req, res) => {
   audit(req.user.id, "excluir", "usuarios", id);
   res.json(db.prepare("SELECT id, nome, email, perfil FROM usuarios ORDER BY id").all());
 });
-try {
+if (process.env.MOTRIZ_STANDALONE === "true") try {
   const motrizServer = app.listen(MOTRIZ_PORT, () => {
     console.log(`[Motriz API] Ativa em http://localhost:${MOTRIZ_PORT}`);
   });

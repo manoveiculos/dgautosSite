@@ -772,7 +772,11 @@ app.delete('/api/usuarios/:id', auth, perfil('admin'), (req, res) => {
   res.json(db.prepare('SELECT id, nome, email, perfil FROM usuarios ORDER BY id').all());
 });
 
-try {
+// IMPORTANTE: este módulo é importado e montado dentro do server.ts principal.
+// Na Hostinger o runtime Node captura o PRIMEIRO app.listen() do processo; se
+// este listener abrir antes, o domínio passa a servir só esta API (Cannot GET /).
+// Por isso o socket dedicado só abre quando explicitamente pedido.
+if (process.env.MOTRIZ_STANDALONE === 'true') try {
   const motrizServer = app.listen(MOTRIZ_PORT, () => {
     console.log(`[Motriz API] Ativa em http://localhost:${MOTRIZ_PORT}`);
   });
