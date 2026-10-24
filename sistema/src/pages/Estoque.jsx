@@ -1138,37 +1138,72 @@ function VeiculoModal({ inicial, clientes, onClose, onSave, onCancelarVeiculo, o
 
   const comprimirImagem = (file, maxWidth = 1280, maxHeight = 960, quality = 0.8) => {
     return new Promise((resolve) => {
-      if (!file || typeof file === 'string') return resolve(file);
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = new Image();
+      if (!file) return resolve(null);
+      if (typeof file === 'string') return resolve(file);
+
+      // Timeout de segurança absoluto: nunca deixa a Promise travar o carregamento
+      const timer = setTimeout(() => {
+        try {
+          const reader = new FileReader();
+          reader.onload = (ev) => resolve(ev.target.result);
+          reader.onerror = () => resolve(null);
+          reader.readAsDataURL(file);
+        } catch {
+          resolve(null);
+        }
+      }, 4000);
+
+      try {
+        const objectUrl = URL.createObjectURL(file);
+        const img = new window.Image();
         img.onload = () => {
-          let width = img.width;
-          let height = img.height;
-          if (width > maxWidth || height > maxHeight) {
-            const ratio = Math.min(maxWidth / width, maxHeight / height);
-            width = Math.round(width * ratio);
-            height = Math.round(height * ratio);
+          clearTimeout(timer);
+          try {
+            let width = img.naturalWidth || img.width;
+            let height = img.naturalHeight || img.height;
+            if (width > maxWidth || height > maxHeight) {
+              const ratio = Math.min(maxWidth / width, maxHeight / height);
+              width = Math.round(width * ratio);
+              height = Math.round(height * ratio);
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+              URL.revokeObjectURL(objectUrl);
+              return resolve(null);
+            }
+            ctx.drawImage(img, 0, 0, width, height);
+            let dataUrl = canvas.toDataURL('image/jpeg', quality);
+            URL.revokeObjectURL(objectUrl);
+            resolve(dataUrl);
+          } catch (err) {
+            URL.revokeObjectURL(objectUrl);
+            // Fallback FileReader
+            const reader = new FileReader();
+            reader.onload = (ev) => resolve(ev.target.result);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(file);
           }
-          const canvas = document.createElement('canvas');
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) return resolve(e.target.result);
-          ctx.imageSmoothingEnabled = true;
-          ctx.imageSmoothingQuality = 'high';
-          ctx.drawImage(img, 0, 0, width, height);
-          let dataUrl = canvas.toDataURL('image/webp', quality);
-          if (!dataUrl || dataUrl.length < 100 || !dataUrl.startsWith('data:image/webp')) {
-            dataUrl = canvas.toDataURL('image/jpeg', quality);
-          }
-          resolve(dataUrl);
         };
-        img.onerror = () => resolve(e.target.result);
-        img.src = e.target.result;
-      };
-      reader.onerror = () => resolve(null);
-      reader.readAsDataURL(file);
+        img.onerror = () => {
+          clearTimeout(timer);
+          URL.revokeObjectURL(objectUrl);
+          // Fallback para leitura direta do arquivo
+          const reader = new FileReader();
+          reader.onload = (ev) => resolve(ev.target.result);
+          reader.onerror = () => resolve(null);
+          reader.readAsDataURL(file);
+        };
+        img.src = objectUrl;
+      } catch (err) {
+        clearTimeout(timer);
+        const reader = new FileReader();
+        reader.onload = (ev) => resolve(ev.target.result);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(file);
+      }
     });
   };
 
@@ -1177,21 +1212,38 @@ function VeiculoModal({ inicial, clientes, onClose, onSave, onCancelarVeiculo, o
     const files = Array.from(rawFiles);
     if (!files.length) return;
 
-    setLoadingFotos(`Otimizando e carregando ${files.length} foto(s)... Aguarde um instante.`);
-    try {
-      const promises = files.map((file) => comprimirImagem(file));
-      const resultados = await Promise.all(promises);
-      const validas = resultados.filter(Boolean);
+    setLoadingFotos(`Iniciando carregamento de ${files.length} foto(s)...`);
+    const validas = [];
 
-      setF((prev) => {
-        const novas = [...(prev.fotos || []), ...validas];
-        return { ...prev, fotos: novas, foto: prev.foto || novas[0] };
-      });
+    try {
+      for (let i = 0; i < files.length; i++) {
+        setLoadingFotos(`Carregando e otimizando foto ${i + 1} de ${files.length}...`);
+        try {
+          const res = await comprimirImagem(files[i]);
+          if (res) validas.push(res);
+        } catch (err) {
+          console.warn('Erro ao processar imagem:', err);
+        }
+      }
+
+      if (validas.length > 0) {
+        setF((prev) => {
+          const fotosAtuais = Array.isArray(prev.fotos) ? prev.fotos : [];
+          const novas = [...fotosAtuais, ...validas];
+          return {
+            ...prev,
+            fotos: novas,
+            foto: prev.foto || novas[0]
+          };
+        });
+      }
     } catch (err) {
-      console.warn('Erro ao processar fotos:', err);
+      console.warn('Erro geral ao processar fotos:', err);
     } finally {
       setLoadingFotos('');
-      if (e.target && e.target.value) e.target.value = '';
+      if (e.target && e.target.value !== undefined) {
+        e.target.value = '';
+      }
     }
   };
 
@@ -2386,8 +2438,20 @@ function VeiculoModal({ inicial, clientes, onClose, onSave, onCancelarVeiculo, o
 
             <div className="form-grid">
               <div className="field">
-                <label>Enviar Fotos do Computador (JPG, PNG, WEBP)</label>
-                <input className="input" type="file" accept="image/*" multiple onChange={handleUploadFotoLocal} />
+                <label>Adicionar Fotos do Computador</label>
+                <label
+                  className="btn btn-primary"
+                  style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, cursor: 'pointer', height: 42, width: '100%', fontWeight: 700 }}
+                >
+                  <Upload size={16} /> Selecionar Fotos (JPG, PNG, WEBP)
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    style={{ display: 'none' }}
+                    onChange={handleUploadFotoLocal}
+                  />
+                </label>
               </div>
               <div className="field">
                 <label>Ou Adicionar Foto por URL</label>
@@ -2412,6 +2476,26 @@ function VeiculoModal({ inicial, clientes, onClose, onSave, onCancelarVeiculo, o
                 <input className="input" placeholder="https://www.youtube.com/watch?v=…" value={f.url_video ?? ''} onChange={set('url_video')} />
               </div>
             </div>
+
+            {loadingFotos && (
+              <div
+                style={{
+                  background: '#ede9fe',
+                  border: '1px solid #c4b5fd',
+                  borderRadius: 10,
+                  padding: '14px 20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  color: '#5b21b6',
+                  fontWeight: 700,
+                  fontSize: '.9rem'
+                }}
+              >
+                <div className="spinner-sm" style={{ borderColor: '#6d28d9', borderTopColor: 'transparent', width: 20, height: 20 }} />
+                <span>{loadingFotos}</span>
+              </div>
+            )}
 
             {(f.fotos || []).length === 0 ? (
               <label
