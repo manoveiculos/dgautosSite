@@ -33,7 +33,7 @@ export default function Crm({ user }) {
   const [lista, setLista] = useState([]);
   const [veiculos, setVeiculos] = useState([]);
   const [clientes, setClientes] = useState([]);
-  const [modo, setModo] = useState('kanban'); // kanban | lista | acoes
+  const [modo, setModo] = useState('lista'); // Default: LISTA
   const [busca, setBusca] = useState('');
   const [filtroOrigem, setFiltroOrigem] = useState('');
   const [filtroEtiqueta, setFiltroEtiqueta] = useState('');
@@ -198,12 +198,11 @@ export default function Crm({ user }) {
       <header className="topbar">
         <div>
           <h1 style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            CRM — Gestão de Leads (15 Estágios Altimus)
+            CRM — Gestão de Leads
             <span className="badge" style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '.78rem' }}>
               {filtradas.length} {filtradas.length === 1 ? 'lead' : 'leads'}
             </span>
           </h1>
-          <p>Acompanhe interessados de Portais (Mercado Livre, Webmotors, OLX), Site, Instagram e Loja Física até o fechamento da venda.</p>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <div className="tabs">

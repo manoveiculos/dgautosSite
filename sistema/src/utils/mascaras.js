@@ -58,4 +58,84 @@ export async function buscarCep(cep) {
   }
 }
 
+export function mascaraMoeda(valor) {
+  if (valor === '' || valor === null || valor === undefined) return '';
+  if (typeof valor === 'number') {
+    return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+  const digits = String(valor).replace(/\D/g, '');
+  if (!digits) return '';
+  const num = Number(digits) / 100;
+  return num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+export function desformatarMoeda(valor) {
+  if (typeof valor === 'number') return isNaN(valor) ? 0 : valor;
+  if (!valor) return 0;
+  const digits = String(valor).replace(/\D/g, '');
+  if (!digits) return 0;
+  return Number(digits) / 100;
+}
+
+export function formatarMoedaBRL(valor) {
+  if (valor === '' || valor === null || valor === undefined) return 'R$ 0,00';
+  const num = typeof valor === 'number' ? valor : desformatarMoeda(valor);
+  return num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+export async function buscarCnpj(cnpj) {
+  const limpo = String(cnpj).replace(/\D/g, '');
+  if (limpo.length !== 14) return null;
+
+  // Tentativa 1: open.cnpja.com
+  try {
+    const res = await fetch(`https://open.cnpja.com/office/${limpo}`);
+    if (res.ok) {
+      const d = await res.json();
+      const end = d.address?.street || '';
+      return {
+        nome: (d.company?.name || d.alias || '').toUpperCase(),
+        apelido: (d.alias || d.company?.name || '').toUpperCase(),
+        logradouro: end.toUpperCase(),
+        numero: String(d.address?.number || '').toUpperCase(),
+        complemento: (d.address?.details || '').toUpperCase(),
+        bairro: (d.address?.district || '').toUpperCase(),
+        cidade: (d.address?.city || '').toUpperCase(),
+        uf: (d.address?.state || 'SC').toUpperCase(),
+        cidadeEstado: `${(d.address?.city || '').toUpperCase()} / ${(d.address?.state || 'SC').toUpperCase()}`,
+        cep: mascaraCep(d.address?.zip || ''),
+        telefone: d.phones?.[0] ? mascaraTelefone(`${d.phones[0].area}${d.phones[0].number}`) : '',
+        email: (d.emails?.[0]?.address || '').toLowerCase(),
+        data_abertura: d.founded || ''
+      };
+    }
+  } catch {}
+
+  // Tentativa 2: minhareceita.org
+  try {
+    const res = await fetch(`https://minhareceita.org/${limpo}`);
+    if (res.ok) {
+      const d = await res.json();
+      const end = d.logradouro ? `${d.descricao_tipo_de_logradouro || ''} ${d.logradouro}`.trim() : '';
+      return {
+        nome: (d.razao_social || d.nome_fantasia || '').toUpperCase(),
+        apelido: (d.nome_fantasia || '').toUpperCase(),
+        logradouro: end.toUpperCase(),
+        numero: String(d.numero || '').toUpperCase(),
+        complemento: (d.complemento || '').toUpperCase(),
+        bairro: (d.bairro || '').toUpperCase(),
+        cidade: (d.municipio || '').toUpperCase(),
+        uf: (d.uf || 'SC').toUpperCase(),
+        cidadeEstado: `${(d.municipio || '').toUpperCase()} / ${(d.uf || 'SC').toUpperCase()}`,
+        cep: mascaraCep(d.cep || ''),
+        telefone: d.ddd_telefone_1 ? mascaraTelefone(d.ddd_telefone_1) : '',
+        email: (d.email || '').toLowerCase(),
+        data_abertura: d.data_inicio_atividade || ''
+      };
+    }
+  } catch {}
+
+  return null;
+}
+
 export { validarCPF, validarCNPJ, validarCpfCnpj };

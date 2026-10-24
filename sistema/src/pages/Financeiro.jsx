@@ -7,8 +7,10 @@ import {
 import {
   getFinanceiro, saveFinanceiro, baixarFinanceiro, deleteFinanceiro, pagarComissao,
   getVeiculos, getClientes, saveCliente, getNegociacoes, getUsuarios,
-  brl, dataBr, CATEGORIAS_FINANCEIRO, STATUS
+  brl, dataBr, CATEGORIAS_FINANCEIRO, STATUS,
+  getContasBancarias, saveContaBancaria
 } from '../store';
+import { mascaraMoeda, desformatarMoeda, formatarMoedaBRL } from '../utils/mascaras';
 import { ClienteModalAltimus } from './Clientes';
 
 const REVE_PADRAO = ['DG Automóveis'];
@@ -838,7 +840,32 @@ function NovoTituloForm({ inicial, veiculos, clientes, onClose, onSave, onDelete
   const [buscaVeic, setBuscaVeic] = useState(inicial.veiculo_desc || '');
   const [dropdownVeicAberto, setDropdownVeicAberto] = useState(false);
 
+  // Valor em padrão Real Brasileiro (ex: R$ 200,00)
+  const [valorFormatado, setValorFormatado] = useState(() => mascaraMoeda(inicial.valor || ''));
+
+  // Gestão de Múltiplas Contas Bancárias e Caixas Físicos
+  const [contasDisponiveis, setContasDisponiveis] = useState(() => getContasBancarias());
+  const [modalNovaConta, setModalNovaConta] = useState(false);
+  const [novaContaNome, setNovaContaNome] = useState('');
+  const [novaContaTipo, setNovaContaTipo] = useState('banco');
+
   const setUpper = (k) => (e) => setF({ ...f, [k]: String(e.target.value).toUpperCase() });
+
+  const handleValorChange = (e) => {
+    const formatado = mascaraMoeda(e.target.value);
+    setValorFormatado(formatado);
+    setF((prev) => ({ ...prev, valor: desformatarMoeda(formatado) }));
+  };
+
+  const handleSalvarNovaConta = (e) => {
+    e.preventDefault();
+    if (!novaContaNome.trim()) return;
+    const atualizadas = saveContaBancaria({ nome: novaContaNome, tipo: novaContaTipo });
+    setContasDisponiveis(atualizadas);
+    setF((prev) => ({ ...prev, conta: novaContaNome.toUpperCase() }));
+    setNovaContaNome('');
+    setModalNovaConta(false);
+  };
 
   const clientesSugeridos = useMemo(() => {
     if (!buscaCli) return clientes.slice(0, 8);
@@ -858,6 +885,7 @@ function NovoTituloForm({ inicial, veiculos, clientes, onClose, onSave, onDelete
     e.preventDefault();
     onSave({
       ...f,
+      valor: desformatarMoeda(valorFormatado),
       cliente_nome: buscaCli.toUpperCase(),
       veiculo_desc: buscaVeic.toUpperCase()
     });
@@ -1082,18 +1110,22 @@ function NovoTituloForm({ inicial, veiculos, clientes, onClose, onSave, onDelete
             </select>
           </div>
 
-          {/* LINHA 4: VALOR TOTAL, FORMA DE PAGAMENTO, CONTA E STATUS */}
+          {/* LINHA 4: VALOR TOTAL (PADRÃO R$ 200,00), FORMA DE PAGAMENTO, CONTA E STATUS */}
           <div style={{ gridColumn: 'span 3' }} className="field">
-            <label style={{ fontWeight: 700, color: 'var(--text)' }}>Valor total * (R$)</label>
+            <label style={{ fontWeight: 700, color: 'var(--text)' }}>Valor total *</label>
             <input
-              type="number"
-              step="0.01"
+              type="text"
               required
               className="input"
-              style={{ fontSize: '1.05rem', fontWeight: 700, color: f.tipo === 'despesa' ? '#dc2626' : '#16a34a' }}
-              placeholder="0,00"
-              value={f.valor}
-              onChange={(e) => setF({ ...f, valor: e.target.value })}
+              style={{
+                fontSize: '1.15rem',
+                fontWeight: 800,
+                color: f.tipo === 'despesa' ? '#dc2626' : '#16a34a',
+                letterSpacing: '.02em'
+              }}
+              placeholder="R$ 0,00"
+              value={valorFormatado}
+              onChange={handleValorChange}
             />
           </div>
 
@@ -1107,33 +1139,94 @@ function NovoTituloForm({ inicial, veiculos, clientes, onClose, onSave, onDelete
           </div>
 
           <div style={{ gridColumn: 'span 3' }} className="field">
-            <label style={{ fontWeight: 600 }}>Conta</label>
-            <input
-              className="input"
-              placeholder="Itaú Empresas / Loja..."
-              value={f.conta ?? 'Itaú Empresas'}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <label style={{ fontWeight: 600, margin: 0 }}>Conta / Caixa *</label>
+              <button
+                type="button"
+                className="btn btn-sm"
+                style={{ fontSize: '.70rem', padding: '1px 6px', color: '#6d28d9', borderColor: '#7c3aed', background: '#f5f3ff', fontWeight: 700 }}
+                onClick={() => setModalNovaConta(true)}
+              >
+                + Nova Conta
+              </button>
+            </div>
+            <select
+              className="select"
+              required
+              value={f.conta ?? 'ITAÚ EMPRESAS'}
               onChange={setUpper('conta')}
-            />
+            >
+              {contasDisponiveis.map((c) => (
+                <option key={c.id || c.nome} value={c.nome}>
+                  {c.tipo === 'caixa' ? '💵 [CAIXA] ' : '🏦 [BANCO] '}{c.nome}
+                </option>
+              ))}
+            </select>
           </div>
 
-          <div style={{ gridColumn: 'span 3', display: 'flex', gap: 16, alignItems: 'center', marginTop: 22 }} className="field">
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: '.88rem', fontWeight: 600 }}>
-              <input
-                type="checkbox"
-                checked={f.quitado}
-                onChange={(e) => setF({ ...f, quitado: e.target.checked, status: e.target.checked ? 'pago' : 'pendente' })}
-              />
-              Quitado
-            </label>
+          {/* STATUS CARDS MODERNOS: QUITADO E AGENDADO (MELHORADOS) */}
+          <div style={{ gridColumn: 'span 3', display: 'flex', gap: 10, alignItems: 'flex-end' }} className="field">
+            <div
+              onClick={() => setF({ ...f, quitado: !f.quitado, status: !f.quitado ? 'pago' : 'pendente' })}
+              style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '8px 12px',
+                borderRadius: 8,
+                cursor: 'pointer',
+                border: f.quitado ? '2px solid #10b981' : '1px solid var(--border)',
+                background: f.quitado ? '#ecfdf5' : '#f8fafc',
+                color: f.quitado ? '#065f46' : 'var(--text)',
+                transition: 'all .15s ease',
+                userSelect: 'none'
+              }}
+            >
+              <div style={{
+                width: 18, height: 18, borderRadius: 4, display: 'grid', placeItems: 'center',
+                background: f.quitado ? '#10b981' : '#ffffff',
+                border: f.quitado ? 'none' : '1px solid #cbd5e1',
+                color: '#ffffff'
+              }}>
+                {f.quitado && <CheckCircle2 size={13} />}
+              </div>
+              <div style={{ lineHeight: 1.2 }}>
+                <div style={{ fontWeight: 700, fontSize: '.84rem' }}>Quitado</div>
+                <div style={{ fontSize: '.68rem', color: f.quitado ? '#047857' : 'var(--muted)' }}>Pago no caixa</div>
+              </div>
+            </div>
 
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: '.88rem', fontWeight: 600 }}>
-              <input
-                type="checkbox"
-                checked={f.agendado}
-                onChange={(e) => setF({ ...f, agendado: e.target.checked })}
-              />
-              Agendado
-            </label>
+            <div
+              onClick={() => setF({ ...f, agendado: !f.agendado })}
+              style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '8px 12px',
+                borderRadius: 8,
+                cursor: 'pointer',
+                border: f.agendado ? '2px solid #3b82f6' : '1px solid var(--border)',
+                background: f.agendado ? '#eff6ff' : '#f8fafc',
+                color: f.agendado ? '#1e40af' : 'var(--text)',
+                transition: 'all .15s ease',
+                userSelect: 'none'
+              }}
+            >
+              <div style={{
+                width: 18, height: 18, borderRadius: 4, display: 'grid', placeItems: 'center',
+                background: f.agendado ? '#3b82f6' : '#ffffff',
+                border: f.agendado ? 'none' : '1px solid #cbd5e1',
+                color: '#ffffff'
+              }}>
+                {f.agendado && <CheckCircle2 size={13} />}
+              </div>
+              <div style={{ lineHeight: 1.2 }}>
+                <div style={{ fontWeight: 700, fontSize: '.84rem' }}>Agendado</div>
+                <div style={{ fontSize: '.68rem', color: f.agendado ? '#1d4ed8' : 'var(--muted)' }}>A vencer</div>
+              </div>
+            </div>
           </div>
 
           {/* LINHA 5: OBSERVAÇÃO */}
@@ -1177,6 +1270,39 @@ function NovoTituloForm({ inicial, veiculos, clientes, onClose, onSave, onDelete
           </div>
         </div>
       </form>
+
+      {/* MODAL RÁPIDO PARA CADASTRAR CONTA BANCÁRIA OU CAIXA FÍSICO */}
+      {modalNovaConta && (
+        <div className="modal-backdrop" onClick={() => setModalNovaConta(false)} style={{ zIndex: 300 }}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 440, padding: 22 }}>
+            <h3 style={{ margin: '0 0 14px 0', fontSize: '1.05rem', fontWeight: 800 }}>+ Cadastrar Conta / Caixa Físico</h3>
+            <form onSubmit={handleSalvarNovaConta}>
+              <div className="field" style={{ marginBottom: 14 }}>
+                <label>Tipo</label>
+                <select className="select" value={novaContaTipo} onChange={(e) => setNovaContaTipo(e.target.value)}>
+                  <option value="banco">🏦 Conta Bancária (Ex: Itaú, Sicoob, Bradesco, Santander)</option>
+                  <option value="caixa">💵 Caixa Físico / Gaveta da Loja / Cofre</option>
+                </select>
+              </div>
+              <div className="field" style={{ marginBottom: 18 }}>
+                <label>Nome da Conta / Caixa *</label>
+                <input
+                  className="input"
+                  required
+                  autoFocus
+                  placeholder="Ex: BANCO SANTANDER ou CAIXA GAVETA 01"
+                  value={novaContaNome}
+                  onChange={(e) => setNovaContaNome(e.target.value.toUpperCase())}
+                />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                <button type="button" className="btn" onClick={() => setModalNovaConta(false)}>Cancelar</button>
+                <button type="submit" className="btn btn-primary" style={{ background: '#6d28d9' }}>Salvar Conta</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

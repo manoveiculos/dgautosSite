@@ -440,7 +440,21 @@ export async function getClientes() {
             if (m && m[1]) contatos_adicionais = JSON.parse(m[1]);
           } catch {}
         }
-        return { ...cli, contatos_adicionais };
+
+        let documentos = [];
+        try {
+          const docStorage = localStorage.getItem(`docs_cli_${cli.id}`) || localStorage.getItem(`docs_cli_${(cli.cpf_cnpj || '').replace(/\D/g, '')}`);
+          if (docStorage) documentos = JSON.parse(docStorage);
+        } catch {}
+
+        if ((!documentos || documentos.length === 0) && cli.observacoes && cli.observacoes.includes('[DOCS:')) {
+          try {
+            const md = cli.observacoes.match(/\[DOCS:([\s\S]*?)\]/);
+            if (md && md[1]) documentos = JSON.parse(md[1]);
+          } catch {}
+        }
+
+        return { ...cli, contatos_adicionais, documentos };
       });
       salvarCache('clientes', dataComContatos);
       return dataComContatos;
@@ -462,6 +476,16 @@ export async function saveCliente(c) {
     const jsonContatos = JSON.stringify(c.contatos_adicionais);
     obsFinal = obsFinal.replace(/\[CONTATOS_EXTRAS:[\s\S]*?\]/g, '').trim();
     obsFinal = `${obsFinal}\n[CONTATOS_EXTRAS:${jsonContatos}]`.trim();
+  }
+
+  // Persistência garantida de Documentos Pessoais
+  if (Array.isArray(c.documentos)) {
+    try {
+      if (c.id) localStorage.setItem(`docs_cli_${c.id}`, JSON.stringify(c.documentos));
+      if (c.cpf_cnpj) localStorage.setItem(`docs_cli_${String(c.cpf_cnpj).replace(/\D/g, '')}`, JSON.stringify(c.documentos));
+    } catch {}
+    obsFinal = obsFinal.replace(/\[DOCS:[\s\S]*?\]/g, '').trim();
+    obsFinal = `${obsFinal}\n[DOCS:${JSON.stringify(c.documentos)}]`.trim();
   }
 
   const payload = {
@@ -497,6 +521,13 @@ export async function saveCliente(c) {
     console.warn('Supabase saveCliente:', err);
   }
 
+  // Garante que o novo ID salvo também recebe os documentos no localStorage
+  if (savedItem && Array.isArray(c.documentos) && c.documentos.length > 0) {
+    try {
+      localStorage.setItem(`docs_cli_${savedItem.id}`, JSON.stringify(c.documentos));
+    } catch {}
+  }
+
   const lista = await getClientes();
   if (savedItem) {
     lista.savedItem = savedItem;
@@ -504,10 +535,32 @@ export async function saveCliente(c) {
   return lista;
 }
 
-export async function deleteCliente(id) {
+export async function deleteCliente(id, motivo = '', user = null) {
   try {
     await supabase.from('clientes_DGAUTOS').delete().eq('id', Number(id));
+  } catch (err) {
+    console.warn('Supabase deleteCliente:', err);
+  }
+
+  // Registra na trilha de auditoria
+  try {
+    const aud = lerCache('auditoria', []);
+    aud.unshift({
+      id: 'aud_' + Date.now(),
+      data: new Date().toLocaleString('pt-BR'),
+      usuario_nome: user?.nome || 'ADMINISTRADOR',
+      usuario_id: user?.id || 1,
+      acao: `EXCLUSÃO DE CADASTRO #${id} — MOTIVO: ${motivo || 'Motivo informado pelo admin'}`,
+      tabela: 'clientes_DGAUTOS',
+      registro_id: id
+    });
+    salvarCache('auditoria', aud);
   } catch {}
+
+  try {
+    localStorage.removeItem(`docs_cli_${id}`);
+  } catch {}
+
   return await getClientes();
 }
 
@@ -1013,7 +1066,7 @@ export async function saveFinanceiro(f) {
     pagamento_data: f.pagamento_data || (f.status === 'pago' ? new Date().toISOString().slice(0, 10) : null),
     status: f.status || 'pendente',
     forma_pagamento: f.forma_pagamento || 'Pix / TED',
-    conta_bancaria: f.conta_bancaria || 'Conta Principal',
+    conta_bancaria: f.conta || f.conta_bancaria || 'ITAÚ EMPRESAS',
     veiculo_id: f.veiculo_id ? Number(f.veiculo_id) : null,
     cliente_id: f.cliente_id ? Number(f.cliente_id) : null,
     negociacao_id: f.negociacao_id ? Number(f.negociacao_id) : null
@@ -1042,7 +1095,7 @@ export async function pagarComissao({ negociacao_id, valor, vendedor_nome, veicu
     pagamento_data: new Date().toISOString().slice(0, 10),
     status: 'pago',
     forma_pagamento: 'Pix / TED',
-    conta_bancaria: conta_bancaria || 'Conta Principal',
+    conta_bancaria: conta_bancaria || 'ITAÚ EMPRESAS',
     negociacao_id: negociacao_id ? Number(negociacao_id) : null
   };
 
@@ -1053,6 +1106,104 @@ export async function pagarComissao({ negociacao_id, valor, vendedor_nome, veicu
   }
 
   return await getFinanceiro();
+}
+
+// ==============================================================================
+// 7. CONTAS BANCÁRIAS E CAIXAS FÍSICOS (GESTÃO DE MÚLTIPLAS CONTAS)
+// ==============================================================================
+export function getContasBancarias() {
+  const padrao = [
+    { id: '1', nome: 'ITAÚ EMPRESAS', tipo: 'banco', banco: '341 - Itaú', agencia: '0123', conta: '45678-9', titular: 'DG AUTOMÓVEIS', saldo_inicial: 0 },
+    { id: '2', nome: 'SICOOB', tipo: 'banco', banco: '756 - Sicoob', agencia: '3001', conta: '12345-6', titular: 'DG AUTOMÓVEIS', saldo_inicial: 0 },
+    { id: '3', nome: 'BRADESCO', tipo: 'banco', banco: '237 - Bradesco', agencia: '0456', conta: '98765-4', titular: 'DG AUTOMÓVEIS', saldo_inicial: 0 },
+    { id: '4', nome: 'CAIXA FÍSICO / GAVETA LOJA', tipo: 'caixa', banco: 'Caixa Interno', agencia: '—', conta: '—', titular: 'DG AUTOMÓVEIS', saldo_inicial: 0 },
+    { id: '5', nome: 'COFRE LOJA', tipo: 'caixa', banco: 'Caixa Interno', agencia: '—', conta: '—', titular: 'DG AUTOMÓVEIS', saldo_inicial: 0 }
+  ];
+  const salvo = lerCache('contas_bancarias', null);
+  if (Array.isArray(salvo) && salvo.length > 0) return salvo;
+  salvarCache('contas_bancarias', padrao);
+  return padrao;
+}
+
+export function saveContaBancaria(conta) {
+  const lista = getContasBancarias();
+  const nomeUpper = String(typeof conta === 'string' ? conta : conta.nome || '').trim().toUpperCase();
+  if (!nomeUpper) return lista;
+
+  let atualizada;
+  const idConta = typeof conta === 'object' && conta.id ? conta.id : null;
+  if (idConta) {
+    atualizada = lista.map((c) => (c.id === idConta ? { ...c, ...conta, nome: nomeUpper } : c));
+  } else {
+    const existe = lista.find((c) => c.nome.toUpperCase() === nomeUpper);
+    if (existe) return lista;
+    const tipo = typeof conta === 'object' && conta.tipo ? conta.tipo : (nomeUpper.includes('CAIXA') || nomeUpper.includes('COFRE') ? 'caixa' : 'banco');
+    atualizada = [...lista, {
+      id: 'conta_' + Date.now(),
+      nome: nomeUpper,
+      tipo,
+      banco: conta.banco || (tipo === 'caixa' ? 'Caixa Interno' : 'Banco'),
+      agencia: conta.agencia || '',
+      conta: conta.conta || '',
+      titular: conta.titular || 'DG AUTOMÓVEIS',
+      saldo_inicial: Number(conta.saldo_inicial) || 0
+    }];
+  }
+  salvarCache('contas_bancarias', atualizada);
+  return atualizada;
+}
+
+export function deleteContaBancaria(id) {
+  const lista = getContasBancarias();
+  const atualizada = lista.filter((c) => c.id !== id);
+  salvarCache('contas_bancarias', atualizada);
+  return atualizada;
+}
+
+// ==============================================================================
+// 8. FINANCEIRAS E BANCOS DE FINANCIAMENTO
+// ==============================================================================
+export function getFinanceiras() {
+  const padrao = [
+    { id: '1', nome: 'SANTANDER FINANCIAMENTOS', operador: 'ROBERTO OPERADOR', telefone: '(47) 99123-4567', email: 'financiamento@santander.com.br', retorno_padrao: '2.0%', ativo: true },
+    { id: '2', nome: 'BV FINANCEIRA', operador: 'CARLOS BV', telefone: '(47) 99234-5678', email: 'veiculos@bv.com.br', retorno_padrao: '2.5%', ativo: true },
+    { id: '3', nome: 'BANCO PAN', operador: 'MARIA PAN', telefone: '(47) 99345-6789', email: 'auto@bancopan.com.br', retorno_padrao: '2.0%', ativo: true },
+    { id: '4', nome: 'BRADESCO FINANCIAMENTOS', operador: 'FERNANDO BRADESCO', telefone: '(47) 99456-7890', email: 'financiamento@bradesco.com.br', retorno_padrao: '2.0%', ativo: true },
+    { id: '5', nome: 'C6 BANK AUTO', operador: 'JULIANA C6', telefone: '(47) 99567-8901', email: 'auto@c6bank.com.br', retorno_padrao: '2.5%', ativo: true },
+    { id: '6', nome: 'ITAÚ FINANCIAMENTOS', operador: 'LUCAS ITAU', telefone: '(47) 99678-9012', email: 'veiculos@itau.com.br', retorno_padrao: '2.0%', ativo: true },
+    { id: '7', nome: 'SAFRA FINANCEIRA', operador: 'MARCELO SAFRA', telefone: '(47) 99789-0123', email: 'safrauto@safra.com.br', retorno_padrao: '2.5%', ativo: true }
+  ];
+  const salvo = lerCache('financeiras_financiamento', null);
+  if (Array.isArray(salvo) && salvo.length > 0) return salvo;
+  salvarCache('financeiras_financiamento', padrao);
+  return padrao;
+}
+
+export function saveFinanceira(fin) {
+  const lista = getFinanceiras();
+  const nomeUpper = String(fin.nome || '').trim().toUpperCase();
+  if (!nomeUpper) return lista;
+
+  let atualizada;
+  if (fin.id) {
+    atualizada = lista.map((f) => (f.id === fin.id ? { ...f, ...fin, nome: nomeUpper } : f));
+  } else {
+    atualizada = [...lista, {
+      ...fin,
+      id: 'fin_' + Date.now(),
+      nome: nomeUpper,
+      ativo: fin.ativo !== false
+    }];
+  }
+  salvarCache('financeiras_financiamento', atualizada);
+  return atualizada;
+}
+
+export function deleteFinanceira(id) {
+  const lista = getFinanceiras();
+  const atualizada = lista.filter((f) => f.id !== id);
+  salvarCache('financeiras_financiamento', atualizada);
+  return atualizada;
 }
 
 export async function baixarFinanceiro(id) {

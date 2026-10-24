@@ -5,7 +5,7 @@ import {
   UserPlus, Smartphone
 } from 'lucide-react';
 import { getClientes, saveCliente, deleteCliente, ORIGENS_LEAD } from '../store';
-import { mascaraCpfCnpj, mascaraTelefone, mascaraCep, buscarCep, validarCpfCnpj } from '../utils/mascaras';
+import { mascaraCpfCnpj, mascaraTelefone, mascaraCep, buscarCep, validarCpfCnpj, buscarCnpj } from '../utils/mascaras';
 
 const EMPTY_CLI = {
   ativo: true,
@@ -56,7 +56,7 @@ const ESTADOS_CIVIS = [
   'Separado(a)'
 ];
 
-export default function Clientes() {
+export default function Clientes({ user }) {
   const [lista, setLista] = useState([]);
   const [busca, setBusca] = useState('');
   const [papel, setPapel] = useState('');
@@ -208,14 +208,13 @@ export default function Clientes() {
               setCarregando(false);
             }
           }}
-          onDelete={async (id) => {
-            if (!confirm('Deseja realmente excluir este cadastro?')) return;
+          onDelete={async (id, motivo) => {
             try {
               setCarregando(true);
-              const res = await deleteCliente(id);
+              const res = await deleteCliente(id, motivo, user);
               setLista(Array.isArray(res) ? res : []);
               setEditando(null);
-              avisoSucesso('✓ Cadastro excluído!');
+              avisoSucesso('✓ Cadastro excluído com sucesso!');
             } catch (err) {
               alert('Erro ao excluir: ' + err.message);
             } finally {
@@ -231,10 +230,13 @@ export default function Clientes() {
 // ==============================================================================
 // FORMULÁRIO COMPLETO DE PESSOAS IDÊNTICO AO ALTIMUS (PRINTS OFICIAIS)
 // ==============================================================================
-function ClienteModalAltimus({ inicial, onClose, onSave, onDelete }) {
+function ClienteModalAltimus({ inicial, onClose, onSave, onDelete, user }) {
   const [f, setF] = useState(inicial);
   const [erroCpfCnpj, setErroCpfCnpj] = useState('');
   const [buscandoCep, setBuscandoCep] = useState(false);
+  const [buscandoCnpj, setBuscandoCnpj] = useState(false);
+
+  const isAdmin = user?.perfil === 'admin' || user?.email === 'admin@dgautos.com.br' || !user;
 
   // Manipulador genérico que força LETRA MAIÚSCULA em todo o sistema
   const setUpper = (k) => (e) => {
@@ -243,7 +245,39 @@ function ClienteModalAltimus({ inicial, onClose, onSave, onDelete }) {
     setF((prev) => ({ ...prev, [k]: val }));
   };
 
-  // MÁSCARA E VALIDAÇÃO DE CPF / CNPJ COM BLOQUEIO SE INCORRETO
+  // CONSULTA AUTOMÁTICA DE CNPJ NA RECEITA FEDERAL
+  const consultarCnpjReceita = async (digitsCnpj) => {
+    const limpo = String(digitsCnpj || f.cpf_cnpj).replace(/\D/g, '');
+    if (limpo.length !== 14) return;
+    setBuscandoCnpj(true);
+    try {
+      const empresa = await buscarCnpj(limpo);
+      if (empresa) {
+        setF((prev) => ({
+          ...prev,
+          nome: empresa.nome || prev.nome,
+          apelido: empresa.apelido || prev.apelido,
+          logradouro: empresa.logradouro || prev.logradouro,
+          numero: empresa.numero || prev.numero,
+          complemento: empresa.complemento || prev.complemento,
+          bairro: empresa.bairro || prev.bairro,
+          cidade: empresa.cidade || prev.cidade,
+          uf: empresa.uf || prev.uf,
+          cidade_estado: empresa.cidadeEstado || prev.cidade_estado,
+          cep: empresa.cep || prev.cep,
+          telefone: empresa.telefone || prev.telefone,
+          email: empresa.email || prev.email,
+          data_nasc: empresa.data_abertura || prev.data_nasc
+        }));
+      }
+    } catch (e) {
+      console.warn('Erro ao consultar CNPJ:', e);
+    } finally {
+      setBuscandoCnpj(false);
+    }
+  };
+
+  // MÁSCARA E VALIDAÇÃO DE CPF / CNPJ COM BLOQUEIO SE INCORRETO E CONSULTA CNPJ
   const handleCpfCnpjChange = (e) => {
     const formatado = mascaraCpfCnpj(e.target.value);
     setF((prev) => ({ ...prev, cpf_cnpj: formatado }));
@@ -255,6 +289,10 @@ function ClienteModalAltimus({ inicial, onClose, onSave, onDelete }) {
         setErroCpfCnpj(valid.mensagem);
       } else {
         setErroCpfCnpj('');
+        // SE FOR CNPJ COM 14 DÍGITOS VÁLIDOS, PUXA OS DADOS AUTOMATICAMENTE
+        if (f.tipo_pessoa === 'PJ' && digits.length === 14) {
+          consultarCnpjReceita(digits);
+        }
       }
     } else if (digits.length > 0) {
       setErroCpfCnpj('Dígitos incompletos (CPF: 11 números, CNPJ: 14 números).');
@@ -382,6 +420,20 @@ function ClienteModalAltimus({ inicial, onClose, onSave, onDelete }) {
   };
 
   const isCpfInvalido = Boolean(erroCpfCnpj);
+
+  const handleSolicitarExclusao = () => {
+    if (!isAdmin) {
+      alert('Acesso negado: Somente administradores têm permissão para excluir cadastros.');
+      return;
+    }
+    const motivo = prompt('ÁREA RESTRITA AO ADMINISTRADOR:\nInforme obrigatoriamente o MOTIVO DA EXCLUSÃO deste cadastro para registro em auditoria:');
+    if (motivo === null) return;
+    if (!motivo.trim()) {
+      alert('Operação cancelada: É obrigatório informar o motivo da exclusão para registro na auditoria.');
+      return;
+    }
+    onDelete(f.id, motivo.trim());
+  };
 
   return (
     <div className="overlay" onClick={onClose}>
@@ -572,18 +624,31 @@ function ClienteModalAltimus({ inicial, onClose, onSave, onDelete }) {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 14 }}>
             {/* CPF/CNPJ (span 3) */}
             <div style={{ gridColumn: 'span 3' }} className="field">
-              <label style={{ fontWeight: 700 }}>
-                {f.tipo_pessoa === 'PJ' ? 'CNPJ *' : 'CPF *'}
-                {erroCpfCnpj ? (
-                  <span style={{ color: 'var(--danger)', fontSize: '.76rem', marginLeft: 6, fontWeight: 700 }}>
-                    ❌ {erroCpfCnpj}
-                  </span>
-                ) : f.cpf_cnpj ? (
-                  <span style={{ color: 'var(--success)', fontSize: '.76rem', marginLeft: 6, fontWeight: 700 }}>
-                    ✓ Válido
-                  </span>
-                ) : null}
-              </label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <label style={{ fontWeight: 700, margin: 0 }}>
+                  {f.tipo_pessoa === 'PJ' ? 'CNPJ *' : 'CPF *'}
+                  {erroCpfCnpj ? (
+                    <span style={{ color: 'var(--danger)', fontSize: '.74rem', marginLeft: 6, fontWeight: 700 }}>
+                      ❌ {erroCpfCnpj}
+                    </span>
+                  ) : f.cpf_cnpj ? (
+                    <span style={{ color: 'var(--success)', fontSize: '.74rem', marginLeft: 6, fontWeight: 700 }}>
+                      ✓ Válido
+                    </span>
+                  ) : null}
+                </label>
+                {f.tipo_pessoa === 'PJ' && (
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    style={{ fontSize: '.70rem', padding: '1px 6px', color: '#6d28d9', borderColor: '#7c3aed', background: '#f5f3ff', fontWeight: 700 }}
+                    onClick={() => consultarCnpjReceita()}
+                    title="Puxar dados cadastrais da empresa na Receita Federal"
+                  >
+                    {buscandoCnpj ? 'Buscando...' : '🔍 Buscar CNPJ'}
+                  </button>
+                )}
+              </div>
               <input
                 className="input"
                 required
@@ -592,6 +657,11 @@ function ClienteModalAltimus({ inicial, onClose, onSave, onDelete }) {
                 onChange={handleCpfCnpjChange}
                 placeholder={f.tipo_pessoa === 'PJ' ? '00.000.000/0000-00' : '000.000.000-00'}
               />
+              {buscandoCnpj && (
+                <small style={{ color: '#6d28d9', fontSize: '.72rem', fontWeight: 600 }}>
+                  Buscando dados da empresa na Receita Federal...
+                </small>
+              )}
             </div>
 
             {/* RG/IE (span 3) */}
@@ -964,22 +1034,29 @@ function ClienteModalAltimus({ inicial, onClose, onSave, onDelete }) {
           )}
         </div>
 
-        {/* BARRA INFERIOR DE BOTÕES */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 28, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
-          {f.id ? (
+        {/* BARRA INFERIOR DE BOTÕES (GRANDES E FÁCEIS DE CLICAR) */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 28, paddingTop: 18, borderTop: '1px solid var(--border)' }}>
+          {f.id && isAdmin ? (
             <button
               type="button"
               className="btn btn-danger"
-              onClick={() => onDelete(f.id)}
+              style={{ height: 48, padding: '0 24px', fontSize: '.95rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 8 }}
+              onClick={handleSolicitarExclusao}
+              title="Exclusão restrita ao administrador com motivo obrigatório"
             >
-              Excluir
+              <Trash2 size={16} /> Excluir Cadastro
             </button>
           ) : (
             <div />
           )}
 
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button type="button" className="btn" onClick={onClose} style={{ padding: '0 20px' }}>
+          <div style={{ display: 'flex', gap: 14 }}>
+            <button
+              type="button"
+              className="btn"
+              onClick={onClose}
+              style={{ height: 48, minWidth: 140, fontSize: '1rem', fontWeight: 700, padding: '0 28px' }}
+            >
               Cancelar
             </button>
             <button
@@ -987,10 +1064,14 @@ function ClienteModalAltimus({ inicial, onClose, onSave, onDelete }) {
               className="btn btn-primary"
               disabled={isCpfInvalido}
               style={{
+                height: 48,
+                minWidth: 200,
+                fontSize: '1.05rem',
+                fontWeight: 800,
+                padding: '0 36px',
                 background: isCpfInvalido ? '#94a3b8' : '#5d35b0',
                 color: '#ffffff',
-                fontWeight: 700,
-                padding: '0 28px',
+                boxShadow: isCpfInvalido ? 'none' : '0 4px 14px rgba(93, 53, 176, 0.35)',
                 cursor: isCpfInvalido ? 'not-allowed' : 'pointer'
               }}
               title={isCpfInvalido ? erroCpfCnpj : 'Salvar cadastro'}

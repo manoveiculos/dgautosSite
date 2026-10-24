@@ -1,6 +1,14 @@
 import { useEffect, useState } from 'react';
-import { Building2, Users, ShieldCheck, Plus, Trash2, Save, Loader2, KeyRound } from 'lucide-react';
-import { getConfig, saveConfigLoja, createUsuario, updateUsuario, deleteUsuario, alterarSenhaUsuario } from '../store';
+import {
+  Building2, Users, ShieldCheck, Plus, Trash2, Save, Loader2, KeyRound,
+  Landmark, DollarSign, Wallet, Phone, Mail, CheckCircle2
+} from 'lucide-react';
+import {
+  getConfig, saveConfigLoja, createUsuario, updateUsuario, deleteUsuario, alterarSenhaUsuario,
+  getContasBancarias, saveContaBancaria, deleteContaBancaria,
+  getFinanceiras, saveFinanceira, deleteFinanceira
+} from '../store';
+import { mascaraMoeda, desformatarMoeda, mascaraTelefone } from '../utils/mascaras';
 
 export default function Configuracoes({ user }) {
   const emailAtual = (user?.email || '').trim().toLowerCase();
@@ -16,7 +24,7 @@ export default function Configuracoes({ user }) {
     );
   }
 
-  const [aba, setAba] = useState('loja'); // loja | usuarios | auditoria
+  const [aba, setAba] = useState('loja'); // loja | contas | financeiras | usuarios | auditoria
   const [loja, setLoja] = useState({
     razao_social: 'DG Automóveis Comércio de Veículos Ltda',
     nome_fantasia: 'DG Automóveis',
@@ -39,6 +47,28 @@ export default function Configuracoes({ user }) {
   const [loadingAcao, setLoadingAcao] = useState('');
   const [msg, setMsg] = useState('');
 
+  // CONTAS BANCÁRIAS E CAIXAS FÍSICOS
+  const [contas, setContas] = useState([]);
+  const [novaConta, setNovaConta] = useState({
+    nome: '',
+    tipo: 'banco',
+    banco: 'Itaú',
+    agencia: '',
+    conta: '',
+    titular: 'DG AUTOMÓVEIS',
+    saldo_inicial: ''
+  });
+
+  // FINANCEIRAS DE FINANCIAMENTO
+  const [financeiras, setFinanceiras] = useState([]);
+  const [novaFin, setNovaFin] = useState({
+    nome: '',
+    operador: '',
+    telefone: '',
+    email: '',
+    retorno_padrao: '2.0%'
+  });
+
   const recarregar = () => {
     setLoadingAcao('Carregando dados...');
     getConfig().then((c) => {
@@ -50,8 +80,50 @@ export default function Configuracoes({ user }) {
     }).finally(() => {
       setLoadingAcao('');
     });
+
+    setContas(getContasBancarias());
+    setFinanceiras(getFinanceiras());
   };
   useEffect(recarregar, []);
+
+  const handleSalvarConta = (e) => {
+    e.preventDefault();
+    if (!novaConta.nome.trim()) return;
+    const atualizadas = saveContaBancaria({
+      ...novaConta,
+      saldo_inicial: desformatarMoeda(novaConta.saldo_inicial)
+    });
+    setContas(atualizadas);
+    setNovaConta({ nome: '', tipo: 'banco', banco: 'Itaú', agencia: '', conta: '', titular: 'DG AUTOMÓVEIS', saldo_inicial: '' });
+    setMsg('✓ Conta cadastrada com sucesso!');
+    setTimeout(() => setMsg(''), 4000);
+  };
+
+  const handleExcluirConta = (id, nome) => {
+    if (!confirm(`Deseja remover a conta/caixa "${nome}"?`)) return;
+    const atualizadas = deleteContaBancaria(id);
+    setContas(atualizadas);
+    setMsg(`✓ Conta "${nome}" removida.`);
+    setTimeout(() => setMsg(''), 4000);
+  };
+
+  const handleSalvarFinanceira = (e) => {
+    e.preventDefault();
+    if (!novaFin.nome.trim()) return;
+    const atualizadas = saveFinanceira(novaFin);
+    setFinanceiras(atualizadas);
+    setNovaFin({ nome: '', operador: '', telefone: '', email: '', retorno_padrao: '2.0%' });
+    setMsg('✓ Financeira cadastrada com sucesso!');
+    setTimeout(() => setMsg(''), 4000);
+  };
+
+  const handleExcluirFinanceira = (id, nome) => {
+    if (!confirm(`Deseja remover a financeira "${nome}"?`)) return;
+    const atualizadas = deleteFinanceira(id);
+    setFinanceiras(atualizadas);
+    setMsg(`✓ Financeira "${nome}" removida.`);
+    setTimeout(() => setMsg(''), 4000);
+  };
 
   const salvarLoja = async (e) => {
     e.preventDefault();
@@ -150,11 +222,17 @@ export default function Configuracoes({ user }) {
       <header className="topbar">
         <div>
           <h1>Configurações & Administração</h1>
-          <p>Dados da revenda (usados nos contratos), equipe de usuários e trilha de auditoria.</p>
+          <p>Dados da revenda, contas bancárias, financeiras parceiras, equipe e auditoria.</p>
         </div>
         <div className="tabs">
           <button className={`tab ${aba === 'loja' ? 'active' : ''}`} onClick={() => setAba('loja')}>
             <Building2 size={15} />Dados da Revenda
+          </button>
+          <button className={`tab ${aba === 'contas' ? 'active' : ''}`} onClick={() => setAba('contas')}>
+            <Landmark size={15} />Contas & Caixas Físicos
+          </button>
+          <button className={`tab ${aba === 'financeiras' ? 'active' : ''}`} onClick={() => setAba('financeiras')}>
+            <DollarSign size={15} />Financeiras & Financiamento
           </button>
           <button className={`tab ${aba === 'usuarios' ? 'active' : ''}`} onClick={() => setAba('usuarios')}>
             <Users size={15} />Usuários & Vendedores
@@ -231,6 +309,269 @@ export default function Configuracoes({ user }) {
             </button>
           </div>
         </form>
+      )}
+
+      {/* ABA: CONTAS BANCÁRIAS E CAIXAS FÍSICOS */}
+      {aba === 'contas' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {msg && <div style={{ color: 'var(--success)', fontWeight: 700, background: '#ecfdf5', padding: '10px 16px', borderRadius: 8, border: '1px solid #10b981' }}>{msg}</div>}
+
+          <div className="card table-wrap">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div>
+                <h3 style={{ margin: 0 }}>Contas Bancárias e Caixas Cadastrados ({contas.length})</h3>
+                <small style={{ color: 'var(--muted)' }}>Disponíveis para lançamentos financeiros, recebimentos e controle de fluxo</small>
+              </div>
+            </div>
+
+            <table className="table" style={{ margin: 0 }}>
+              <thead>
+                <tr style={{ background: '#f8fafc' }}>
+                  <th>Nome da Conta / Caixa</th>
+                  <th>Tipo</th>
+                  <th>Banco / Instituição</th>
+                  <th>Agência</th>
+                  <th>Conta Corrente</th>
+                  <th>Titular</th>
+                  <th style={{ textAlign: 'center', width: 80 }}>Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {contas.map((c) => (
+                  <tr key={c.id}>
+                    <td>
+                      <strong>{c.nome}</strong>
+                    </td>
+                    <td>
+                      <span className="badge" style={{
+                        background: c.tipo === 'caixa' ? '#fef3c7' : '#ede9fe',
+                        color: c.tipo === 'caixa' ? '#92400e' : '#6d28d9',
+                        fontWeight: 700
+                      }}>
+                        {c.tipo === 'caixa' ? '💵 Caixa Físico' : '🏦 Conta Bancária'}
+                      </span>
+                    </td>
+                    <td>{c.banco || (c.tipo === 'caixa' ? 'Interno Loja' : '—')}</td>
+                    <td>{c.agencia || '—'}</td>
+                    <td>{c.conta || '—'}</td>
+                    <td>{c.titular || 'DG AUTOMÓVEIS'}</td>
+                    <td style={{ textAlign: 'center' }}>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-danger"
+                        title={`Remover conta ${c.nome}`}
+                        onClick={() => handleExcluirConta(c.id, c.nome)}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* FORMULÁRIO PARA CADASTRAR NOVA CONTA OU CAIXA */}
+          <form className="card" onSubmit={handleSalvarConta}>
+            <h3 style={{ margin: '0 0 14px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Plus size={18} style={{ color: '#7c3aed' }} />
+              + Cadastrar Nova Conta Bancária ou Caixa Físico
+            </h3>
+            <div className="form-grid">
+              <div className="field span-2">
+                <label>Nome Identificador da Conta / Caixa *</label>
+                <input
+                  className="input"
+                  required
+                  placeholder="Ex: BANCO SANTANDER EMPRESAS ou CAIXA GAVETA 01"
+                  value={novaConta.nome}
+                  onChange={(e) => setNovaConta({ ...novaConta, nome: e.target.value.toUpperCase() })}
+                />
+              </div>
+
+              <div className="field">
+                <label>Tipo de Conta</label>
+                <select
+                  className="select"
+                  value={novaConta.tipo}
+                  onChange={(e) => setNovaConta({ ...novaConta, tipo: e.target.value })}
+                >
+                  <option value="banco">🏦 Conta Bancária (Banco)</option>
+                  <option value="caixa">💵 Caixa Físico (Loja / Gaveta / Cofre)</option>
+                </select>
+              </div>
+
+              <div className="field">
+                <label>Instituição / Banco</label>
+                <input
+                  className="input"
+                  placeholder="Ex: 033 - Santander ou Caixa Loja"
+                  value={novaConta.banco}
+                  onChange={(e) => setNovaConta({ ...novaConta, banco: e.target.value.toUpperCase() })}
+                />
+              </div>
+
+              <div className="field">
+                <label>Agência</label>
+                <input
+                  className="input"
+                  placeholder="0000"
+                  value={novaConta.agencia}
+                  onChange={(e) => setNovaConta({ ...novaConta, agencia: e.target.value.toUpperCase() })}
+                />
+              </div>
+
+              <div className="field">
+                <label>Número da Conta</label>
+                <input
+                  className="input"
+                  placeholder="00000-0"
+                  value={novaConta.conta}
+                  onChange={(e) => setNovaConta({ ...novaConta, conta: e.target.value.toUpperCase() })}
+                />
+              </div>
+
+              <div className="field span-2">
+                <label>Titular da Conta</label>
+                <input
+                  className="input"
+                  value={novaConta.titular}
+                  onChange={(e) => setNovaConta({ ...novaConta, titular: e.target.value.toUpperCase() })}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+              <button type="submit" className="btn btn-primary" style={{ background: '#5d35b0', color: '#fff', fontWeight: 700, padding: '0 24px' }}>
+                <Save size={16} /> Salvar Nova Conta
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* ABA: FINANCEIRAS E BANCOS DE FINANCIAMENTO */}
+      {aba === 'financeiras' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {msg && <div style={{ color: 'var(--success)', fontWeight: 700, background: '#ecfdf5', padding: '10px 16px', borderRadius: 8, border: '1px solid #10b981' }}>{msg}</div>}
+
+          <div className="card table-wrap">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div>
+                <h3 style={{ margin: 0 }}>Financeiras Parceiras Homologadas ({financeiras.length})</h3>
+                <small style={{ color: 'var(--muted)' }}>Instituições financeiras que operam aprovação de crédito e financiamentos de veículos</small>
+              </div>
+            </div>
+
+            <table className="table" style={{ margin: 0 }}>
+              <thead>
+                <tr style={{ background: '#f8fafc' }}>
+                  <th>Financeira / Banco</th>
+                  <th>Operador / Contato</th>
+                  <th>Telefone / WhatsApp</th>
+                  <th>E-mail de Retorno</th>
+                  <th>Retorno Padrão</th>
+                  <th style={{ textAlign: 'center', width: 80 }}>Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {financeiras.map((fin) => (
+                  <tr key={fin.id}>
+                    <td>
+                      <strong>{fin.nome}</strong>
+                    </td>
+                    <td>{fin.operador || '—'}</td>
+                    <td>{fin.telefone || '—'}</td>
+                    <td>{fin.email || '—'}</td>
+                    <td>
+                      <span className="badge" style={{ background: '#ecfdf5', color: '#065f46', fontWeight: 700 }}>
+                        {fin.retorno_padrao || '2.0%'}
+                      </span>
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-danger"
+                        title={`Remover financeira ${fin.nome}`}
+                        onClick={() => handleExcluirFinanceira(fin.id, fin.nome)}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* FORMULÁRIO PARA CADASTRAR NOVA FINANCEIRA */}
+          <form className="card" onSubmit={handleSalvarFinanceira}>
+            <h3 style={{ margin: '0 0 14px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Plus size={18} style={{ color: '#7c3aed' }} />
+              + Cadastrar Nova Financeira de Financiamento
+            </h3>
+            <div className="form-grid">
+              <div className="field span-2">
+                <label>Nome da Financeira / Banco *</label>
+                <input
+                  className="input"
+                  required
+                  placeholder="Ex: BANCO DAYCOVAL ou CREDIAL FINANCIAMENTOS"
+                  value={novaFin.nome}
+                  onChange={(e) => setNovaFin({ ...novaFin, nome: e.target.value.toUpperCase() })}
+                />
+              </div>
+
+              <div className="field">
+                <label>Nome do Operador / Gerente de Conta</label>
+                <input
+                  className="input"
+                  placeholder="Ex: MARCOS SANTOS"
+                  value={novaFin.operador}
+                  onChange={(e) => setNovaFin({ ...novaFin, operador: e.target.value.toUpperCase() })}
+                />
+              </div>
+
+              <div className="field">
+                <label>Telefone / WhatsApp do Operador</label>
+                <input
+                  className="input"
+                  placeholder="(47) 90000-0000"
+                  value={novaFin.telefone}
+                  onChange={(e) => setNovaFin({ ...novaFin, telefone: mascaraTelefone(e.target.value) })}
+                />
+              </div>
+
+              <div className="field span-2">
+                <label>E-mail para Envio de Contratos e Retorno</label>
+                <input
+                  type="email"
+                  className="input"
+                  style={{ textTransform: 'none' }}
+                  placeholder="operador@financeira.com.br"
+                  value={novaFin.email}
+                  onChange={(e) => setNovaFin({ ...novaFin, email: e.target.value.toLowerCase().trim() })}
+                />
+              </div>
+
+              <div className="field">
+                <label>Retorno / Comissão Padrão</label>
+                <input
+                  className="input"
+                  placeholder="Ex: 2.5%"
+                  value={novaFin.retorno_padrao}
+                  onChange={(e) => setNovaFin({ ...novaFin, retorno_padrao: e.target.value.toUpperCase() })}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+              <button type="submit" className="btn btn-primary" style={{ background: '#5d35b0', color: '#fff', fontWeight: 700, padding: '0 24px' }}>
+                <Save size={16} /> Salvar Financeira
+              </button>
+            </div>
+          </form>
+        </div>
       )}
 
       {aba === 'usuarios' && (
