@@ -112,12 +112,7 @@ export default function Documentos({ user }) {
 
   return (
     <>
-      {salvandoContrato && (
-        <div className="loading-toast">
-          <div className="spinner-sm" />
-          <span>Gravando contrato no banco de dados Supabase...</span>
-        </div>
-      )}
+      {salvandoContrato && <div className="loading-top-bar" />}
       <header className="topbar no-print">
         <div>
           <h1>Minutas & Contratos Oficiais — DG Automóveis</h1>
@@ -207,15 +202,26 @@ export default function Documentos({ user }) {
         <div className="card empty">Nenhuma negociação cadastrada para gerar documentos.</div>
       ) : (
         <div className="doc-preview" style={{ background: '#ffffff', color: '#111827', padding: '36px 42px', fontSize: '.92rem', lineHeight: 1.6 }}>
-          {/* CABEÇALHO DO DOCUMENTO COM IDENTIFICAÇÃO DA EMPRESA */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #111827', paddingBottom: 14, marginBottom: 20 }}>
-            <div>
-              <h2 style={{ fontSize: '1.4rem', fontWeight: 800, margin: 0, textTransform: 'uppercase', letterSpacing: '-.02em' }}>
-                {loja?.nome_fantasia || 'DG Automóveis'}
-              </h2>
-              <div style={{ fontSize: '.82rem', color: '#4b5563', marginTop: 4 }}>
-                <strong>{loja?.razao_social || 'DG Automóveis Comércio de Veículos Ltda'}</strong> · CNPJ: {loja?.cnpj || '35.236.994/0001-24'}<br />
-                {loja?.endereco || 'Rua Dom Pedro II, 461 - Canoas'} — {cidEmp}/{sigEmp} · Telefone: {loja?.telefone || '(47) 98916-9598'}
+          {/* CABEÇALHO DO DOCUMENTO COM IDENTIFICAÇÃO DA EMPRESA E LOGO OFICIAL */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #111827', paddingBottom: 14, marginBottom: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+              <img
+                src="/logo-dg.png"
+                alt="DG Automóveis"
+                style={{ height: 52, width: 'auto', objectFit: 'contain' }}
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = '/logo-dg-square.png';
+                }}
+              />
+              <div>
+                <h2 style={{ fontSize: '1.35rem', fontWeight: 800, margin: 0, textTransform: 'uppercase', letterSpacing: '-.02em', color: '#111827' }}>
+                  {loja?.nome_fantasia || 'DG AUTOMÓVEIS'}
+                </h2>
+                <div style={{ fontSize: '.80rem', color: '#4b5563', marginTop: 2 }}>
+                  <strong>{loja?.razao_social || 'DG AUTOMÓVEIS COMÉRCIO DE VEÍCULOS LTDA'}</strong> · CNPJ: {loja?.cnpj || '35.236.994/0001-24'}<br />
+                  {loja?.endereco || 'RUA DOM PEDRO II, 461 - CANOAS'} — {cidEmp}/{sigEmp} · Telefone: {loja?.telefone || '(47) 98916-9598'}
+                </div>
               </div>
             </div>
             <div style={{ textAlign: 'right', fontSize: '.84rem' }}>

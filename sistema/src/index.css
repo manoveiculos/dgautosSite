@@ -801,7 +801,39 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 
 /* ==========================================================================
-   KANBAN CRM ALTIMUS (15 ESTÁGIOS COM ROLAGEM HORIZONTAL SUAVE)
+   REGRA GLOBAL OBRIGATÓRIA: CAIXA ALTA EM TODOS OS CAMPOS DO SISTEMA
+   ========================================================================== */
+input:not([type="email"]):not([type="password"]):not([type="file"]):not([type="date"]):not([type="time"]):not([type="datetime-local"]):not([type="color"]):not([type="checkbox"]):not([type="radio"]),
+textarea,
+select {
+  text-transform: uppercase;
+}
+
+/* Área de Upload Tracejada Oficial Altimus (Documentos / Anexos) */
+.dropzone-altimus {
+  border: 2px dashed #7c3aed;
+  border-radius: 8px;
+  background: #faf5ff;
+  padding: 32px 20px;
+  text-align: center;
+  cursor: pointer;
+  color: #6b21a8;
+  font-size: .88rem;
+  font-weight: 500;
+  transition: all .15s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.dropzone-altimus:hover {
+  background: #f3e8ff;
+  border-color: #6b21a8;
+}
+
+/* ==========================================================================
+   KANBAN / CRM
    ========================================================================== */
 .kanban {
   display: flex;
@@ -1186,20 +1218,56 @@ button, input, select, textarea { font: inherit; color: inherit; }
   vertical-align: middle;
 }
 
+/* Indicador Discreto e Moderno de Carregamento (Barra de Topo & Pill Sutil) */
+.loading-top-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #5d35b0, #a855f7, #5d35b0);
+  background-size: 200% 100%;
+  animation: loadingBarMove 1.2s infinite ease-in-out;
+  z-index: 999999;
+}
+
+@keyframes loadingBarMove {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
 .loading-toast {
   position: fixed;
-  top: 24px;
+  bottom: 20px;
   right: 24px;
-  background: #1a1d23;
-  color: #ffffff;
-  padding: 12px 20px;
-  border-radius: 8px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
-  display: flex;
+  background: #ffffff;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  padding: 6px 14px;
+  border-radius: 99px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  display: inline-flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+  z-index: 99999;
+  font-weight: 500;
+  font-size: 13px;
+}
+
+.toast-success {
+  position: fixed;
+  bottom: 20px;
+  right: 24px;
+  background: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+  padding: 10px 18px;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   z-index: 99999;
   font-weight: 600;
-  font-size: 14px;
-  border-left: 4px solid var(--primary-80);
+  font-size: 13px;
 }

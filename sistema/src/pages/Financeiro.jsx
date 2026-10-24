@@ -2,13 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Search, Plus, Filter, Calendar, CheckCircle2, Trash2, X, ChevronDown,
   ArrowUpCircle, ArrowDownCircle, Wallet, Car, BarChart3, Users, Download,
-  Printer, DollarSign, AlertCircle, ChevronRight, Bookmark
+  Printer, DollarSign, AlertCircle, ChevronRight, Bookmark, UserPlus
 } from 'lucide-react';
 import {
   getFinanceiro, saveFinanceiro, baixarFinanceiro, deleteFinanceiro, pagarComissao,
   getVeiculos, getClientes, saveCliente, getNegociacoes, getUsuarios,
   brl, dataBr, CATEGORIAS_FINANCEIRO, STATUS
 } from '../store';
+import { ClienteModalAltimus } from './Clientes';
 
 const REVE_PADRAO = ['DG Automóveis'];
 
@@ -47,6 +48,10 @@ export default function Financeiro({ user }) {
   const [selecionados, setSelecionados] = useState([]);
   const [modalAvancada, setModalAvancada] = useState(false);
   const [loadingMsg, setLoadingMsg] = useState('');
+  const [toastSucesso, setToastSucesso] = useState('');
+
+  // Modal de cadastro rápido de pessoa quando não encontrar
+  const [modalPessoa, setModalPessoa] = useState(null);
 
   // Filtros da barra principal (Print 2 Altimus)
   const [filtroCliente, setFiltroCliente] = useState('');
@@ -61,7 +66,7 @@ export default function Financeiro({ user }) {
     id: '',
     data_emissao: '',
     data_quitacao: '',
-    status_titulo: '', // '' = todos, 'sem_baixa', 'com_baixa'
+    status_titulo: '',
     etiqueta: '',
     forma_pagamento: '',
     valor_min: '',
@@ -69,6 +74,11 @@ export default function Financeiro({ user }) {
   });
 
   const [editando, setEditando] = useState(null);
+
+  const avisoSucesso = (msg) => {
+    setToastSucesso(msg);
+    setTimeout(() => setToastSucesso(''), 3000);
+  };
 
   const recarregar = async () => {
     try {
@@ -102,7 +112,6 @@ export default function Financeiro({ user }) {
     return arr.filter((item) => {
       if (!item) return false;
 
-      // Filtros da barra rápida
       if (filtroCliente) {
         const cTerm = filtroCliente.toLowerCase();
         const cliMatch = (item.cliente_nome || '').toLowerCase().includes(cTerm);
@@ -125,7 +134,6 @@ export default function Financeiro({ user }) {
         return false;
       }
 
-      // Filtros avançados
       if (filtroAvancado.tipo && item.tipo !== filtroAvancado.tipo) return false;
       if (filtroAvancado.id && String(item.id) !== String(filtroAvancado.id)) return false;
       if (filtroAvancado.etiqueta && item.categoria !== filtroAvancado.etiqueta) return false;
@@ -173,7 +181,7 @@ export default function Financeiro({ user }) {
       }
       await recarregar();
       setSelecionados([]);
-      alert('✓ Contas quitadas com sucesso!');
+      avisoSucesso('✓ Contas quitadas com sucesso!');
     } catch (e) {
       alert('Erro ao quitar: ' + e.message);
     } finally {
@@ -191,7 +199,7 @@ export default function Financeiro({ user }) {
       }
       await recarregar();
       setSelecionados([]);
-      alert('✓ Contas excluídas com sucesso!');
+      avisoSucesso('✓ Contas excluídas com sucesso!');
     } catch (e) {
       alert('Erro ao excluir: ' + e.message);
     } finally {
@@ -216,7 +224,6 @@ export default function Financeiro({ user }) {
   };
 
   const salvarTitulo = async (dados) => {
-    // Validação estrita do Altimus: Cliente/Fornecedor é OBRIGATÓRIO!
     if (!dados.cliente_nome?.trim()) {
       alert('O campo Cliente/Fornecedor é obrigatório.');
       return;
@@ -231,9 +238,8 @@ export default function Financeiro({ user }) {
     }
 
     try {
-      setLoadingMsg('Salvando conta a pagar/receber no banco...');
+      setLoadingMsg('Salvando conta no banco...');
 
-      // 1. Resolver o cliente_id: se for novo digitado, cria ou localiza em clientes_DGAUTOS
       let clienteIdFinal = dados.cliente_id;
       if (!clienteIdFinal && dados.cliente_nome?.trim()) {
         const achado = clientes.find((c) => c.nome.toLowerCase() === dados.cliente_nome.trim().toLowerCase());
@@ -241,24 +247,19 @@ export default function Financeiro({ user }) {
           clienteIdFinal = achado.id;
         } else {
           const novosClientes = await saveCliente({
-            nome: dados.cliente_nome.trim(),
+            nome: dados.cliente_nome.trim().toUpperCase(),
             tipo_pessoa: 'PF',
             papel: dados.tipo === 'despesa' ? 'fornecedor' : 'cliente',
-            cidade: 'Rio do Sul',
-            uf: 'SC',
-            observacoes: 'Cadastrado automaticamente via Financeiro Altimus'
+            cidade: 'RIO DO SUL',
+            uf: 'SC'
           });
           clienteIdFinal = novosClientes.savedItem?.id || novosClientes[0]?.id || null;
         }
       }
 
-      // 2. Resolver o veículo: opcional
-      let veiculoIdFinal = dados.veiculo_id || null;
-
-      // 3. Montar descrição com número de documento se informado
-      let descFinal = dados.descricao.trim();
+      let descFinal = dados.descricao.trim().toUpperCase();
       if (dados.numero_documento?.trim()) {
-        descFinal = `${descFinal} (Doc: ${dados.numero_documento.trim()})`;
+        descFinal = `${descFinal} (DOC: ${dados.numero_documento.trim().toUpperCase()})`;
       }
 
       const payload = {
@@ -272,16 +273,16 @@ export default function Financeiro({ user }) {
         pagamento_data: dados.quitado ? (dados.data_quitacao || new Date().toISOString().slice(0, 10)) : null,
         forma_pagamento: dados.forma_pagamento || 'Pix / TED',
         conta_bancaria: dados.conta || 'Conta Principal',
-        veiculo_id: veiculoIdFinal,
+        veiculo_id: dados.veiculo_id || null,
         cliente_id: clienteIdFinal,
-        cliente_nome: dados.cliente_nome.trim()
+        cliente_nome: dados.cliente_nome.trim().toUpperCase()
       };
 
       await saveFinanceiro(payload);
       await recarregar();
       setVisualizacao('contas');
       setEditando(null);
-      alert('✓ Conta salva com sucesso!');
+      avisoSucesso('✓ Conta a pagar/receber salva com sucesso!');
     } catch (err) {
       alert('Erro ao salvar conta: ' + err.message);
     } finally {
@@ -297,7 +298,7 @@ export default function Financeiro({ user }) {
       await recarregar();
       setVisualizacao('contas');
       setEditando(null);
-      alert('✓ Título excluído com sucesso!');
+      avisoSucesso('✓ Título excluído com sucesso!');
     } catch (err) {
       alert('Erro ao excluir: ' + err.message);
     } finally {
@@ -307,11 +308,44 @@ export default function Financeiro({ user }) {
 
   return (
     <>
-      {loadingMsg && (
-        <div className="loading-toast" style={{ position: 'fixed', bottom: 20, right: 20, background: '#1e293b', color: '#fff', padding: '12px 20px', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 10, zIndex: 9999, boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
-          <div className="spinner-sm" style={{ width: 18, height: 18, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .8s linear infinite' }}></div>
-          <span>{loadingMsg}</span>
+      {loadingMsg && <div className="loading-top-bar" />}
+
+      {toastSucesso && (
+        <div className="toast-success">
+          <CheckCircle2 size={16} />
+          <span>{toastSucesso}</span>
         </div>
+      )}
+
+      {/* MODAL DE CADASTRO RÁPIDO DE PESSOA QUANDO NÃO ENCONTRAR */}
+      {modalPessoa && (
+        <ClienteModalAltimus
+          inicial={modalPessoa}
+          onClose={() => setModalPessoa(null)}
+          onSave={async (cli) => {
+            try {
+              setLoadingMsg('Cadastrando pessoa...');
+              const novos = await saveCliente(cli);
+              const salvo = novos.savedItem || novos[0];
+              setClientes(novos);
+              setModalPessoa(null);
+              avisoSucesso(`✓ ${cli.nome} cadastrado com sucesso!`);
+
+              // Se estivermos editando um título, já vincula esse cliente nele
+              if (editando) {
+                setEditando((prev) => ({
+                  ...prev,
+                  cliente_id: salvo?.id || '',
+                  cliente_nome: cli.nome
+                }));
+              }
+            } catch (e) {
+              alert('Erro ao cadastrar pessoa: ' + e.message);
+            } finally {
+              setLoadingMsg('');
+            }
+          }}
+        />
       )}
 
       {/* TELA DE CADASTRO / EDIÇÃO DE TÍTULO (PRINT 3 ALTIMUS) */}
@@ -323,6 +357,18 @@ export default function Financeiro({ user }) {
           onClose={() => { setVisualizacao('contas'); setEditando(null); }}
           onSave={salvarTitulo}
           onDelete={excluirTitulo}
+          onAbrirCadastroPessoa={(nomeDigitado) => {
+            setModalPessoa({
+              nome: String(nomeDigitado || '').toUpperCase(),
+              tipo_pessoa: 'PF',
+              papel: editando.tipo === 'despesa' ? 'fornecedor' : 'cliente',
+              is_cliente: editando.tipo !== 'despesa',
+              is_fornecedor: editando.tipo === 'despesa',
+              ativo: true,
+              cidade: 'RIO DO SUL',
+              uf: 'SC'
+            });
+          }}
         />
       )}
 
@@ -355,7 +401,7 @@ export default function Financeiro({ user }) {
             </div>
           </div>
 
-          {/* BARRA DE FILTROS SUPERIOR (EXATAMENTE COMO NO PRINT 2) */}
+          {/* BARRA DE FILTROS SUPERIOR (PRINT 2 ALTIMUS) */}
           <div className="card" style={{ padding: '10px 14px', background: '#ffffff', borderRadius: 8, border: '1px solid var(--border)', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <div style={{ position: 'relative', flex: '1.2', minWidth: 200 }}>
               <label style={{ fontSize: '.72rem', color: 'var(--muted)', display: 'block', marginBottom: 2 }}>Cliente/Fornecedor</label>
@@ -366,7 +412,7 @@ export default function Financeiro({ user }) {
                   style={{ paddingLeft: 30, height: 36, fontSize: '.84rem' }}
                   placeholder="Nome ou CPF/CNPJ do c..."
                   value={filtroCliente}
-                  onChange={(e) => setFiltroCliente(e.target.value)}
+                  onChange={(e) => setFiltroCliente(e.target.value.toUpperCase())}
                 />
               </div>
             </div>
@@ -378,7 +424,7 @@ export default function Financeiro({ user }) {
                 style={{ height: 36, fontSize: '.84rem' }}
                 placeholder="Descrição"
                 value={filtroDescricao}
-                onChange={(e) => setFiltroDescricao(e.target.value)}
+                onChange={(e) => setFiltroDescricao(e.target.value.toUpperCase())}
               />
             </div>
 
@@ -391,7 +437,7 @@ export default function Financeiro({ user }) {
                   style={{ paddingLeft: 30, height: 36, fontSize: '.84rem' }}
                   placeholder="Pesquise por placa, chas..."
                   value={filtroVeiculo}
-                  onChange={(e) => setFiltroVeiculo(e.target.value)}
+                  onChange={(e) => setFiltroVeiculo(e.target.value.toUpperCase())}
                 />
               </div>
             </div>
@@ -587,6 +633,7 @@ export default function Financeiro({ user }) {
             negociacoes={negociacoes}
             usuarios={usuarios}
             recarregar={recarregar}
+            avisoSucesso={avisoSucesso}
             setLoadingMsg={setLoadingMsg}
           />
         </div>
@@ -605,8 +652,8 @@ export default function Financeiro({ user }) {
                 tipo: 'despesa',
                 categoria: 'Preparação / Estética',
                 veiculo_id: v.id,
-                veiculo_desc: `${v.marca} ${v.modelo} (${v.placa || ''})`,
-                descricao: `Preparação / Manutenção — ${v.marca} ${v.modelo} (${v.placa || ''})`
+                veiculo_desc: `${v.marca} ${v.modelo} (${v.placa || ''})`.toUpperCase(),
+                descricao: `PREPARAÇÃO / MANUTENÇÃO — ${v.marca} ${v.modelo} (${v.placa || ''})`.toUpperCase()
               });
               setVisualizacao('novo_titulo');
             }}
@@ -783,7 +830,7 @@ export default function Financeiro({ user }) {
 // ==============================================================================
 // FORMULÁRIO COMPLETO DO TÍTULO FINANCEIRO (PRINT 3 ALTIMUS)
 // ==============================================================================
-function NovoTituloForm({ inicial, veiculos, clientes, onClose, onSave, onDelete }) {
+function NovoTituloForm({ inicial, veiculos, clientes, onClose, onSave, onDelete, onAbrirCadastroPessoa }) {
   const [f, setF] = useState(inicial);
   const [buscaCli, setBuscaCli] = useState(inicial.cliente_nome || '');
   const [dropdownCliAberto, setDropdownCliAberto] = useState(false);
@@ -791,7 +838,7 @@ function NovoTituloForm({ inicial, veiculos, clientes, onClose, onSave, onDelete
   const [buscaVeic, setBuscaVeic] = useState(inicial.veiculo_desc || '');
   const [dropdownVeicAberto, setDropdownVeicAberto] = useState(false);
 
-  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const setUpper = (k) => (e) => setF({ ...f, [k]: String(e.target.value).toUpperCase() });
 
   const clientesSugeridos = useMemo(() => {
     if (!buscaCli) return clientes.slice(0, 8);
@@ -811,8 +858,8 @@ function NovoTituloForm({ inicial, veiculos, clientes, onClose, onSave, onDelete
     e.preventDefault();
     onSave({
       ...f,
-      cliente_nome: buscaCli,
-      veiculo_desc: buscaVeic
+      cliente_nome: buscaCli.toUpperCase(),
+      veiculo_desc: buscaVeic.toUpperCase()
     });
   };
 
@@ -836,14 +883,14 @@ function NovoTituloForm({ inicial, veiculos, clientes, onClose, onSave, onDelete
           {/* Linha 1: Revendas, Operação, Emissão, Vencimento */}
           <div className="field">
             <label>Revendas *</label>
-            <select className="select" required value={f.revenda} onChange={set('revenda')}>
+            <select className="select" required value={f.revenda} onChange={(e) => setF({ ...f, revenda: e.target.value })}>
               {REVE_PADRAO.map((r) => <option key={r} value={r}>{r}</option>)}
             </select>
           </div>
 
           <div className="field">
             <label>Operação *</label>
-            <select className="select" required value={f.tipo} onChange={set('tipo')}>
+            <select className="select" required value={f.tipo} onChange={(e) => setF({ ...f, tipo: e.target.value })}>
               <option value="despesa">Despesa (A Pagar)</option>
               <option value="receita">Receita (A Receber)</option>
             </select>
@@ -851,17 +898,27 @@ function NovoTituloForm({ inicial, veiculos, clientes, onClose, onSave, onDelete
 
           <div className="field">
             <label>Emissão *</label>
-            <input type="date" required className="input" value={f.emissao} onChange={set('emissao')} />
+            <input type="date" required className="input" value={f.emissao} onChange={(e) => setF({ ...f, emissao: e.target.value })} />
           </div>
 
           <div className="field">
             <label>Vencimento *</label>
-            <input type="date" required className="input" value={f.vencimento} onChange={set('vencimento')} />
+            <input type="date" required className="input" value={f.vencimento} onChange={(e) => setF({ ...f, vencimento: e.target.value })} />
           </div>
 
-          {/* Linha 2: Cliente/Fornecedor (OBRIGATÓRIO COM DIGITAÇÃO LIVRE E AUTO-COMPLETE) e Número de Documento */}
+          {/* Linha 2: Cliente/Fornecedor (OBRIGATÓRIO COM DIGITAÇÃO LIVRE E BOTÃO DE CADASTRAR SE NÃO TIVER) */}
           <div className="field span-2" style={{ position: 'relative' }}>
-            <label>Cliente/Fornecedor * <span style={{ fontSize: '.75rem', color: 'var(--muted)', fontWeight: 400 }}>(Obrigatório — digite o nome ou escolha da lista)</span></label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <label style={{ margin: 0 }}>Cliente/Fornecedor *</label>
+              <button
+                type="button"
+                className="btn btn-sm"
+                style={{ fontSize: '.72rem', padding: '2px 8px', borderColor: '#5d35b0', color: '#5d35b0' }}
+                onClick={() => onAbrirCadastroPessoa(buscaCli)}
+              >
+                <UserPlus size={12} /> + Cadastrar Pessoa
+              </button>
+            </div>
             <div style={{ position: 'relative' }}>
               <Search size={15} style={{ position: 'absolute', left: 12, top: 12, color: 'var(--muted)', pointerEvents: 'none' }} />
               <input
@@ -871,9 +928,10 @@ function NovoTituloForm({ inicial, veiculos, clientes, onClose, onSave, onDelete
                 placeholder="Pesquise por nome ou documento, ou digite um novo fornecedor..."
                 value={buscaCli}
                 onChange={(e) => {
-                  setBuscaCli(e.target.value);
+                  const val = e.target.value.toUpperCase();
+                  setBuscaCli(val);
                   setDropdownCliAberto(true);
-                  setF({ ...f, cliente_id: '', cliente_nome: e.target.value });
+                  setF({ ...f, cliente_id: '', cliente_nome: val });
                 }}
                 onFocus={() => setDropdownCliAberto(true)}
               />
@@ -888,12 +946,13 @@ function NovoTituloForm({ inicial, veiculos, clientes, onClose, onSave, onDelete
               )}
             </div>
 
-            {dropdownCliAberto && clientesSugeridos.length > 0 && (
+            {/* Dropdown com os clientes cadastrados + Botão de cadastrar novo se não encontrar */}
+            {dropdownCliAberto && (
               <div
                 style={{
                   position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
                   background: '#ffffff', border: '1px solid var(--border)', borderRadius: 8,
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.12)', maxHeight: 220, overflowY: 'auto'
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.12)', maxHeight: 240, overflowY: 'auto'
                 }}
               >
                 {clientesSugeridos.map((c) => (
@@ -914,6 +973,33 @@ function NovoTituloForm({ inicial, veiculos, clientes, onClose, onSave, onDelete
                     </div>
                   </div>
                 ))}
+
+                {/* BOTÃO CLARO PARA CADASTRAR PESSOA IMEDIATAMENTE (PEDIDO DO USUÁRIO) */}
+                {buscaCli.trim().length > 0 && (
+                  <div
+                    style={{
+                      padding: '10px 14px',
+                      background: '#faf5ff',
+                      borderTop: '2px solid #e9d5ff',
+                      cursor: 'pointer',
+                      color: '#6b21a8',
+                      fontSize: '.88rem',
+                      fontWeight: 700,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8
+                    }}
+                    onClick={() => {
+                      onAbrirCadastroPessoa(buscaCli);
+                      setDropdownCliAberto(false);
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#f3e8ff'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = '#faf5ff'}
+                  >
+                    <Plus size={16} />
+                    <span>+ Não encontrou? Cadastrar "{buscaCli.toUpperCase()}" agora</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -924,7 +1010,7 @@ function NovoTituloForm({ inicial, veiculos, clientes, onClose, onSave, onDelete
               className="input"
               placeholder="Ex.: NF-e 1024, Recibo 50, Contrato..."
               value={f.numero_documento ?? ''}
-              onChange={set('numero_documento')}
+              onChange={setUpper('numero_documento')}
             />
           </div>
 
@@ -939,9 +1025,10 @@ function NovoTituloForm({ inicial, veiculos, clientes, onClose, onSave, onDelete
                 placeholder="Pesquise por placa, chassi, modelo ou digite livremente..."
                 value={buscaVeic}
                 onChange={(e) => {
-                  setBuscaVeic(e.target.value);
+                  const val = e.target.value.toUpperCase();
+                  setBuscaVeic(val);
                   setDropdownVeicAberto(true);
-                  setF({ ...f, veiculo_id: '', veiculo_desc: e.target.value });
+                  setF({ ...f, veiculo_id: '', veiculo_desc: val });
                 }}
                 onFocus={() => setDropdownVeicAberto(true)}
               />
@@ -969,7 +1056,7 @@ function NovoTituloForm({ inicial, veiculos, clientes, onClose, onSave, onDelete
                     key={v.id}
                     style={{ padding: '8px 14px', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: '.86rem' }}
                     onClick={() => {
-                      const desc = `${v.marca} ${v.modelo} (${v.placa || v.ano})`;
+                      const desc = `${v.marca} ${v.modelo} (${v.placa || v.ano})`.toUpperCase();
                       setBuscaVeic(desc);
                       setF({ ...f, veiculo_id: v.id, veiculo_desc: desc });
                       setDropdownVeicAberto(false);
@@ -992,14 +1079,14 @@ function NovoTituloForm({ inicial, veiculos, clientes, onClose, onSave, onDelete
               required
               placeholder="Descrição do título financeiro..."
               value={f.descricao}
-              onChange={set('descricao')}
+              onChange={setUpper('descricao')}
             />
           </div>
 
           {/* Linha 5: Forma de Pagamento e Etiquetas */}
           <div className="field span-2">
             <label>Forma de pagamento</label>
-            <select className="select" value={f.forma_pagamento} onChange={set('forma_pagamento')}>
+            <select className="select" value={f.forma_pagamento} onChange={(e) => setF({ ...f, forma_pagamento: e.target.value })}>
               {['Pix / TED', 'Boleto', 'Cartão de Crédito', 'Cartão de Débito', 'Dinheiro', 'Financiamento', 'Cheque'].map((m) => (
                 <option key={m} value={m}>{m}</option>
               ))}
@@ -1008,7 +1095,7 @@ function NovoTituloForm({ inicial, veiculos, clientes, onClose, onSave, onDelete
 
           <div className="field span-2">
             <label>Etiquetas</label>
-            <select className="select" value={f.categoria} onChange={set('categoria')}>
+            <select className="select" value={f.categoria} onChange={(e) => setF({ ...f, categoria: e.target.value })}>
               {CATEGORIAS_FINANCEIRO.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
@@ -1020,13 +1107,13 @@ function NovoTituloForm({ inicial, veiculos, clientes, onClose, onSave, onDelete
               className="input"
               placeholder="Caixa Geral / Itaú Empresas..."
               value={f.conta ?? 'Itaú Empresas'}
-              onChange={set('conta')}
+              onChange={setUpper('conta')}
             />
           </div>
 
           <div className="field span-2">
             <label>Conta financeira</label>
-            <select className="select" value={f.conta_financeira ?? 'Conta Corrente'} onChange={set('conta_financeira')}>
+            <select className="select" value={f.conta_financeira ?? 'Conta Corrente'} onChange={(e) => setF({ ...f, conta_financeira: e.target.value })}>
               <option value="Conta Corrente">Conta Corrente</option>
               <option value="Caixa Operacional">Caixa Operacional / Loja</option>
               <option value="Aplicação / Reserva">Aplicação / Reserva</option>
@@ -1043,7 +1130,7 @@ function NovoTituloForm({ inicial, veiculos, clientes, onClose, onSave, onDelete
               className="input"
               placeholder="0,00"
               value={f.valor}
-              onChange={set('valor')}
+              onChange={(e) => setF({ ...f, valor: e.target.value })}
             />
           </div>
 
@@ -1075,7 +1162,7 @@ function NovoTituloForm({ inicial, veiculos, clientes, onClose, onSave, onDelete
               rows={3}
               placeholder="Observações complementares..."
               value={f.observacao ?? ''}
-              onChange={set('observacao')}
+              onChange={setUpper('observacao')}
             />
           </div>
         </div>
@@ -1115,7 +1202,7 @@ function NovoTituloForm({ inicial, veiculos, clientes, onClose, onSave, onDelete
 // ==============================================================================
 // VISÃO DE COMISSÕES DE VENDEDORES
 // ==============================================================================
-function ComissoesView({ lista, veiculos, clientes, negociacoes, usuarios, recarregar, setLoadingMsg }) {
+function ComissoesView({ lista, veiculos, clientes, negociacoes, usuarios, recarregar, avisoSucesso, setLoadingMsg }) {
   const [filtroVendedor, setFiltroVendedor] = useState('');
 
   const relatorio = useMemo(() => {
@@ -1169,7 +1256,7 @@ function ComissoesView({ lista, veiculos, clientes, negociacoes, usuarios, recar
         veiculo_desc: item.veiculo_desc
       });
       await recarregar();
-      alert('✓ Comissão paga e registrada no caixa!');
+      avisoSucesso('✓ Comissão paga e registrada no caixa!');
     } catch (e) {
       alert('Erro ao pagar: ' + e.message);
     } finally {
