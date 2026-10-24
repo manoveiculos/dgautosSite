@@ -432,8 +432,18 @@ export async function getClientes() {
   try {
     const { data, error } = await supabase.from('clientes_DGAUTOS').select('*').order('nome');
     if (!error && Array.isArray(data)) {
-      salvarCache('clientes', data);
-      return data;
+      const dataComContatos = data.map((cli) => {
+        let contatos_adicionais = [];
+        if (cli.observacoes && cli.observacoes.includes('[CONTATOS_EXTRAS:')) {
+          try {
+            const m = cli.observacoes.match(/\[CONTATOS_EXTRAS:([\s\S]*?)\]/);
+            if (m && m[1]) contatos_adicionais = JSON.parse(m[1]);
+          } catch {}
+        }
+        return { ...cli, contatos_adicionais };
+      });
+      salvarCache('clientes', dataComContatos);
+      return dataComContatos;
     }
   } catch (err) {
     console.warn('Supabase getClientes:', err);
@@ -446,6 +456,14 @@ export async function getClientes() {
 
 export async function saveCliente(c) {
   const isUpdate = Boolean(c.id && Number(c.id) > 0 && Number(c.id) < 1000000000);
+
+  let obsFinal = c.observacoes || '';
+  if (Array.isArray(c.contatos_adicionais) && c.contatos_adicionais.length > 0) {
+    const jsonContatos = JSON.stringify(c.contatos_adicionais);
+    obsFinal = obsFinal.replace(/\[CONTATOS_EXTRAS:[\s\S]*?\]/g, '').trim();
+    obsFinal = `${obsFinal}\n[CONTATOS_EXTRAS:${jsonContatos}]`.trim();
+  }
+
   const payload = {
     nome: c.nome,
     tipo_pessoa: c.tipo_pessoa || 'PF',
@@ -463,7 +481,7 @@ export async function saveCliente(c) {
     cidade: c.cidade || 'Rio do Sul',
     uf: c.uf || 'SC',
     origem: c.origem || 'LOJA',
-    observacoes: c.observacoes || ''
+    observacoes: obsFinal
   };
 
   let savedItem = null;

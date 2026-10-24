@@ -879,41 +879,41 @@ function NovoTituloForm({ inicial, veiculos, clientes, onClose, onSave, onDelete
           Principal
         </h2>
 
-        <div className="form-grid">
-          {/* Linha 1: Revendas, Operação, Emissão, Vencimento */}
-          <div className="field">
-            <label>Revendas *</label>
-            <select className="select" required value={f.revenda} onChange={(e) => setF({ ...f, revenda: e.target.value })}>
-              {REVE_PADRAO.map((r) => <option key={r} value={r}>{r}</option>)}
-            </select>
-          </div>
-
-          <div className="field">
-            <label>Operação *</label>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 14 }}>
+          {/* LINHA 1: OPERAÇÃO, REVENDA E DATAS */}
+          <div style={{ gridColumn: 'span 3' }} className="field">
+            <label style={{ fontWeight: 700, color: 'var(--text)' }}>Operação *</label>
             <select className="select" required value={f.tipo} onChange={(e) => setF({ ...f, tipo: e.target.value })}>
               <option value="despesa">Despesa (A Pagar)</option>
               <option value="receita">Receita (A Receber)</option>
             </select>
           </div>
 
-          <div className="field">
-            <label>Emissão *</label>
+          <div style={{ gridColumn: 'span 3' }} className="field">
+            <label style={{ fontWeight: 700, color: 'var(--text)' }}>Revendas *</label>
+            <select className="select" required value={f.revenda} onChange={(e) => setF({ ...f, revenda: e.target.value })}>
+              {REVE_PADRAO.map((r) => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+
+          <div style={{ gridColumn: 'span 3' }} className="field">
+            <label style={{ fontWeight: 600 }}>Emissão *</label>
             <input type="date" required className="input" value={f.emissao} onChange={(e) => setF({ ...f, emissao: e.target.value })} />
           </div>
 
-          <div className="field">
-            <label>Vencimento *</label>
+          <div style={{ gridColumn: 'span 3' }} className="field">
+            <label style={{ fontWeight: 600 }}>Vencimento *</label>
             <input type="date" required className="input" value={f.vencimento} onChange={(e) => setF({ ...f, vencimento: e.target.value })} />
           </div>
 
-          {/* Linha 2: Cliente/Fornecedor (OBRIGATÓRIO COM DIGITAÇÃO LIVRE E BOTÃO DE CADASTRAR SE NÃO TIVER) */}
-          <div className="field span-2" style={{ position: 'relative' }}>
+          {/* LINHA 2: CLIENTE/FORNECEDOR (OBRIGATÓRIO) + VEÍCULO (OPCIONAL) */}
+          <div style={{ gridColumn: 'span 6', position: 'relative' }} className="field">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-              <label style={{ margin: 0 }}>Cliente/Fornecedor *</label>
+              <label style={{ margin: 0, fontWeight: 700, color: 'var(--text)' }}>Cliente / Fornecedor *</label>
               <button
                 type="button"
                 className="btn btn-sm"
-                style={{ fontSize: '.72rem', padding: '2px 8px', borderColor: '#5d35b0', color: '#5d35b0' }}
+                style={{ fontSize: '.72rem', padding: '2px 8px', background: '#faf5ff', borderColor: '#7c3aed', color: '#6b21a8', fontWeight: 600 }}
                 onClick={() => onAbrirCadastroPessoa(buscaCli)}
               >
                 <UserPlus size={12} /> + Cadastrar Pessoa
@@ -925,7 +925,7 @@ function NovoTituloForm({ inicial, veiculos, clientes, onClose, onSave, onDelete
                 className="input"
                 required
                 style={{ paddingLeft: 36 }}
-                placeholder="Pesquise por nome ou documento, ou digite um novo fornecedor..."
+                placeholder="Pesquise por nome, CPF/CNPJ ou digite um novo fornecedor..."
                 value={buscaCli}
                 onChange={(e) => {
                   const val = e.target.value.toUpperCase();
@@ -974,7 +974,7 @@ function NovoTituloForm({ inicial, veiculos, clientes, onClose, onSave, onDelete
                   </div>
                 ))}
 
-                {/* BOTÃO CLARO PARA CADASTRAR PESSOA IMEDIATAMENTE (PEDIDO DO USUÁRIO) */}
+                {/* BOTÃO CLARO PARA CADASTRAR PESSOA IMEDIATAMENTE */}
                 {buscaCli.trim().length > 0 && (
                   <div
                     style={{
@@ -1004,25 +1004,17 @@ function NovoTituloForm({ inicial, veiculos, clientes, onClose, onSave, onDelete
             )}
           </div>
 
-          <div className="field span-2">
-            <label>Número de documento</label>
-            <input
-              className="input"
-              placeholder="Ex.: NF-e 1024, Recibo 50, Contrato..."
-              value={f.numero_documento ?? ''}
-              onChange={setUpper('numero_documento')}
-            />
-          </div>
-
-          {/* Linha 3: Veículo (OPCIONAL COM DIGITAÇÃO LIVRE E AUTO-COMPLETE) */}
-          <div className="field span-4" style={{ position: 'relative' }}>
-            <label>Veículo <span style={{ fontSize: '.75rem', color: 'var(--muted)', fontWeight: 400 }}>(Opcional — digite a placa/modelo para anexar junto ao carro)</span></label>
+          {/* VEÍCULO (OPCIONAL — VINCULA AO ESTOQUE) */}
+          <div style={{ gridColumn: 'span 6', position: 'relative' }} className="field">
+            <label style={{ fontWeight: 600, color: 'var(--text)' }}>
+              Veículo <span style={{ fontSize: '.75rem', color: 'var(--muted)', fontWeight: 400 }}>(Opcional — vincular custo/receita ao carro)</span>
+            </label>
             <div style={{ position: 'relative' }}>
               <Search size={15} style={{ position: 'absolute', left: 12, top: 12, color: 'var(--muted)', pointerEvents: 'none' }} />
               <input
                 className="input"
                 style={{ paddingLeft: 36 }}
-                placeholder="Pesquise por placa, chassi, modelo ou digite livremente..."
+                placeholder="Pesquise por placa, chassi, modelo ou digite..."
                 value={buscaVeic}
                 onChange={(e) => {
                   const val = e.target.value.toUpperCase();
@@ -1071,21 +1063,42 @@ function NovoTituloForm({ inicial, veiculos, clientes, onClose, onSave, onDelete
             )}
           </div>
 
-          {/* Linha 4: Descrição */}
-          <div className="field span-4">
-            <label>Descrição *</label>
+          {/* LINHA 3: DESCRIÇÃO DO TÍTULO + ETIQUETAS/CATEGORIA */}
+          <div style={{ gridColumn: 'span 8' }} className="field">
+            <label style={{ fontWeight: 700, color: 'var(--text)' }}>Descrição do Lançamento *</label>
             <input
               className="input"
               required
-              placeholder="Descrição do título financeiro..."
+              placeholder="Ex: REVISÃO MECÂNICA, POLIMENTO, PEÇAS, COMISSÃO, VENDA..."
               value={f.descricao}
               onChange={setUpper('descricao')}
             />
           </div>
 
-          {/* Linha 5: Forma de Pagamento e Etiquetas */}
-          <div className="field span-2">
-            <label>Forma de pagamento</label>
+          <div style={{ gridColumn: 'span 4' }} className="field">
+            <label style={{ fontWeight: 600 }}>Etiquetas / Categoria</label>
+            <select className="select" value={f.categoria} onChange={(e) => setF({ ...f, categoria: e.target.value })}>
+              {CATEGORIAS_FINANCEIRO.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+
+          {/* LINHA 4: VALOR TOTAL, FORMA DE PAGAMENTO, CONTA E STATUS */}
+          <div style={{ gridColumn: 'span 3' }} className="field">
+            <label style={{ fontWeight: 700, color: 'var(--text)' }}>Valor total * (R$)</label>
+            <input
+              type="number"
+              step="0.01"
+              required
+              className="input"
+              style={{ fontSize: '1.05rem', fontWeight: 700, color: f.tipo === 'despesa' ? '#dc2626' : '#16a34a' }}
+              placeholder="0,00"
+              value={f.valor}
+              onChange={(e) => setF({ ...f, valor: e.target.value })}
+            />
+          </div>
+
+          <div style={{ gridColumn: 'span 3' }} className="field">
+            <label style={{ fontWeight: 600 }}>Forma de pagamento</label>
             <select className="select" value={f.forma_pagamento} onChange={(e) => setF({ ...f, forma_pagamento: e.target.value })}>
               {['Pix / TED', 'Boleto', 'Cartão de Crédito', 'Cartão de Débito', 'Dinheiro', 'Financiamento', 'Cheque'].map((m) => (
                 <option key={m} value={m}>{m}</option>
@@ -1093,49 +1106,18 @@ function NovoTituloForm({ inicial, veiculos, clientes, onClose, onSave, onDelete
             </select>
           </div>
 
-          <div className="field span-2">
-            <label>Etiquetas</label>
-            <select className="select" value={f.categoria} onChange={(e) => setF({ ...f, categoria: e.target.value })}>
-              {CATEGORIAS_FINANCEIRO.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-
-          {/* Linha 6: Conta e Conta Financeira */}
-          <div className="field span-2">
-            <label>Conta</label>
+          <div style={{ gridColumn: 'span 3' }} className="field">
+            <label style={{ fontWeight: 600 }}>Conta</label>
             <input
               className="input"
-              placeholder="Caixa Geral / Itaú Empresas..."
+              placeholder="Itaú Empresas / Loja..."
               value={f.conta ?? 'Itaú Empresas'}
               onChange={setUpper('conta')}
             />
           </div>
 
-          <div className="field span-2">
-            <label>Conta financeira</label>
-            <select className="select" value={f.conta_financeira ?? 'Conta Corrente'} onChange={(e) => setF({ ...f, conta_financeira: e.target.value })}>
-              <option value="Conta Corrente">Conta Corrente</option>
-              <option value="Caixa Operacional">Caixa Operacional / Loja</option>
-              <option value="Aplicação / Reserva">Aplicação / Reserva</option>
-            </select>
-          </div>
-
-          {/* Linha 7: Valor Total, Checkboxes Quitado e Agendado */}
-          <div className="field span-2">
-            <label>Valor total * (R$)</label>
-            <input
-              type="number"
-              step="0.01"
-              required
-              className="input"
-              placeholder="0,00"
-              value={f.valor}
-              onChange={(e) => setF({ ...f, valor: e.target.value })}
-            />
-          </div>
-
-          <div className="field span-2" style={{ display: 'flex', gap: 20, alignItems: 'center', marginTop: 22 }}>
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '.9rem', fontWeight: 600 }}>
+          <div style={{ gridColumn: 'span 3', display: 'flex', gap: 16, alignItems: 'center', marginTop: 22 }} className="field">
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: '.88rem', fontWeight: 600 }}>
               <input
                 type="checkbox"
                 checked={f.quitado}
@@ -1144,7 +1126,7 @@ function NovoTituloForm({ inicial, veiculos, clientes, onClose, onSave, onDelete
               Quitado
             </label>
 
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '.9rem', fontWeight: 600 }}>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: '.88rem', fontWeight: 600 }}>
               <input
                 type="checkbox"
                 checked={f.agendado}
@@ -1154,12 +1136,12 @@ function NovoTituloForm({ inicial, veiculos, clientes, onClose, onSave, onDelete
             </label>
           </div>
 
-          {/* Linha 8: Observação */}
-          <div className="field span-4">
-            <label>Observação</label>
+          {/* LINHA 5: OBSERVAÇÃO */}
+          <div style={{ gridColumn: 'span 12' }} className="field">
+            <label style={{ fontWeight: 600 }}>Observação</label>
             <textarea
               className="input"
-              rows={3}
+              rows={2}
               placeholder="Observações complementares..."
               value={f.observacao ?? ''}
               onChange={setUpper('observacao')}
