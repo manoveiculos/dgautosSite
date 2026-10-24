@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { salvarDocumentosCliente, obterDocumentosCliente, excluirDocumentosCliente } from './utils/docStorage';
 
 const AUTH = 'dgautos_sessao';
 const IS_LOCAL = typeof window !== 'undefined' && (
@@ -418,6 +419,18 @@ export async function deleteVeiculo(id) {
   return await getVeiculos();
 }
 
+// Helper para limpar observações e nunca permitir tags de sistema ou Base64 dentro do texto visível
+export function limparObservacoes(obs) {
+  if (!obs || typeof obs !== 'string') return '';
+  return obs
+    .replace(/\[CONTATOS_EXTRAS:[\s\S]*?\]/g, '')
+    .replace(/\[DOCS:[\s\S]*?\]/g, '')
+    .replace(/\[DOCS_META:[\s\S]*?\]/g, '')
+    // Remove qualquer bloco de base64 acidentalmente colado ou residual (>50 chars contínuos)
+    .replace(/[A-Za-z0-9+/=]{50,}/g, '')
+    .trim();
+}
+
 // ==============================================================================
 // 3. CLIENTES & FORNECEDORES
 // ==============================================================================
@@ -432,7 +445,7 @@ export async function getClientes() {
   try {
     const { data, error } = await supabase.from('clientes_DGAUTOS').select('*').order('nome');
     if (!error && Array.isArray(data)) {
-      const dataComContatos = data.map((cli) => {
+      const dataComContatos = await Promise.all(data.map(async (cli) => {
         let contatos_adicionais = [];
         if (cli.observacoes && cli.observacoes.includes('[CONTATOS_EXTRAS:')) {
           try {
@@ -442,20 +455,35 @@ export async function getClientes() {
         }
 
         let documentos = [];
+        // Tentar obter documentos via IndexedDB
         try {
-          const docStorage = localStorage.getItem(`docs_cli_${cli.id}`) || localStorage.getItem(`docs_cli_${(cli.cpf_cnpj || '').replace(/\D/g, '')}`);
-          if (docStorage) documentos = JSON.parse(docStorage);
+          if (cli.id) {
+            const docsId = await obterDocumentosCliente(cli.id);
+            if (Array.isArray(docsId) && docsId.length > 0) documentos = docsId;
+          }
+          if ((!documentos || documentos.length === 0) && cli.cpf_cnpj) {
+            const docsCpf = await obterDocumentosCliente(cli.cpf_cnpj.replace(/\D/g, ''));
+            if (Array.isArray(docsCpf) && docsCpf.length > 0) documentos = docsCpf;
+          }
         } catch {}
 
+        // Fallback legado se ainda estava serializado no texto
         if ((!documentos || documentos.length === 0) && cli.observacoes && cli.observacoes.includes('[DOCS:')) {
           try {
             const md = cli.observacoes.match(/\[DOCS:([\s\S]*?)\]/);
-            if (md && md[1]) documentos = JSON.parse(md[1]);
+            if (md && md[1]) {
+              documentos = JSON.parse(md[1]);
+              // Migra para IndexedDB
+              if (cli.id) salvarDocumentosCliente(cli.id, documentos);
+            }
           } catch {}
         }
 
-        return { ...cli, contatos_adicionais, documentos };
-      });
+        // LIMPAR OBSERVAÇÕES PARA NUNCA MAIS EXIBIR CÓDIGO OU BASE64 NA TELA!
+        const observacoesLimpas = limparObservacoes(cli.observacoes);
+
+        return { ...cli, observacoes: observacoesLimpas, contatos_adicionais, documentos };
+      }));
       salvarCache('clientes', dataComContatos);
       return dataComContatos;
     }
@@ -471,21 +499,26 @@ export async function getClientes() {
 export async function saveCliente(c) {
   const isUpdate = Boolean(c.id && Number(c.id) > 0 && Number(c.id) < 1000000000);
 
-  let obsFinal = c.observacoes || '';
+  // Limpa as observações de qualquer tag ou base64 residual
+  let obsFinal = limparObservacoes(c.observacoes || '');
+
   if (Array.isArray(c.contatos_adicionais) && c.contatos_adicionais.length > 0) {
     const jsonContatos = JSON.stringify(c.contatos_adicionais);
-    obsFinal = obsFinal.replace(/\[CONTATOS_EXTRAS:[\s\S]*?\]/g, '').trim();
     obsFinal = `${obsFinal}\n[CONTATOS_EXTRAS:${jsonContatos}]`.trim();
   }
 
-  // Persistência garantida de Documentos Pessoais
+  // Persistência robusta de Documentos Pessoais no IndexedDB + LocalStorage (NUNCA BASE64 NA OBSERVAÇÃO!)
   if (Array.isArray(c.documentos)) {
     try {
-      if (c.id) localStorage.setItem(`docs_cli_${c.id}`, JSON.stringify(c.documentos));
-      if (c.cpf_cnpj) localStorage.setItem(`docs_cli_${String(c.cpf_cnpj).replace(/\D/g, '')}`, JSON.stringify(c.documentos));
+      if (c.id) await salvarDocumentosCliente(c.id, c.documentos);
+      if (c.cpf_cnpj) await salvarDocumentosCliente(String(c.cpf_cnpj).replace(/\D/g, ''), c.documentos);
     } catch {}
-    obsFinal = obsFinal.replace(/\[DOCS:[\s\S]*?\]/g, '').trim();
-    obsFinal = `${obsFinal}\n[DOCS:${JSON.stringify(c.documentos)}]`.trim();
+
+    // Apenas metadados leves (sem imagem base64) para auditoria se necessário
+    const metaLeve = c.documentos.map(({ nome, tamanho, tipo, data }) => ({ nome, tamanho, tipo, data }));
+    if (metaLeve.length > 0) {
+      obsFinal = `${obsFinal}\n[DOCS_META:${JSON.stringify(metaLeve)}]`.trim();
+    }
   }
 
   const payload = {
@@ -521,10 +554,10 @@ export async function saveCliente(c) {
     console.warn('Supabase saveCliente:', err);
   }
 
-  // Garante que o novo ID salvo também recebe os documentos no localStorage
+  // Garante que o novo ID salvo também recebe os documentos no IndexedDB
   if (savedItem && Array.isArray(c.documentos) && c.documentos.length > 0) {
     try {
-      localStorage.setItem(`docs_cli_${savedItem.id}`, JSON.stringify(c.documentos));
+      await salvarDocumentosCliente(savedItem.id, c.documentos);
     } catch {}
   }
 
@@ -558,7 +591,7 @@ export async function deleteCliente(id, motivo = '', user = null) {
   } catch {}
 
   try {
-    localStorage.removeItem(`docs_cli_${id}`);
+    await excluirDocumentosCliente(id);
   } catch {}
 
   return await getClientes();

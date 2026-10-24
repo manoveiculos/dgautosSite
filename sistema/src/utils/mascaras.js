@@ -138,4 +138,76 @@ export async function buscarCnpj(cnpj) {
   return null;
 }
 
+// Formata placa no padrão Mercosul ou Antigo (ex: ABC1D23 ou ABC-1234)
+export function mascaraPlaca(v) {
+  if (!v) return '';
+  return String(v).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 7);
+}
+
+// Consulta de Placa via API Nacional / WDAPI2 / Backend DG Autos
+export async function buscarPlaca(placa) {
+  const limpo = String(placa || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 7);
+  if (!/^[A-Z]{3}[0-9][0-9A-Z][0-9]{2}$/.test(limpo)) return null;
+
+  // 1. Tenta API do servidor Express (/api/placa/:placa)
+  try {
+    const res = await fetch(`/api/placa/${limpo}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.ok && data.veiculo) {
+        const v = data.veiculo;
+        return {
+          marca: (v.marca || '').toUpperCase(),
+          modelo: (v.modelo || '').toUpperCase(),
+          versao: (v.versao || '').toUpperCase(),
+          ano: v.ano || '',
+          ano_modelo: v.ano || '',
+          cor: (v.cor || '').toUpperCase(),
+          combustivel: (v.combustivel || '').toUpperCase(),
+          municipio: (v.municipio || '').toUpperCase(),
+          uf: (v.uf || '').toUpperCase(),
+          fipeValor: v.fipeValor || '',
+          logo: v.logo || ''
+        };
+      }
+    }
+  } catch {}
+
+  // 2. Fallback direto via token do provedor wdapi2
+  try {
+    const token = '97e59dd0a4790f25a020ca4623f9a902';
+    const res = await fetch(`https://wdapi2.com.br/consulta/${limpo}/${token}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && (data.marca || data.MARCA)) {
+        let fipeValor = '';
+        let versaoFipe = '';
+        const fipeList = data?.fipe?.dados;
+        if (Array.isArray(fipeList) && fipeList.length) {
+          const best = [...fipeList].sort((a, b) => (b?.score || 0) - (a?.score || 0))[0];
+          fipeValor = best?.texto_valor || '';
+          versaoFipe = best?.texto_modelo || '';
+        }
+        return {
+          marca: (data.marca || data.MARCA || '').toUpperCase(),
+          modelo: (data.modelo || data.MODELO || '').toUpperCase(),
+          versao: (versaoFipe || data.VERSAO || data.SUBMODELO || '').toUpperCase(),
+          ano: data.ano || data.anoModelo || '',
+          ano_modelo: data.anoModelo || data.ano || '',
+          cor: (data.cor || '').toUpperCase(),
+          combustivel: (data?.extra?.combustivel || data?.combustivel || '').toUpperCase(),
+          municipio: (data.municipio || data?.extra?.municipio || '').toUpperCase(),
+          uf: (data.uf || data?.extra?.uf_placa || '').toUpperCase(),
+          fipeValor,
+          chassi: (data.chassi || '').toUpperCase(),
+          renavam: data.renavam || ''
+        };
+      }
+    }
+  } catch {}
+
+  return null;
+}
+
+
 export { validarCPF, validarCNPJ, validarCpfCnpj };

@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  Plus, Search, Handshake, CheckCircle2, FileText, Trash2, X, Car, DollarSign, RefreshCw, LayoutGrid, List, Edit3
+  Plus, Search, Handshake, CheckCircle2, FileText, Trash2, X, Car, DollarSign, RefreshCw, LayoutGrid, List, Edit3,
+  UserPlus, ShieldAlert, ShieldCheck, AlertTriangle, ExternalLink
 } from 'lucide-react';
 import {
   getNegociacoes, saveNegociacao, concluirNegociacao, deleteNegociacao,
   getClientes, saveCliente, getVeiculos, brl, dataBr
 } from '../store';
+import { ClienteModalAltimus, EMPTY_CLI } from './Clientes';
+import { buscarPlaca, mascaraPlaca } from '../utils/mascaras';
 
 const EMPTY_NEG = {
   tipo: 'venda',
@@ -463,6 +466,55 @@ function NegociacaoWizardModal({ inicial, clientes, veiculos, onClose, onSave, o
   const [salvandoNeg, setSalvandoNeg] = useState(false);
   const [buscaCliente, setBuscaCliente] = useState(inicial.cliente_nome || clienteInicial?.nome || '');
   const [dropdownAberto, setDropdownAberto] = useState(false);
+  const [modalNovoCliente, setModalNovoCliente] = useState(false);
+  const [clienteParaCadastrar, setClienteParaCadastrar] = useState(null);
+  const [buscandoPlacaTroca, setBuscandoPlacaTroca] = useState(false);
+  const [msgPlacaTroca, setMsgPlacaTroca] = useState('');
+
+  const handleConsultarPlacaTroca = async (placaDig) => {
+    const limpo = String(placaDig || f.troca_placa || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 7);
+    if (limpo.length !== 7) return;
+
+    setBuscandoPlacaTroca(true);
+    setMsgPlacaTroca('🔍 Consultando dados do veículo pela placa...');
+    try {
+      const v = await buscarPlaca(limpo);
+      if (v) {
+        setF((prev) => {
+          const anoFab = v.ano ? String(v.ano).slice(0, 4) : '';
+          const anoMod = v.ano_modelo ? String(v.ano_modelo).slice(-4) : (v.ano ? String(v.ano).slice(-4) : '');
+          const anoCompleto = anoFab && anoMod ? `${anoFab}/${anoMod}` : (v.ano || prev.troca_ano);
+          return {
+            ...prev,
+            troca_placa: limpo,
+            troca_marca: v.marca || prev.troca_marca,
+            troca_modelo: `${v.modelo || ''} ${v.versao || ''}`.trim() || prev.troca_modelo,
+            troca_ano: anoCompleto || prev.troca_ano,
+            troca_cor: v.cor || prev.troca_cor,
+            fipe: v.fipeValor ? Number(String(v.fipeValor).replace(/[^\d]/g, '')) / 100 : prev.fipe
+          };
+        });
+        setMsgPlacaTroca(`✓ ${v.marca} ${v.modelo} preenchido via API!`);
+        setTimeout(() => setMsgPlacaTroca(''), 5000);
+      } else {
+        setMsgPlacaTroca('Placa não encontrada na base nacional.');
+        setTimeout(() => setMsgPlacaTroca(''), 4000);
+      }
+    } catch (err) {
+      console.warn('Erro ao consultar placa:', err);
+      setMsgPlacaTroca('');
+    } finally {
+      setBuscandoPlacaTroca(false);
+    }
+  };
+
+  const handleTrocaPlacaChange = (e) => {
+    const val = mascaraPlaca(e.target.value);
+    setF((prev) => ({ ...prev, troca_placa: val }));
+    if (val.length === 7) {
+      handleConsultarPlacaTroca(val);
+    }
+  };
 
   const buscarCep = async (cepVal) => {
     const limpo = String(cepVal || '').replace(/\D/g, '');
@@ -671,7 +723,35 @@ function NegociacaoWizardModal({ inicial, clientes, veiculos, onClose, onSave, o
               <div className="form-grid">
                 {/* Linha 1: Input de Busca com Dropdown + Origem */}
                 <div className="field span-2" style={{ position: 'relative' }}>
-                  <label>Cliente *</label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <label style={{ margin: 0 }}>Cliente *</label>
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      style={{
+                        background: '#ede9fe',
+                        color: '#6d28d9',
+                        fontWeight: 700,
+                        border: '1px solid #c4b5fd',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '3px 10px',
+                        fontSize: '.78rem',
+                        borderRadius: 6,
+                        cursor: 'pointer'
+                      }}
+                      onClick={() => {
+                        setClienteParaCadastrar({
+                          ...EMPTY_CLI,
+                          nome: (buscaCliente || '').toUpperCase()
+                        });
+                        setModalNovoCliente(true);
+                      }}
+                    >
+                      <UserPlus size={14} /> + Cadastrar Novo Cliente
+                    </button>
+                  </div>
                   <div style={{ position: 'relative' }}>
                     <Search size={16} style={{ position: 'absolute', left: 12, top: 12, color: 'var(--muted)', pointerEvents: 'none' }} />
                     <input
@@ -795,11 +875,11 @@ function NegociacaoWizardModal({ inicial, clientes, veiculos, onClose, onSave, o
                           gap: 6
                         }}
                         onMouseDown={() => {
-                          setF((prev) => ({
-                            ...prev,
-                            cliente_id: null,
-                            cliente_nome: buscaCliente
-                          }));
+                          setClienteParaCadastrar({
+                            ...EMPTY_CLI,
+                            nome: (buscaCliente || '').toUpperCase()
+                          });
+                          setModalNovoCliente(true);
                           setDropdownAberto(false);
                         }}
                       >
@@ -947,8 +1027,38 @@ function NegociacaoWizardModal({ inicial, clientes, veiculos, onClose, onSave, o
                         <input className="input" value={f.troca_ano ?? ''} onChange={set('troca_ano')} placeholder="2016/2017" />
                       </div>
                       <div className="field">
-                        <label>Placa (Troca)</label>
-                        <input className="input" value={f.troca_placa ?? ''} onChange={set('troca_placa')} style={{ textTransform: 'uppercase' }} />
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                          <label style={{ margin: 0 }}>Placa (Troca)</label>
+                          {buscandoPlacaTroca ? (
+                            <span style={{ fontSize: '.72rem', color: '#6d28d9', fontWeight: 700 }}>Buscando...</span>
+                          ) : (
+                            f.troca_placa && f.troca_placa.length === 7 && (
+                              <button
+                                type="button"
+                                onClick={() => handleConsultarPlacaTroca(f.troca_placa)}
+                                style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '.72rem', fontWeight: 700, cursor: 'pointer', padding: 0 }}
+                              >
+                                🔄 Buscar API
+                              </button>
+                            )
+                          )}
+                        </div>
+                        <input
+                          className="input"
+                          maxLength={7}
+                          value={f.troca_placa ?? ''}
+                          onChange={handleTrocaPlacaChange}
+                          onBlur={(e) => {
+                            if (e.target.value.length === 7) handleConsultarPlacaTroca(e.target.value);
+                          }}
+                          style={{ textTransform: 'uppercase', fontWeight: 700 }}
+                          placeholder="ABC1D23"
+                        />
+                        {msgPlacaTroca && (
+                          <div style={{ fontSize: '.74rem', color: msgPlacaTroca.startsWith('✓') ? 'var(--success)' : '#6d28d9', fontWeight: 700, marginTop: 4 }}>
+                            {msgPlacaTroca}
+                          </div>
+                        )}
                       </div>
                       <div className="field">
                         <label>KM Hodômetro (Troca) *</label>
@@ -957,6 +1067,63 @@ function NegociacaoWizardModal({ inicial, clientes, veiculos, onClose, onSave, o
                       <div className="field span-2">
                         <label>Valor Avaliado na Troca (R$)</label>
                         <input className="input" type="number" value={f.troca_valor ?? 0} onChange={set('troca_valor')} />
+                      </div>
+
+                      {/* LEMBRETE OBRIGATÓRIO DE PROCEDÊNCIA: DETRAN E AUTOLOOK */}
+                      <div
+                        style={{
+                          gridColumn: 'span 3',
+                          background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+                          color: '#ffffff',
+                          borderRadius: 10,
+                          padding: '12px 16px',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          flexWrap: 'wrap',
+                          gap: 12,
+                          marginTop: 6,
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.12)'
+                        }}
+                      >
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <ShieldAlert size={18} style={{ color: '#f59e0b' }} />
+                            <strong style={{ fontSize: '.92rem', color: '#ffffff' }}>
+                              Lembrete de Procedência: Consulte DETRAN e Leilão antes de fechar a troca!
+                            </strong>
+                          </div>
+                          <span style={{ fontSize: '.78rem', color: '#cbd5e1' }}>
+                            Verifique débitos, gravames e histórico completo no leilão antes de avaliar o veículo de entrada.
+                          </span>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          <button
+                            type="button"
+                            className="btn btn-sm"
+                            style={{ background: '#2563eb', color: '#fff', fontWeight: 700, border: 'none', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '.8rem', padding: '7px 14px', borderRadius: 6 }}
+                            onClick={() => {
+                              const p = (f.troca_placa || '').trim().toUpperCase();
+                              const url = `https://servicos.detran.sc.gov.br/consulta-dossie-veiculo?placa=${encodeURIComponent(p)}`;
+                              window.open(url, '_blank', 'noopener,noreferrer');
+                            }}
+                            title="Abrir Consulta Oficial DETRAN-SC"
+                          >
+                            <Search size={14} /> DETRAN-SC ↗
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-sm"
+                            style={{ background: '#d97706', color: '#fff', fontWeight: 700, border: 'none', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '.8rem', padding: '7px 14px', borderRadius: 6 }}
+                            onClick={() => {
+                              window.open('https://www.autolook.com.br/', '_blank', 'noopener,noreferrer');
+                            }}
+                            title="Abrir Autolook para consulta completa de Leilão, Sinistro e Gravames"
+                          >
+                            <ShieldCheck size={14} /> Consulta Leilão (Autolook) ↗
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -971,6 +1138,40 @@ function NegociacaoWizardModal({ inicial, clientes, veiculos, onClose, onSave, o
                   </h3>
                   <div className="form-grid">
                     <div className="field">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                        <label style={{ margin: 0 }}>Placa *</label>
+                        {buscandoPlacaTroca ? (
+                          <span style={{ fontSize: '.72rem', color: '#6d28d9', fontWeight: 700 }}>Buscando...</span>
+                        ) : (
+                          f.troca_placa && f.troca_placa.length === 7 && (
+                            <button
+                              type="button"
+                              onClick={() => handleConsultarPlacaTroca(f.troca_placa)}
+                              style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '.72rem', fontWeight: 700, cursor: 'pointer', padding: 0 }}
+                            >
+                              🔄 Buscar API
+                            </button>
+                          )
+                        )}
+                      </div>
+                      <input
+                        className="input"
+                        maxLength={7}
+                        style={{ textTransform: 'uppercase', fontWeight: 700 }}
+                        value={f.troca_placa ?? ''}
+                        onChange={handleTrocaPlacaChange}
+                        onBlur={(e) => {
+                          if (e.target.value.length === 7) handleConsultarPlacaTroca(e.target.value);
+                        }}
+                        placeholder="ABC1D23"
+                      />
+                      {msgPlacaTroca && (
+                        <div style={{ fontSize: '.74rem', color: msgPlacaTroca.startsWith('✓') ? 'var(--success)' : '#6d28d9', fontWeight: 700, marginTop: 4 }}>
+                          {msgPlacaTroca}
+                        </div>
+                      )}
+                    </div>
+                    <div className="field">
                       <label>Marca do Veículo *</label>
                       <input className="input" required value={f.troca_marca ?? ''} onChange={set('troca_marca')} placeholder="Ex: Toyota" />
                     </div>
@@ -983,16 +1184,69 @@ function NegociacaoWizardModal({ inicial, clientes, veiculos, onClose, onSave, o
                       <input className="input" value={f.troca_ano ?? '2023/2024'} onChange={set('troca_ano')} />
                     </div>
                     <div className="field">
-                      <label>Placa *</label>
-                      <input className="input" style={{ textTransform: 'uppercase', fontWeight: 700 }} value={f.troca_placa ?? ''} onChange={set('troca_placa')} placeholder="ABC1D23" />
-                    </div>
-                    <div className="field">
                       <label>KM Hodômetro Atual *</label>
                       <input className="input" type="number" value={f.troca_km ?? 0} onChange={set('troca_km')} />
                     </div>
                     <div className="field span-2">
                       <label>Valor de {f.tipo === 'compra' ? 'Compra (R$)' : 'Avaliação (R$)'} *</label>
                       <input className="input" type="number" value={f.valor_veiculo ?? f.troca_valor ?? 0} onChange={(e) => setF({ ...f, valor_veiculo: Number(e.target.value), troca_valor: Number(e.target.value) })} />
+                    </div>
+
+                    {/* LEMBRETE OBRIGATÓRIO DE PROCEDÊNCIA: DETRAN E AUTOLOOK NA COMPRA */}
+                    <div
+                      style={{
+                        gridColumn: 'span 3',
+                        background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+                        color: '#ffffff',
+                        borderRadius: 10,
+                        padding: '12px 16px',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: 12,
+                        marginTop: 6,
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.12)'
+                      }}
+                    >
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <ShieldAlert size={18} style={{ color: '#f59e0b' }} />
+                          <strong style={{ fontSize: '.92rem', color: '#ffffff' }}>
+                            Lembrete de Procedência: Consulte DETRAN e Leilão antes de comprar!
+                          </strong>
+                        </div>
+                        <span style={{ fontSize: '.78rem', color: '#cbd5e1' }}>
+                          Verifique débitos, multas, gravames, sinistros e leilão oficial com os botões rápidos.
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          style={{ background: '#2563eb', color: '#fff', fontWeight: 700, border: 'none', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '.8rem', padding: '7px 14px', borderRadius: 6 }}
+                          onClick={() => {
+                            const p = (f.troca_placa || '').trim().toUpperCase();
+                            const url = `https://servicos.detran.sc.gov.br/consulta-dossie-veiculo?placa=${encodeURIComponent(p)}`;
+                            window.open(url, '_blank', 'noopener,noreferrer');
+                          }}
+                          title="Abrir Consulta Oficial DETRAN-SC"
+                        >
+                          <Search size={14} /> DETRAN-SC ↗
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          style={{ background: '#d97706', color: '#fff', fontWeight: 700, border: 'none', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '.8rem', padding: '7px 14px', borderRadius: 6 }}
+                          onClick={() => {
+                            window.open('https://www.autolook.com.br/', '_blank', 'noopener,noreferrer');
+                          }}
+                          title="Abrir Autolook para consulta completa de Leilão, Sinistro e Gravames"
+                        >
+                          <ShieldCheck size={14} /> Consulta Leilão (Autolook) ↗
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1243,6 +1497,44 @@ function NegociacaoWizardModal({ inicial, clientes, veiculos, onClose, onSave, o
           )}
         </div>
       </div>
+
+      {modalNovoCliente && clienteParaCadastrar && (
+        <ClienteModalAltimus
+          inicial={clienteParaCadastrar}
+          user={user}
+          onClose={() => {
+            setModalNovoCliente(false);
+            setClienteParaCadastrar(null);
+          }}
+          onSave={async (cli) => {
+            try {
+              const res = await saveCliente(cli);
+              const lista = Array.isArray(res) ? res : [];
+              const novo = res.savedItem || lista.find((c) => (cli.cpf_cnpj && c.cpf_cnpj === cli.cpf_cnpj) || c.nome === cli.nome) || cli;
+
+              setF((prev) => ({
+                ...prev,
+                cliente_id: novo.id,
+                cliente_nome: novo.nome,
+                cliente_cpf_cnpj: novo.cpf_cnpj || '',
+                cliente_telefone: novo.telefone || novo.whatsapp || '',
+                cliente_email: novo.email || '',
+                cliente_cep: novo.cep || '',
+                cliente_cidade: novo.cidade || '',
+                cliente_uf: novo.uf || 'SC',
+                cliente_endereco: novo.endereco || '',
+                canal_venda: novo.origem || prev.canal_venda
+              }));
+              setBuscaCliente(novo.nome);
+              setModalNovoCliente(false);
+              setClienteParaCadastrar(null);
+            } catch (err) {
+              alert('Erro ao salvar cliente: ' + err.message);
+            }
+          }}
+          onDelete={() => {}}
+        />
+      )}
     </form>
   );
 }

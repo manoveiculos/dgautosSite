@@ -10,6 +10,7 @@ import {
   getVeiculos, saveVeiculo, deleteVeiculo, getClientes,
   saveFinanceiro, deleteFinanceiro, brl, dataBr, STATUS, CATEGORIAS_FINANCEIRO
 } from '../store';
+import { buscarPlaca, mascaraPlaca } from '../utils/mascaras';
 
 const GRUPOS_OPCIONAIS = [
   {
@@ -1040,6 +1041,58 @@ function VeiculoModal({ inicial, clientes, onClose, onSave, onCancelarVeiculo, o
     valor: '',
     status: 'pago'
   });
+  const [buscandoPlaca, setBuscandoPlaca] = useState(false);
+  const [msgPlaca, setMsgPlaca] = useState('');
+
+  const handleConsultarPlacaAuto = async (placaDig) => {
+    const limpo = String(placaDig || f.placa || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 7);
+    if (limpo.length !== 7) return;
+
+    setBuscandoPlaca(true);
+    setMsgPlaca('🔍 Consultando dados do veículo pela placa...');
+    try {
+      const v = await buscarPlaca(limpo);
+      if (v) {
+        setF((prev) => {
+          const anoFab = v.ano ? String(v.ano).slice(0, 4) : prev.ano_fabricacao;
+          const anoMod = v.ano_modelo ? String(v.ano_modelo).slice(-4) : (v.ano ? String(v.ano).slice(-4) : prev.ano_modelo);
+          return {
+            ...prev,
+            placa: limpo,
+            marca: v.marca || prev.marca,
+            modelo: v.modelo || prev.modelo,
+            modelo_complemento: v.versao || prev.modelo_complemento,
+            ano_fabricacao: anoFab || prev.ano_fabricacao,
+            ano_modelo: anoMod || prev.ano_modelo,
+            ano: `${anoFab || prev.ano_fabricacao}/${anoMod || prev.ano_modelo}`,
+            cor: v.cor || prev.cor,
+            combustivel: v.combustivel || prev.combustivel,
+            chassi: v.chassi || prev.chassi,
+            renavam: v.renavam || prev.renavam,
+            fipe: v.fipeValor ? Number(String(v.fipeValor).replace(/[^\d]/g, '')) / 100 : prev.fipe
+          };
+        });
+        setMsgPlaca(`✓ ${v.marca} ${v.modelo} preenchido automaticamente!`);
+        setTimeout(() => setMsgPlaca(''), 5000);
+      } else {
+        setMsgPlaca('Placa não encontrada na base nacional.');
+        setTimeout(() => setMsgPlaca(''), 4000);
+      }
+    } catch (err) {
+      console.warn('Erro ao consultar placa:', err);
+      setMsgPlaca('');
+    } finally {
+      setBuscandoPlaca(false);
+    }
+  };
+
+  const handlePlacaChange = (e) => {
+    const val = mascaraPlaca(e.target.value);
+    setF((prev) => ({ ...prev, placa: val }));
+    if (val.length === 7) {
+      handleConsultarPlacaAuto(val);
+    }
+  };
 
   const set = (k) => (e) => {
     const val = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
@@ -1120,10 +1173,11 @@ function VeiculoModal({ inicial, clientes, onClose, onSave, onCancelarVeiculo, o
   };
 
   const handleUploadFotoLocal = async (e) => {
-    const files = Array.from(e.target.files || []);
+    const rawFiles = e.target?.files || e.dataTransfer?.files || [];
+    const files = Array.from(rawFiles);
     if (!files.length) return;
 
-    setLoadingFotos(`Otimizando e acelerando ${files.length} foto(s)... Aguarde um instante.`);
+    setLoadingFotos(`Otimizando e carregando ${files.length} foto(s)... Aguarde um instante.`);
     try {
       const promises = files.map((file) => comprimirImagem(file));
       const resultados = await Promise.all(promises);
@@ -1137,7 +1191,7 @@ function VeiculoModal({ inicial, clientes, onClose, onSave, onCancelarVeiculo, o
       console.warn('Erro ao processar fotos:', err);
     } finally {
       setLoadingFotos('');
-      e.target.value = '';
+      if (e.target && e.target.value) e.target.value = '';
     }
   };
 
@@ -1276,33 +1330,58 @@ function VeiculoModal({ inicial, clientes, onClose, onSave, onCancelarVeiculo, o
                   Placa: <strong>{f.placa || 'Não informada'}</strong> · Renavam: <strong>{f.renavam || 'Não informado'}</strong>
                 </div>
               </div>
-              <button
-                type="button"
-                className="btn"
-                style={{
-                  background: '#2563eb',
-                  color: '#ffffff',
-                  fontWeight: 700,
-                  border: 'none',
-                  padding: '10px 20px',
-                  borderRadius: 8,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 14px rgba(37,99,235,.4)'
-                }}
-                onClick={() => {
-                  if (!f.placa || !f.renavam) {
-                    alert('Por favor, informe a Placa e o Renavam do veículo para abrir a consulta oficial no DETRAN-SC.');
-                    return;
-                  }
-                  const urlDetran = `https://servicos.detran.sc.gov.br/consulta-dossie-veiculo?placa=${encodeURIComponent(f.placa.trim().toUpperCase())}&renavam=${encodeURIComponent(f.renavam.trim())}`;
-                  window.open(urlDetran, '_blank', 'noopener,noreferrer');
-                }}
-              >
-                <Search size={16} /> Abrir Consulta no DETRAN-SC ↗
-              </button>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="btn"
+                  style={{
+                    background: '#2563eb',
+                    color: '#ffffff',
+                    fontWeight: 700,
+                    border: 'none',
+                    padding: '10px 18px',
+                    borderRadius: 8,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 14px rgba(37,99,235,.4)'
+                  }}
+                  onClick={() => {
+                    if (!f.placa || !f.renavam) {
+                      alert('Por favor, informe a Placa e o Renavam do veículo para abrir a consulta oficial no DETRAN-SC.');
+                      return;
+                    }
+                    const urlDetran = `https://servicos.detran.sc.gov.br/consulta-dossie-veiculo?placa=${encodeURIComponent(f.placa.trim().toUpperCase())}&renavam=${encodeURIComponent(f.renavam.trim())}`;
+                    window.open(urlDetran, '_blank', 'noopener,noreferrer');
+                  }}
+                >
+                  <Search size={16} /> DETRAN-SC ↗
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  style={{
+                    background: '#d97706',
+                    color: '#ffffff',
+                    fontWeight: 700,
+                    border: 'none',
+                    padding: '10px 18px',
+                    borderRadius: 8,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 14px rgba(217,119,6,.4)'
+                  }}
+                  onClick={() => {
+                    window.open('https://www.autolook.com.br/', '_blank', 'noopener,noreferrer');
+                  }}
+                  title="Abrir Autolook para consulta de histórico completo, leilão, sinistro e gravames"
+                >
+                  <ShieldAlert size={16} /> Consulta Leilão (Autolook) ↗
+                </button>
+              </div>
             </div>
 
             {/* CAMPOS PRINCIPAIS RESUMIDOS */}
@@ -1312,15 +1391,48 @@ function VeiculoModal({ inicial, clientes, onClose, onSave, onCancelarVeiculo, o
               </h3>
               <div className="form-grid">
                 <div className="field">
-                  <label>Placa *</label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <label style={{ margin: 0 }}>Placa *</label>
+                    {buscandoPlaca ? (
+                      <span style={{ fontSize: '.72rem', color: '#6d28d9', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        <div className="spinner-sm" style={{ width: 12, height: 12 }} /> Consultando API...
+                      </span>
+                    ) : (
+                      f.placa && f.placa.length === 7 && (
+                        <button
+                          type="button"
+                          onClick={() => handleConsultarPlacaAuto(f.placa)}
+                          style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '.72rem', fontWeight: 700, cursor: 'pointer', padding: 0 }}
+                          title="Recarregar dados do veículo da API"
+                        >
+                          🔄 Buscar via API
+                        </button>
+                      )
+                    )}
+                  </div>
                   <input
                     className="input"
                     maxLength={7}
-                    style={{ textTransform: 'uppercase', fontWeight: 800, fontSize: '1.05rem', letterSpacing: '.08em' }}
+                    style={{
+                      textTransform: 'uppercase',
+                      fontWeight: 800,
+                      fontSize: '1.05rem',
+                      letterSpacing: '.08em',
+                      borderColor: buscandoPlaca ? '#7c3aed' : undefined,
+                      boxShadow: buscandoPlaca ? '0 0 0 2px rgba(124,58,237,.2)' : undefined
+                    }}
                     value={f.placa ?? ''}
-                    onChange={set('placa')}
+                    onChange={handlePlacaChange}
+                    onBlur={(e) => {
+                      if (e.target.value.length === 7) handleConsultarPlacaAuto(e.target.value);
+                    }}
                     placeholder="ABC1D23"
                   />
+                  {msgPlaca && (
+                    <div style={{ fontSize: '.74rem', color: msgPlaca.startsWith('✓') ? 'var(--success)' : '#6d28d9', fontWeight: 700, marginTop: 4 }}>
+                      {msgPlaca}
+                    </div>
+                  )}
                 </div>
                 <div className="field">
                   <label>Renavam *</label>
@@ -2302,7 +2414,54 @@ function VeiculoModal({ inicial, clientes, onClose, onSave, onCancelarVeiculo, o
             </div>
 
             {(f.fotos || []).length === 0 ? (
-              <div className="card empty">Nenhuma foto adicionada ainda. Envie fotos do computador ou cole uma URL acima.</div>
+              <label
+                style={{
+                  border: '2px dashed #7c3aed',
+                  background: '#f5f3ff',
+                  borderRadius: 14,
+                  padding: '52px 24px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 14,
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  transition: 'all .2s ease',
+                  boxShadow: '0 4px 18px rgba(124,58,237,.06)'
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleUploadFotoLocal(e);
+                }}
+              >
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                  onChange={handleUploadFotoLocal}
+                />
+                <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#ede9fe', display: 'grid', placeItems: 'center', color: '#6d28d9', boxShadow: '0 4px 12px rgba(109,40,217,.15)' }}>
+                  <Upload size={32} />
+                </div>
+                <div>
+                  <strong style={{ fontSize: '1.12rem', color: '#5b21b6', display: 'block', marginBottom: 6 }}>
+                    Clique aqui para carregar as fotos do veículo
+                  </strong>
+                  <span style={{ fontSize: '.88rem', color: '#6d28d9', display: 'block', maxWidth: 460, margin: '0 auto' }}>
+                    Ou arraste fotos do computador para cá. Carregamento e otimização automáticos de todas as imagens.
+                  </span>
+                </div>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#7c3aed', color: '#ffffff', fontWeight: 800, padding: '10px 22px', borderRadius: 8, fontSize: '.9rem', boxShadow: '0 4px 12px rgba(124,58,237,.3)' }}>
+                  <Plus size={16} /> Selecionar Fotos Agora
+                </div>
+              </label>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 14 }}>
                 {f.fotos.map((url, idx) => (

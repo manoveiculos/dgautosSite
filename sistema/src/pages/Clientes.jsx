@@ -2,12 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Plus, Search, Users, MessageCircle, Trash2, X, Building2, UserCheck,
   Upload, FileText, CheckCircle2, AlertCircle, Phone, Mail, MapPin, ChevronRight,
-  UserPlus, Smartphone
+  UserPlus, Smartphone, Download, Eye
 } from 'lucide-react';
-import { getClientes, saveCliente, deleteCliente, ORIGENS_LEAD } from '../store';
+import { getClientes, saveCliente, deleteCliente, ORIGENS_LEAD, limparObservacoes } from '../store';
 import { mascaraCpfCnpj, mascaraTelefone, mascaraCep, buscarCep, validarCpfCnpj, buscarCnpj } from '../utils/mascaras';
 
-const EMPTY_CLI = {
+export const EMPTY_CLI = {
   ativo: true,
   is_cliente: true,
   is_fornecedor: false,
@@ -230,8 +230,11 @@ export default function Clientes({ user }) {
 // ==============================================================================
 // FORMULÁRIO COMPLETO DE PESSOAS IDÊNTICO AO ALTIMUS (PRINTS OFICIAIS)
 // ==============================================================================
-function ClienteModalAltimus({ inicial, onClose, onSave, onDelete, user }) {
-  const [f, setF] = useState(inicial);
+export function ClienteModalAltimus({ inicial, onClose, onSave, onDelete, user }) {
+  const [f, setF] = useState(() => ({
+    ...inicial,
+    observacoes: limparObservacoes(inicial?.observacoes || '')
+  }));
   const [erroCpfCnpj, setErroCpfCnpj] = useState('');
   const [buscandoCep, setBuscandoCep] = useState(false);
   const [buscandoCnpj, setBuscandoCnpj] = useState(false);
@@ -359,6 +362,32 @@ function ClienteModalAltimus({ inicial, onClose, onSave, onDelete, user }) {
       ...prev,
       documentos: (prev.documentos || []).filter((_, idx) => idx !== index)
     }));
+  };
+
+  const handleBaixarDocumento = (doc) => {
+    if (!doc.url) {
+      alert('Arquivo não disponível para download.');
+      return;
+    }
+    const a = document.createElement('a');
+    a.href = doc.url;
+    a.download = doc.nome || 'documento';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  const handleVisualizarDocumento = (doc) => {
+    if (!doc.url) {
+      alert('Arquivo não disponível para visualização.');
+      return;
+    }
+    const w = window.open('');
+    if (doc.tipo && doc.tipo.startsWith('image/')) {
+      w.document.write(`<html><head><title>${doc.nome}</title></head><body style="margin:0;background:#0f172a;display:flex;justify-content:center;align-items:center;min-height:100vh;"><img src="${doc.url}" style="max-width:100%;max-height:100vh;object-fit:contain;box-shadow:0 10px 30px rgba(0,0,0,0.5);border-radius:6px;" alt="${doc.nome}"/></body></html>`);
+    } else {
+      w.location.href = doc.url;
+    }
   };
 
   // ADICIONAR MAIS CONTATOS DINAMICAMENTE (SOLICITAÇÃO DO USUÁRIO)
@@ -1004,30 +1033,68 @@ function ClienteModalAltimus({ inicial, onClose, onSave, onDelete, user }) {
           </label>
 
           {(f.documentos || []).length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 14 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}>
               {f.documentos.map((doc, idx) => (
                 <div
                   key={idx}
                   style={{
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    padding: '8px 14px', background: '#f8fafc', border: '1px solid var(--border)', borderRadius: 6
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '10px 14px',
+                    background: '#f8fafc',
+                    border: '1px solid var(--border)',
+                    borderRadius: 8
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <FileText size={18} style={{ color: '#5d35b0' }} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    {doc.tipo && doc.tipo.startsWith('image/') ? (
+                      <div
+                        onClick={() => handleVisualizarDocumento(doc)}
+                        style={{ width: 44, height: 44, borderRadius: 6, overflow: 'hidden', border: '1px solid #cbd5e1', cursor: 'pointer', flexShrink: 0 }}
+                        title="Clique para visualizar anexo"
+                      >
+                        <img src={doc.url} alt={doc.nome} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      </div>
+                    ) : (
+                      <div style={{ width: 44, height: 44, borderRadius: 6, background: '#ede9fe', display: 'grid', placeItems: 'center', color: '#6d28d9', flexShrink: 0 }}>
+                        <FileText size={22} />
+                      </div>
+                    )}
                     <div>
-                      <strong style={{ fontSize: '.86rem' }}>{doc.nome}</strong>
-                      <div style={{ fontSize: '.74rem', color: 'var(--muted)' }}>{doc.tamanho} · Anexado em {doc.data}</div>
+                      <strong style={{ fontSize: '.88rem', color: 'var(--text)', display: 'block' }}>{doc.nome}</strong>
+                      <div style={{ fontSize: '.76rem', color: 'var(--muted)' }}>{doc.tamanho} · Anexado em {doc.data}</div>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-danger"
-                    onClick={() => removerDocumento(idx)}
-                    title="Remover documento"
-                  >
-                    <Trash2 size={13} />
-                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-primary"
+                      onClick={() => handleBaixarDocumento(doc)}
+                      title="Baixar arquivo no computador"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', fontSize: '.82rem', fontWeight: 700 }}
+                    >
+                      <Download size={14} /> Baixar
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      onClick={() => handleVisualizarDocumento(doc)}
+                      title="Visualizar anexo em tela cheia"
+                      style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', fontSize: '.82rem', fontWeight: 600 }}
+                    >
+                      <Eye size={14} /> Ver
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-danger"
+                      onClick={() => removerDocumento(idx)}
+                      title="Remover documento"
+                      style={{ height: 32, width: 32, padding: 0, display: 'inline-grid', placeItems: 'center' }}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1084,4 +1151,3 @@ function ClienteModalAltimus({ inicial, onClose, onSave, onDelete, user }) {
     </div>
   );
 }
-export { ClienteModalAltimus };
