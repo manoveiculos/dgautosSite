@@ -1,28 +1,40 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Plus, Search, ArrowUpCircle, ArrowDownCircle, Wallet, CheckCircle2,
-  Trash2, X, Car, BarChart3, Wrench, Users, Download, Printer, DollarSign,
-  TrendingUp, Calendar, AlertCircle
+  Search, Plus, Filter, Calendar, CheckCircle2, Trash2, X, ChevronDown,
+  ArrowUpCircle, ArrowDownCircle, Wallet, Car, BarChart3, Users, Download,
+  Printer, DollarSign, AlertCircle, ChevronRight, Bookmark
 } from 'lucide-react';
 import {
   getFinanceiro, saveFinanceiro, baixarFinanceiro, deleteFinanceiro, pagarComissao,
-  getVeiculos, getClientes, getNegociacoes, getUsuarios,
+  getVeiculos, getClientes, saveCliente, getNegociacoes, getUsuarios,
   brl, dataBr, CATEGORIAS_FINANCEIRO, STATUS
 } from '../store';
 
+const REVE_PADRAO = ['DG Automóveis', 'Raccar Manos Veículos', 'Matriz'];
+
 const EMPTY_FIN = {
-  tipo: 'despesa',
-  categoria: 'Preparação / Estética',
-  descricao: '',
-  valor: '',
+  id: null,
+  revenda: 'DG Automóveis',
+  tipo: 'despesa', // despesa | receita
+  emissao: new Date().toISOString().slice(0, 10),
   vencimento: new Date().toISOString().slice(0, 10),
-  pagamento_data: '',
-  status: 'pendente',
-  forma_pagamento: 'Pix / TED',
-  conta_bancaria: 'Itaú Empresas',
-  veiculo_id: '',
   cliente_id: '',
-  negociacao_id: ''
+  cliente_nome: '',
+  numero_documento: '',
+  veiculo_id: '',
+  veiculo_desc: '',
+  descricao: '',
+  forma_pagamento: 'Pix / TED',
+  categoria: 'Preparação / Estética',
+  conta: 'Itaú Empresas',
+  conta_financeira: 'Conta Corrente Principal',
+  valor: '',
+  status: 'pendente', // pendente | pago
+  quitado: false,
+  valor_quitacao: '',
+  data_quitacao: '',
+  agendado: false,
+  observacao: ''
 };
 
 export default function Financeiro({ user }) {
@@ -31,18 +43,36 @@ export default function Financeiro({ user }) {
   const [clientes, setClientes] = useState([]);
   const [negociacoes, setNegociacoes] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
-  const [aba, setAba] = useState('titulos'); // titulos | comissoes | lucro_veiculos | dre
-  const [busca, setBusca] = useState('');
-  const [filtroTipo, setFiltroTipo] = useState('');
-  const [filtroStatus, setFiltroStatus] = useState('');
-  const [filtroVendedor, setFiltroVendedor] = useState('');
-  const [filtroPeriodoDre, setFiltroPeriodoDre] = useState('mes_atual');
-  const [editando, setEditando] = useState(null);
+  const [visualizacao, setVisualizacao] = useState('contas'); // contas | novo_titulo | comissoes | lucro_veiculos | dre
+  const [selecionados, setSelecionados] = useState([]);
+  const [modalAvancada, setModalAvancada] = useState(false);
   const [loadingMsg, setLoadingMsg] = useState('');
+
+  // Filtros da barra principal (Print 2 Altimus)
+  const [filtroCliente, setFiltroCliente] = useState('');
+  const [filtroDescricao, setFiltroDescricao] = useState('');
+  const [filtroVeiculo, setFiltroVeiculo] = useState('');
+  const [filtroVencimento, setFiltroVencimento] = useState('');
+
+  // Filtros da pesquisa avançada (Print 4 Altimus)
+  const [filtroAvancado, setFiltroAvancado] = useState({
+    revenda: '',
+    tipo: '',
+    id: '',
+    data_emissao: '',
+    data_quitacao: '',
+    status_titulo: '', // '' = todos, 'sem_baixa', 'com_baixa'
+    etiqueta: '',
+    forma_pagamento: '',
+    valor_min: '',
+    valor_max: ''
+  });
+
+  const [editando, setEditando] = useState(null);
 
   const recarregar = async () => {
     try {
-      setLoadingMsg('Carregando dados financeiros e comissões...');
+      setLoadingMsg('Carregando dados financeiros...');
       const [resFin, resVeic, resCli, resNegs, resUs] = await Promise.all([
         getFinanceiro(),
         getVeiculos(),
@@ -66,118 +96,213 @@ export default function Financeiro({ user }) {
     recarregar();
   }, []);
 
+  // FILTRAGEM DE TÍTULOS (ESTILO ALTIMUS)
   const filtrados = useMemo(() => {
     const arr = Array.isArray(lista) ? lista : [];
-    return arr.filter((f) => {
-      if (!f) return false;
-      if (filtroTipo && f.tipo !== filtroTipo) return false;
-      if (filtroStatus && f.status !== filtroStatus) return false;
-      const termo = `${f.descricao || ''} ${f.categoria || ''} ${f.veic_modelo || ''} ${f.veic_placa || ''} ${f.cliente_nome || ''}`.toLowerCase();
-      return termo.includes(busca.toLowerCase());
-    });
-  }, [lista, busca, filtroTipo, filtroStatus]);
+    return arr.filter((item) => {
+      if (!item) return false;
 
-  const resumoGeral = useMemo(() => {
-    const arr = Array.isArray(lista) ? lista : [];
-    const recPagas = arr.filter((f) => f.tipo === 'receita' && f.status === 'pago').reduce((s, f) => s + (Number(f.valor) || 0), 0);
-    const despPagas = arr.filter((f) => f.tipo === 'despesa' && f.status === 'pago').reduce((s, f) => s + (Number(f.valor) || 0), 0);
-    const aReceber = arr.filter((f) => f.tipo === 'receita' && f.status !== 'pago').reduce((s, f) => s + (Number(f.valor) || 0), 0);
-    const aPagar = arr.filter((f) => f.tipo === 'despesa' && f.status !== 'pago').reduce((s, f) => s + (Number(f.valor) || 0), 0);
-    return { recPagas, despPagas, saldo: recPagas - despPagas, aReceber, aPagar };
-  }, [lista]);
-
-  // RELATÓRIO DE COMISSÕES DE VENDEDORES
-  const relatorioComissoes = useMemo(() => {
-    const comissoesPagasNoFin = lista.filter((f) => f.tipo === 'despesa' && f.categoria === 'Comissão' && f.status === 'pago');
-    const negsValidas = negociacoes.filter((n) => n.status !== 'cancelada');
-
-    return negsValidas.map((n) => {
-      const veic = veiculos.find((v) => v.id === n.veiculo_id) || {};
-      const cli = clientes.find((c) => c.id === n.cliente_id) || {};
-      const despVeic = Number(veic.despesas_veiculo || 0);
-      const custoTotalLoja = Number(veic.custo || 0) + despVeic;
-      const valorVenda = Number(n.valor_veiculo || veic.preco || 0);
-      const lucroBrutoCarro = valorVenda - custoTotalLoja;
-
-      // Se comissao_vendedor já estiver preenchida no contrato, usa ela; senão calcula 10% sobre o lucro ou R$ 800 padrão
-      let comissao = Number(n.comissao_vendedor || 0);
-      if (comissao === 0 && lucroBrutoCarro > 0) {
-        comissao = Math.round(lucroBrutoCarro * 0.10); // 10% sobre o lucro
+      // Filtros da barra rápida
+      if (filtroCliente) {
+        const cTerm = filtroCliente.toLowerCase();
+        const cliMatch = (item.cliente_nome || '').toLowerCase().includes(cTerm);
+        if (!cliMatch) return false;
       }
 
-      // Verifica se já existe despesa de comissão vinculada paga
-      const jaPaga = comissoesPagasNoFin.some((f) => Number(f.negociacao_id) === Number(n.id) || f.descricao?.includes(`Venda #${n.id}`));
-
-      // Vendedor: prioriza nome do vendedor_id, depois nome no CRM ou usuário
-      const vendObj = usuarios.find((u) => u.id === n.vendedor_id);
-      const vendedorNome = vendObj?.nome || n.vendedor_nome || n.responsavel || 'Equipe DG Autos';
-
-      return {
-        negociacao_id: n.id,
-        data: n.data_negociacao || n.criado_em?.slice(0, 10) || new Date().toISOString().slice(0, 10),
-        vendedor_nome: vendedorNome,
-        veiculo_desc: `${n.veic_marca || veic.marca || ''} ${n.veic_modelo || veic.modelo || ''} (${n.veic_placa || veic.placa || 'Sem placa'})`.trim(),
-        cliente_nome: n.cliente_nome || cli.nome || 'Cliente não identificado',
-        valor_venda: valorVenda,
-        custo_loja: custoTotalLoja,
-        lucro_bruto: lucroBrutoCarro,
-        comissao_valor: comissao,
-        status_comissao: jaPaga ? 'pago' : 'pendente',
-        negociacao_status: n.status
-      };
-    });
-  }, [negociacoes, veiculos, clientes, usuarios, lista]);
-
-  const comissoesFiltradas = useMemo(() => {
-    return relatorioComissoes.filter((c) => {
-      if (filtroVendedor && c.vendedor_nome !== filtroVendedor) return false;
-      if (busca) {
-        const termo = `${c.vendedor_nome} ${c.veiculo_desc} ${c.cliente_nome} #${c.negociacao_id}`.toLowerCase();
-        if (!termo.includes(busca.toLowerCase())) return false;
+      if (filtroDescricao) {
+        const dTerm = filtroDescricao.toLowerCase();
+        const descMatch = (item.descricao || '').toLowerCase().includes(dTerm);
+        if (!descMatch) return false;
       }
+
+      if (filtroVeiculo) {
+        const vTerm = filtroVeiculo.toLowerCase();
+        const veicText = `${item.veic_marca || ''} ${item.veic_modelo || ''} ${item.veic_placa || ''}`.toLowerCase();
+        if (!veicText.includes(vTerm)) return false;
+      }
+
+      if (filtroVencimento && item.vencimento !== filtroVencimento) {
+        return false;
+      }
+
+      // Filtros avançados
+      if (filtroAvancado.tipo && item.tipo !== filtroAvancado.tipo) return false;
+      if (filtroAvancado.id && String(item.id) !== String(filtroAvancado.id)) return false;
+      if (filtroAvancado.etiqueta && item.categoria !== filtroAvancado.etiqueta) return false;
+      if (filtroAvancado.forma_pagamento && item.forma_pagamento !== filtroAvancado.forma_pagamento) return false;
+
+      if (filtroAvancado.status_titulo === 'sem_baixa' && item.status === 'pago') return false;
+      if (filtroAvancado.status_titulo === 'com_baixa' && item.status !== 'pago') return false;
+
+      if (filtroAvancado.valor_min && Number(item.valor) < Number(filtroAvancado.valor_min)) return false;
+      if (filtroAvancado.valor_max && Number(item.valor) > Number(filtroAvancado.valor_max)) return false;
+
       return true;
     });
-  }, [relatorioComissoes, filtroVendedor, busca]);
+  }, [lista, filtroCliente, filtroDescricao, filtroVeiculo, filtroVencimento, filtroAvancado]);
 
-  const resumoComissoes = useMemo(() => {
-    const totalGerado = comissoesFiltradas.reduce((s, c) => s + c.comissao_valor, 0);
-    const totalPago = comissoesFiltradas.filter((c) => c.status_comissao === 'pago').reduce((s, c) => s + c.comissao_valor, 0);
-    const saldoPendente = totalGerado - totalPago;
-    const totalVendas = comissoesFiltradas.length;
-    return { totalGerado, totalPago, saldoPendente, totalVendas };
-  }, [comissoesFiltradas]);
+  // TOTAIS DAS CONTAS SELECIONADAS (RODAPÉ ALTIMUS)
+  const totaisSelecionados = useMemo(() => {
+    const itens = filtrados.filter((f) => selecionados.includes(f.id));
+    const aReceber = itens.filter((f) => f.tipo === 'receita' && f.status !== 'pago').reduce((s, f) => s + (Number(f.valor) || 0), 0);
+    const aPagar = itens.filter((f) => f.tipo === 'despesa' && f.status !== 'pago').reduce((s, f) => s + (Number(f.valor) || 0), 0);
+    const total = itens.reduce((s, f) => s + (Number(f.valor) || 0), 0);
+    const quitadas = itens.filter((f) => f.status === 'pago').reduce((s, f) => s + (Number(f.valor) || 0), 0);
+    return { aReceber, aPagar, total, quitadas };
+  }, [filtrados, selecionados]);
 
-  const handlePagarComissao = async (item) => {
-    if (!confirm(`Confirmar o pagamento de comissão de ${brl(item.comissao_valor)} para ${item.vendedor_nome} (Venda #${item.negociacao_id})?`)) {
-      return;
+  const toggleSelecionarTudo = () => {
+    if (selecionados.length === filtrados.length) {
+      setSelecionados([]);
+    } else {
+      setSelecionados(filtrados.map((f) => f.id));
     }
+  };
+
+  const toggleSelecionar = (id) => {
+    setSelecionados((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  };
+
+  const handleQuitarSelecionados = async () => {
+    if (selecionados.length === 0) return;
+    if (!confirm(`Confirmar a quitação de ${selecionados.length} conta(s) selecionada(s)?`)) return;
     try {
-      setLoadingMsg('Registrando pagamento da comissão no financeiro...');
-      await pagarComissao({
-        negociacao_id: item.negociacao_id,
-        valor: item.comissao_valor,
-        vendedor_nome: item.vendedor_nome,
-        veiculo_desc: item.veiculo_desc
-      });
+      setLoadingMsg('Quitando contas selecionadas...');
+      for (const id of selecionados) {
+        await baixarFinanceiro(id);
+      }
       await recarregar();
-      alert('✓ Comissão paga com sucesso! Lançamento de despesa registrado no caixa.');
+      setSelecionados([]);
+      alert('✓ Contas quitadas com sucesso!');
     } catch (e) {
-      alert('Erro ao pagar comissão: ' + e.message);
+      alert('Erro ao quitar: ' + e.message);
     } finally {
       setLoadingMsg('');
     }
   };
 
-  const exportarCsv = (nomeArquivo, cabecalho, linhas) => {
-    const conteudo = `\uFEFF${cabecalho}\n${linhas.join('\n')}`;
-    const blob = new Blob([conteudo], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `${nomeArquivo}_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleExcluirSelecionados = async () => {
+    if (selecionados.length === 0) return;
+    if (!confirm(`Deseja excluir ${selecionados.length} conta(s) selecionada(s)?`)) return;
+    try {
+      setLoadingMsg('Excluindo contas...');
+      for (const id of selecionados) {
+        await deleteFinanceiro(id);
+      }
+      await recarregar();
+      setSelecionados([]);
+      alert('✓ Contas excluídas com sucesso!');
+    } catch (e) {
+      alert('Erro ao excluir: ' + e.message);
+    } finally {
+      setLoadingMsg('');
+    }
+  };
+
+  const abrirNovoTitulo = () => {
+    setEditando({ ...EMPTY_FIN });
+    setVisualizacao('novo_titulo');
+  };
+
+  const abrirEdicaoTitulo = (item) => {
+    setEditando({
+      ...EMPTY_FIN,
+      ...item,
+      quitado: item.status === 'pago',
+      cliente_nome: item.cliente_nome || '',
+      veiculo_desc: item.veic_modelo ? `${item.veic_marca || ''} ${item.veic_modelo} (${item.veic_placa || ''})` : ''
+    });
+    setVisualizacao('novo_titulo');
+  };
+
+  const salvarTitulo = async (dados) => {
+    // Validação estrita do Altimus: Cliente/Fornecedor é OBRIGATÓRIO!
+    if (!dados.cliente_nome?.trim()) {
+      alert('O campo Cliente/Fornecedor é obrigatório.');
+      return;
+    }
+    if (!dados.descricao?.trim()) {
+      alert('O campo Descrição é obrigatório.');
+      return;
+    }
+    if (!dados.valor || Number(dados.valor) <= 0) {
+      alert('Informe um Valor total válido.');
+      return;
+    }
+
+    try {
+      setLoadingMsg('Salvando conta a pagar/receber no banco...');
+
+      // 1. Resolver o cliente_id: se for novo digitado, cria ou localiza em clientes_DGAUTOS
+      let clienteIdFinal = dados.cliente_id;
+      if (!clienteIdFinal && dados.cliente_nome?.trim()) {
+        const achado = clientes.find((c) => c.nome.toLowerCase() === dados.cliente_nome.trim().toLowerCase());
+        if (achado) {
+          clienteIdFinal = achado.id;
+        } else {
+          const novosClientes = await saveCliente({
+            nome: dados.cliente_nome.trim(),
+            tipo_pessoa: 'PF',
+            papel: dados.tipo === 'despesa' ? 'fornecedor' : 'cliente',
+            cidade: 'Rio do Sul',
+            uf: 'SC',
+            observacoes: 'Cadastrado automaticamente via Financeiro Altimus'
+          });
+          clienteIdFinal = novosClientes.savedItem?.id || novosClientes[0]?.id || null;
+        }
+      }
+
+      // 2. Resolver o veículo: opcional
+      let veiculoIdFinal = dados.veiculo_id || null;
+
+      // 3. Montar descrição com número de documento se informado
+      let descFinal = dados.descricao.trim();
+      if (dados.numero_documento?.trim()) {
+        descFinal = `${descFinal} (Doc: ${dados.numero_documento.trim()})`;
+      }
+
+      const payload = {
+        id: dados.id,
+        tipo: dados.tipo || 'despesa',
+        categoria: dados.categoria || 'Outros',
+        descricao: descFinal,
+        valor: Number(dados.valor),
+        vencimento: dados.vencimento,
+        status: dados.quitado ? 'pago' : 'pendente',
+        pagamento_data: dados.quitado ? (dados.data_quitacao || new Date().toISOString().slice(0, 10)) : null,
+        forma_pagamento: dados.forma_pagamento || 'Pix / TED',
+        conta_bancaria: dados.conta || 'Conta Principal',
+        veiculo_id: veiculoIdFinal,
+        cliente_id: clienteIdFinal,
+        cliente_nome: dados.cliente_nome.trim()
+      };
+
+      await saveFinanceiro(payload);
+      await recarregar();
+      setVisualizacao('contas');
+      setEditando(null);
+      alert('✓ Conta salva com sucesso!');
+    } catch (err) {
+      alert('Erro ao salvar conta: ' + err.message);
+    } finally {
+      setLoadingMsg('');
+    }
+  };
+
+  const excluirTitulo = async (id) => {
+    if (!confirm('Deseja realmente excluir este título financeiro?')) return;
+    try {
+      setLoadingMsg('Excluindo título...');
+      await deleteFinanceiro(id);
+      await recarregar();
+      setVisualizacao('contas');
+      setEditando(null);
+      alert('✓ Título excluído com sucesso!');
+    } catch (err) {
+      alert('Erro ao excluir: ' + err.message);
+    } finally {
+      setLoadingMsg('');
+    }
   };
 
   return (
@@ -189,437 +314,995 @@ export default function Financeiro({ user }) {
         </div>
       )}
 
-      <header className="topbar">
-        <div>
-          <h1>Financeiro, Comissões de Vendedores & DRE</h1>
-          <p>Controle financeiro integrado: contas a pagar/receber, conciliação por carro, comissões de equipe e DRE gerencial.</p>
-        </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <div className="tabs">
-            <button className={`tab ${aba === 'titulos' ? 'active' : ''}`} onClick={() => setAba('titulos')}>
-              <Wallet size={15} />Títulos Financeiros
-            </button>
-            <button className={`tab ${aba === 'comissoes' ? 'active' : ''}`} onClick={() => setAba('comissoes')}>
-              <Users size={15} />Comissões de Vendedores
-            </button>
-            <button className={`tab ${aba === 'lucro_veiculos' ? 'active' : ''}`} onClick={() => setAba('lucro_veiculos')}>
-              <Car size={15} />Lucro Real por Veículo
-            </button>
-            <button className={`tab ${aba === 'dre' ? 'active' : ''}`} onClick={() => setAba('dre')}>
-              <BarChart3 size={15} />DRE da Loja
-            </button>
-          </div>
-          <button id="btn-novo-lancamento" className="btn btn-primary" onClick={() => setEditando(EMPTY_FIN)}>
-            <Plus size={16} />Novo Lançamento
-          </button>
-        </div>
-      </header>
-
-      {/* CARDS RESUMO DO TOPO */}
-      {aba !== 'comissoes' ? (
-        <section className="stats">
-          <div className="card stat">
-            <div className="stat-label"><ArrowUpCircle size={16} style={{ color: 'var(--success)' }} />Receitas Recebidas</div>
-            <div className="stat-value" style={{ color: 'var(--success)' }}>{brl(resumoGeral.recPagas)}</div>
-            <div className="stat-sub">A receber: {brl(resumoGeral.aReceber)}</div>
-          </div>
-          <div className="card stat">
-            <div className="stat-label"><ArrowDownCircle size={16} style={{ color: 'var(--danger)' }} />Despesas Pagas</div>
-            <div className="stat-value" style={{ color: 'var(--danger)' }}>{brl(resumoGeral.despPagas)}</div>
-            <div className="stat-sub">A pagar: {brl(resumoGeral.aPagar)}</div>
-          </div>
-          <div className="card stat">
-            <div className="stat-label"><Wallet size={16} />Saldo de Caixa Realizado</div>
-            <div className="stat-value" style={{ color: resumoGeral.saldo >= 0 ? 'var(--text)' : 'var(--danger)' }}>{brl(resumoGeral.saldo)}</div>
-            <div className="stat-sub">Fluxo líquido em conta</div>
-          </div>
-        </section>
-      ) : (
-        <section className="stats">
-          <div className="card stat">
-            <div className="stat-label"><DollarSign size={16} style={{ color: 'var(--primary)' }} />Comissões Geradas</div>
-            <div className="stat-value" style={{ color: 'var(--primary)' }}>{brl(resumoComissoes.totalGerado)}</div>
-            <div className="stat-sub">{resumoComissoes.totalVendas} vendas computadas</div>
-          </div>
-          <div className="card stat">
-            <div className="stat-label"><CheckCircle2 size={16} style={{ color: 'var(--success)' }} />Comissões Já Pagas</div>
-            <div className="stat-value" style={{ color: 'var(--success)' }}>{brl(resumoComissoes.totalPago)}</div>
-            <div className="stat-sub">Baixadas no caixa da loja</div>
-          </div>
-          <div className="card stat">
-            <div className="stat-label"><AlertCircle size={16} style={{ color: 'var(--warning)' }} />Saldo a Pagar</div>
-            <div className="stat-value" style={{ color: 'var(--warning)' }}>{brl(resumoComissoes.saldoPendente)}</div>
-            <div className="stat-sub">Pendente para a equipe</div>
-          </div>
-        </section>
+      {/* TELA DE CADASTRO / EDIÇÃO DE TÍTULO (PRINT 3 ALTIMUS) */}
+      {visualizacao === 'novo_titulo' && editando && (
+        <NovoTituloForm
+          inicial={editando}
+          veiculos={veiculos}
+          clientes={clientes}
+          onClose={() => { setVisualizacao('contas'); setEditando(null); }}
+          onSave={salvarTitulo}
+          onDelete={excluirTitulo}
+        />
       )}
 
-      {/* ABA 1: TÍTULOS FINANCEIROS */}
-      {aba === 'titulos' && (
-        <>
-          <div className="toolbar" style={{ flexWrap: 'wrap', gap: 10 }}>
-            <div style={{ position: 'relative', flex: 1, minWidth: 260 }}>
-              <Search size={16} style={{ position: 'absolute', left: 12, top: 12, color: 'var(--muted)' }} />
-              <input
-                className="input"
-                style={{ paddingLeft: 36 }}
-                placeholder="Buscar descrição, veículo, placa, categoria…"
-                value={busca}
-                onChange={(e) => setBusca(e.target.value)}
-              />
+      {/* TELA DE LISTAGEM DE CONTAS A PAGAR / RECEBER (PRINT 2 ALTIMUS) */}
+      {visualizacao === 'contas' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Breadcrumb Altimus */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '.92rem', color: 'var(--muted)' }}>
+              <span>Financeiro</span>
+              <ChevronRight size={14} />
+              <strong style={{ color: 'var(--text)' }}>Contas a Pagar/Receber</strong>
+              <Bookmark size={15} style={{ color: '#5d35b0', cursor: 'pointer' }} />
             </div>
-            <select className="select" style={{ maxWidth: 180 }} value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)}>
-              <option value="">Receitas e Despesas</option>
-              <option value="receita">Somente Receitas</option>
-              <option value="despesa">Somente Despesas</option>
-            </select>
-            <select className="select" style={{ maxWidth: 180 }} value={filtroStatus} onChange={(e) => setFiltroStatus(e.target.value)}>
-              <option value="">Todos os status</option>
-              <option value="pendente">Pendente</option>
-              <option value="pago">Pago / Recebido</option>
-              <option value="atrasado">Atrasado</option>
-            </select>
-            <button
-              className="btn"
-              onClick={() => {
-                const cab = 'Vencimento;Tipo;Categoria;Descricao;Veiculo;Valor;Status;FormaPagamento;Conta';
-                const lins = filtrados.map((f) =>
-                  `"${f.vencimento}";"${f.tipo}";"${f.categoria}";"${f.descricao}";"${f.veic_modelo || ''} ${f.veic_placa || ''}";"${f.valor}";"${f.status}";"${f.forma_pagamento || ''}";"${f.conta_bancaria || ''}"`
-                );
-                exportarCsv('titulos_financeiros', cab, lins);
-              }}
-              title="Exportar planilha CSV"
-            >
-              <Download size={15} />Exportar CSV
-            </button>
+
+            {/* Alternador de Módulos Financeiros */}
+            <div className="tabs" style={{ margin: 0 }}>
+              <button className="tab active" onClick={() => setVisualizacao('contas')}>
+                <Wallet size={15} />Contas a Pagar/Receber
+              </button>
+              <button className="tab" onClick={() => setVisualizacao('comissoes')}>
+                <Users size={15} />Comissões
+              </button>
+              <button className="tab" onClick={() => setVisualizacao('lucro_veiculos')}>
+                <Car size={15} />Lucro por Veículo
+              </button>
+              <button className="tab" onClick={() => setVisualizacao('dre')}>
+                <BarChart3 size={15} />DRE
+              </button>
+            </div>
           </div>
 
-          <div className="card table-wrap">
-            <table className="table">
+          {/* BARRA DE FILTROS SUPERIOR (EXATAMENTE COMO NO PRINT 2) */}
+          <div className="card" style={{ padding: '10px 14px', background: '#ffffff', borderRadius: 8, border: '1px solid var(--border)', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ position: 'relative', flex: '1.2', minWidth: 200 }}>
+              <label style={{ fontSize: '.72rem', color: 'var(--muted)', display: 'block', marginBottom: 2 }}>Cliente/Fornecedor</label>
+              <div style={{ position: 'relative' }}>
+                <Search size={14} style={{ position: 'absolute', left: 10, top: 10, color: 'var(--muted)' }} />
+                <input
+                  className="input"
+                  style={{ paddingLeft: 30, height: 36, fontSize: '.84rem' }}
+                  placeholder="Nome ou CPF/CNPJ do c..."
+                  value={filtroCliente}
+                  onChange={(e) => setFiltroCliente(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div style={{ flex: '1.2', minWidth: 180 }}>
+              <label style={{ fontSize: '.72rem', color: 'var(--muted)', display: 'block', marginBottom: 2 }}>Descrição</label>
+              <input
+                className="input"
+                style={{ height: 36, fontSize: '.84rem' }}
+                placeholder="Descrição"
+                value={filtroDescricao}
+                onChange={(e) => setFiltroDescricao(e.target.value)}
+              />
+            </div>
+
+            <div style={{ position: 'relative', flex: '1.2', minWidth: 200 }}>
+              <label style={{ fontSize: '.72rem', color: 'var(--muted)', display: 'block', marginBottom: 2 }}>Veículo</label>
+              <div style={{ position: 'relative' }}>
+                <Search size={14} style={{ position: 'absolute', left: 10, top: 10, color: 'var(--muted)' }} />
+                <input
+                  className="input"
+                  style={{ paddingLeft: 30, height: 36, fontSize: '.84rem' }}
+                  placeholder="Pesquise por placa, chas..."
+                  value={filtroVeiculo}
+                  onChange={(e) => setFiltroVeiculo(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div style={{ flex: '1', minWidth: 150 }}>
+              <label style={{ fontSize: '.72rem', color: 'var(--muted)', display: 'block', marginBottom: 2 }}>Data vencimento</label>
+              <input
+                type="date"
+                className="input"
+                style={{ height: 36, fontSize: '.84rem' }}
+                value={filtroVencimento}
+                onChange={(e) => setFiltroVencimento(e.target.value)}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end', marginTop: 16 }}>
+              <button
+                type="button"
+                className="btn btn-icon"
+                title="Pesquisa Avançada"
+                onClick={() => setModalAvancada(true)}
+                style={{ height: 36, width: 36, borderColor: '#5d35b0', color: '#5d35b0' }}
+              >
+                <Filter size={16} />
+              </button>
+              <button
+                type="button"
+                className="btn btn-icon"
+                title="Limpar Filtros"
+                onClick={() => {
+                  setFiltroCliente('');
+                  setFiltroDescricao('');
+                  setFiltroVeiculo('');
+                  setFiltroVencimento('');
+                  setFiltroAvancado({
+                    revenda: '', tipo: '', id: '', data_emissao: '', data_quitacao: '',
+                    status_titulo: '', etiqueta: '', forma_pagamento: '', valor_min: '', valor_max: ''
+                  });
+                }}
+                style={{ height: 36, width: 36 }}
+              >
+                ...
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={abrirNovoTitulo}
+                style={{ height: 36, background: '#4a148c', color: '#ffffff', fontWeight: 700, padding: '0 16px' }}
+              >
+                Novo
+              </button>
+            </div>
+          </div>
+
+          {/* TABELA DE CONTAS (PRINT 2 ALTIMUS) */}
+          <div className="card table-wrap" style={{ background: '#ffffff', borderRadius: 8, border: '1px solid var(--border)' }}>
+            <table className="table" style={{ margin: 0 }}>
               <thead>
-                <tr>
-                  <th>Vencimento</th>
-                  <th>Tipo / Categoria</th>
+                <tr style={{ background: '#f8fafc' }}>
+                  <th style={{ width: 40, textAlign: 'center' }}>
+                    <input
+                      type="checkbox"
+                      checked={filtrados.length > 0 && selecionados.length === filtrados.length}
+                      onChange={toggleSelecionarTudo}
+                      style={{ cursor: 'pointer' }}
+                    />
+                  </th>
+                  <th>ID ↑</th>
+                  <th>Vencimento ↑</th>
+                  <th>Cliente/Fornecedor</th>
                   <th>Descrição</th>
-                  <th>Veículo Vinculado</th>
-                  <th>Forma / Conta</th>
-                  <th>Valor</th>
-                  <th>Status</th>
-                  <th>Baixa</th>
+                  <th>Valor ↑↓</th>
+                  <th>Valor quitação ↑↓</th>
+                  <th>Data quitação ↑</th>
                 </tr>
               </thead>
               <tbody>
                 {filtrados.length === 0 ? (
                   <tr>
-                    <td colSpan={8} style={{ textAlign: 'center', padding: '30px 0', color: 'var(--muted)' }}>
-                      Nenhum título encontrado com os filtros atuais.
+                    <td colSpan={8} style={{ textAlign: 'center', padding: '40px 0', color: 'var(--muted)', fontSize: '.9rem' }}>
+                      Não foram encontradas informações nessa pesquisa.
                     </td>
                   </tr>
                 ) : (
-                  filtrados.map((f) => (
-                    <tr key={f.id} onClick={() => setEditando(f)} style={{ cursor: 'pointer' }}>
-                      <td>{dataBr(f.vencimento)}</td>
-                      <td>
-                        <span className={`badge badge-${f.tipo}`}>{f.tipo === 'receita' ? 'Receita' : 'Despesa'}</span>
-                        <div style={{ fontSize: '.76rem', color: 'var(--muted)', marginTop: 3 }}>{f.categoria}</div>
-                      </td>
-                      <td>
-                        <strong>{f.descricao}</strong>
-                        {f.cliente_nome && <div style={{ fontSize: '.75rem', color: 'var(--muted)' }}>Pessoa: {f.cliente_nome}</div>}
-                      </td>
-                      <td>
-                        {f.veic_modelo ? `${f.veic_marca} ${f.veic_modelo} (${f.veic_placa || ''})` : 'Geral / Loja'}
-                      </td>
-                      <td>
-                        {f.forma_pagamento}
-                        <div style={{ fontSize: '.75rem', color: 'var(--muted)' }}>{f.conta_bancaria}</div>
-                      </td>
-                      <td>
-                        <strong style={{ color: f.tipo === 'receita' ? 'var(--success)' : 'var(--danger)' }}>
-                          {f.tipo === 'receita' ? '+' : '-'} {brl(f.valor)}
-                        </strong>
-                      </td>
-                      <td><span className={`badge badge-${f.status}`}>{f.status.toUpperCase()}</span></td>
-                      <td onClick={(e) => e.stopPropagation()}>
-                        {f.status !== 'pago' ? (
-                          <button
-                            className="btn btn-sm btn-success"
-                            onClick={async () => {
-                              try {
-                                setLoadingMsg('Dando baixa no título...');
-                                setLista(await baixarFinanceiro(f.id));
-                              } finally {
-                                setLoadingMsg('');
-                              }
-                            }}
-                          >
-                            <CheckCircle2 size={13} />Baixar
-                          </button>
-                        ) : (
-                          <span style={{ fontSize: '.76rem', color: 'var(--success)', fontWeight: 600 }}>Pago</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))
+                  filtrados.map((item) => {
+                    const sel = selecionados.includes(item.id);
+                    return (
+                      <tr
+                        key={item.id}
+                        onClick={() => abrirEdicaoTitulo(item)}
+                        style={{ cursor: 'pointer', background: sel ? '#f3e8ff' : 'transparent' }}
+                      >
+                        <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={sel}
+                            onChange={() => toggleSelecionar(item.id)}
+                            style={{ cursor: 'pointer' }}
+                          />
+                        </td>
+                        <td><strong>#{item.id}</strong></td>
+                        <td>{dataBr(item.vencimento)}</td>
+                        <td>
+                          <strong>{item.cliente_nome || '—'}</strong>
+                          {item.veic_modelo && (
+                            <div style={{ fontSize: '.74rem', color: 'var(--muted)', marginTop: 2 }}>
+                              🚗 {item.veic_marca} {item.veic_modelo} ({item.veic_placa})
+                            </div>
+                          )}
+                        </td>
+                        <td>
+                          <span>{item.descricao}</span>
+                          <span className={`badge badge-${item.tipo}`} style={{ marginLeft: 8, fontSize: '.68rem' }}>
+                            {item.tipo === 'receita' ? 'Receita' : 'Despesa'}
+                          </span>
+                        </td>
+                        <td>
+                          <strong style={{ color: item.tipo === 'receita' ? 'var(--success)' : 'var(--text)' }}>
+                            {brl(item.valor)}
+                          </strong>
+                        </td>
+                        <td>
+                          {item.status === 'pago' ? (
+                            <strong style={{ color: 'var(--success)' }}>{brl(item.valor)}</strong>
+                          ) : (
+                            <span style={{ color: 'var(--muted)' }}>—</span>
+                          )}
+                        </td>
+                        <td>
+                          {item.status === 'pago' ? (
+                            <span style={{ color: 'var(--success)', fontWeight: 600 }}>
+                              {dataBr(item.pagamento_data || item.vencimento)}
+                            </span>
+                          ) : (
+                            <span style={{ color: 'var(--muted)' }}>—</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
           </div>
-        </>
-      )}
 
-      {/* ABA 2: COMISSÕES DE VENDEDORES (ESPECIFICAÇÃO ALTIMUS) */}
-      {aba === 'comissoes' && (
-        <>
-          <div className="toolbar" style={{ flexWrap: 'wrap', gap: 10 }}>
-            <div style={{ position: 'relative', flex: 1, minWidth: 260 }}>
-              <Search size={16} style={{ position: 'absolute', left: 12, top: 12, color: 'var(--muted)' }} />
-              <input
-                className="input"
-                style={{ paddingLeft: 36 }}
-                placeholder="Buscar vendedor, veículo, cliente, contrato..."
-                value={busca}
-                onChange={(e) => setBusca(e.target.value)}
-              />
+          {/* BARRA INFERIOR DE TOTAIS E AÇÕES EM LOTE (PRINT 2 ALTIMUS) */}
+          <div className="card" style={{ padding: '12px 18px', background: '#ffffff', borderRadius: 8, border: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 14 }}>
+            <div style={{ display: 'flex', gap: 20, fontSize: '.84rem', color: 'var(--muted)', flexWrap: 'wrap' }}>
+              <div>
+                Selecionados a receber: <strong style={{ color: 'var(--success)' }}>{brl(totaisSelecionados.aReceber)}</strong>
+              </div>
+              <div>
+                Selecionados a pagar: <strong style={{ color: 'var(--danger)' }}>{brl(totaisSelecionados.aPagar)}</strong>
+              </div>
+              <div>
+                Soma das contas selecionadas: <strong>Total: {brl(totaisSelecionados.total)} | Quitadas total: {brl(totaisSelecionados.quitadas)}</strong>
+              </div>
             </div>
-            <select className="select" style={{ maxWidth: 220 }} value={filtroVendedor} onChange={(e) => setFiltroVendedor(e.target.value)}>
-              <option value="">Todos os Vendedores</option>
-              {usuarios.map((u) => <option key={u.id} value={u.nome}>{u.nome}</option>)}
-            </select>
-            <button
-              className="btn"
-              onClick={() => {
-                const cab = 'Data;NegociacaoId;Vendedor;Veiculo;Cliente;ValorVenda;CustoLoja;LucroBruto;Comissao;Status';
-                const lins = comissoesFiltradas.map((c) =>
-                  `"${c.data}";"${c.negociacao_id}";"${c.vendedor_nome}";"${c.veiculo_desc}";"${c.cliente_nome}";"${c.valor_venda}";"${c.custo_loja}";"${c.lucro_bruto}";"${c.comissao_valor}";"${c.status_comissao}"`
-                );
-                exportarCsv('comissoes_vendedores', cab, lins);
-              }}
-              title="Exportar relatório de comissões em CSV"
-            >
-              <Download size={15} />Exportar Comissões CSV
-            </button>
-          </div>
 
-          <div className="card table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Data</th>
-                  <th>Negociação #</th>
-                  <th>Vendedor</th>
-                  <th>Veículo Negociado</th>
-                  <th>Cliente</th>
-                  <th>Valor Venda</th>
-                  <th>Custo Loja</th>
-                  <th>Lucro do Veículo</th>
-                  <th>Comissão</th>
-                  <th>Status</th>
-                  <th>Ação</th>
-                </tr>
-              </thead>
-              <tbody>
-                {comissoesFiltradas.length === 0 ? (
-                  <tr>
-                    <td colSpan={11} style={{ textAlign: 'center', padding: '30px 0', color: 'var(--muted)' }}>
-                      Nenhuma venda / comissão encontrada com os filtros selecionados.
-                    </td>
-                  </tr>
-                ) : (
-                  comissoesFiltradas.map((c, idx) => (
-                    <tr key={idx}>
-                      <td>{dataBr(c.data)}</td>
-                      <td><strong>#{c.negociacao_id}</strong></td>
-                      <td>
-                        <strong>{c.vendedor_nome}</strong>
-                      </td>
-                      <td>{c.veiculo_desc || '—'}</td>
-                      <td>{c.cliente_nome}</td>
-                      <td><strong>{brl(c.valor_venda)}</strong></td>
-                      <td style={{ color: 'var(--muted)' }}>{brl(c.custo_loja)}</td>
-                      <td>
-                        <strong style={{ color: c.lucro_bruto >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-                          {brl(c.lucro_bruto)}
-                        </strong>
-                      </td>
-                      <td>
-                        <strong style={{ color: 'var(--primary)', fontSize: '.94rem' }}>
-                          {brl(c.comissao_valor)}
-                        </strong>
-                      </td>
-                      <td>
-                        <span className={`badge ${c.status_comissao === 'pago' ? 'badge-success' : 'badge-warning'}`}>
-                          {c.status_comissao === 'pago' ? '✓ Paga' : '⏳ Pendente'}
-                        </span>
-                      </td>
-                      <td>
-                        {c.status_comissao !== 'pago' ? (
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-primary"
-                            onClick={() => handlePagarComissao(c)}
-                            title="Lançar pagamento no caixa da loja"
-                          >
-                            <DollarSign size={13} />Pagar
-                          </button>
-                        ) : (
-                          <span style={{ fontSize: '.76rem', color: 'var(--success)', fontWeight: 600 }}>Quitada</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                className="btn btn-sm"
+                disabled={selecionados.length === 0}
+                onClick={handleExcluirSelecionados}
+              >
+                Renegociar / Excluir
+              </button>
+              <button
+                type="button"
+                className="btn btn-sm btn-primary"
+                style={{ background: '#5d35b0', color: '#ffffff', fontWeight: 600 }}
+                disabled={selecionados.length === 0}
+                onClick={handleQuitarSelecionados}
+              >
+                Quitar
+              </button>
+            </div>
           </div>
-        </>
+        </div>
       )}
 
-      {/* ABA 3: LUCRO LÍQUIDO REAL POR VEÍCULO */}
-      {aba === 'lucro_veiculos' && (
-        <>
-          <div className="toolbar" style={{ justifyContent: 'space-between' }}>
-            <p style={{ margin: 0, color: 'var(--muted)', fontSize: '.84rem' }}>
-              Cálculo analítico do Lucro Líquido Real por unidade: <strong>Preço Venda - Custo Entrada - Despesas Oficina/Doc - Comissão Vendedor</strong>.
-            </p>
-            <button
-              className="btn btn-sm"
-              onClick={() => {
-                const cab = 'Veiculo;Placa;Ano;Status;CustoEntrada;DespesasOficina;CustoTotalLoja;PrecoVenda;LucroLiquidoReal;MargemPercentual';
-                const lins = veiculos.map((v) => {
-                  const desp = Number(v.despesas_veiculo || 0);
-                  const custoTotal = Number(v.custo || 0) + desp;
-                  const lucro = Number(v.preco || 0) - custoTotal;
-                  const perc = custoTotal > 0 ? ((lucro / custoTotal) * 100).toFixed(1) : 0;
-                  return `"${v.marca} ${v.modelo}";"${v.placa || ''}";"${v.ano}";"${v.status}";"${v.custo}";"${desp}";"${custoTotal}";"${v.preco}";"${lucro}";"${perc}%"`;
-                });
-                exportarCsv('lucro_veiculos', cab, lins);
-              }}
-            >
-              <Download size={14} />Exportar Relatório
-            </button>
-          </div>
-
-          <div className="card table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Veículo</th>
-                  <th>Status</th>
-                  <th>Custo Aquisição</th>
-                  <th>Despesas Oficina/Doc</th>
-                  <th>Custo Total Loja</th>
-                  <th>Preço Venda</th>
-                  <th>Lucro Líquido Real</th>
-                  <th>Margem %</th>
-                  <th>Ação</th>
-                </tr>
-              </thead>
-              <tbody>
-                {veiculos.map((v) => {
-                  const desp = Number(v.despesas_veiculo || 0);
-                  const custoTotal = Number(v.custo || 0) + desp;
-                  const lucroReal = Number(v.preco || 0) - custoTotal;
-                  const percMargem = custoTotal > 0 ? ((lucroReal / custoTotal) * 100).toFixed(1) : 0;
-                  return (
-                    <tr key={v.id}>
-                      <td>
-                        <strong>{v.marca} {v.modelo}</strong>
-                        <div style={{ fontSize: '.76rem', color: 'var(--muted)' }}>{v.ano} · Placa {v.placa || '—'}</div>
-                      </td>
-                      <td><span className={`badge badge-${v.status}`}>{STATUS[v.status] || v.status}</span></td>
-                      <td>{brl(v.custo)}</td>
-                      <td style={{ color: desp > 0 ? 'var(--warning)' : 'var(--muted)' }}>{brl(desp)}</td>
-                      <td><strong>{brl(custoTotal)}</strong></td>
-                      <td><strong>{brl(v.preco)}</strong></td>
-                      <td>
-                        <strong style={{ color: lucroReal >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-                          {brl(lucroReal)}
-                        </strong>
-                      </td>
-                      <td>
-                        <span style={{ fontWeight: 700, color: lucroReal >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-                          {percMargem}%
-                        </span>
-                      </td>
-                      <td>
-                        <button
-                          className="btn btn-sm"
-                          onClick={() => setEditando({
-                            ...EMPTY_FIN,
-                            veiculo_id: v.id,
-                            descricao: `Preparação / Revisão — ${v.marca} ${v.modelo} (${v.placa || ''})`
-                          })}
-                        >
-                          <Wrench size={13} />+ Despesa
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </>
+      {/* OUTRAS ABAS (COMISSÕES, LUCRO POR CARRO, DRE) */}
+      {visualizacao === 'comissoes' && (
+        <div>
+          <button className="btn btn-sm" style={{ marginBottom: 14 }} onClick={() => setVisualizacao('contas')}>
+            ← Voltar para Contas a Pagar/Receber
+          </button>
+          <ComissoesView
+            lista={lista}
+            veiculos={veiculos}
+            clientes={clientes}
+            negociacoes={negociacoes}
+            usuarios={usuarios}
+            recarregar={recarregar}
+            setLoadingMsg={setLoadingMsg}
+          />
+        </div>
       )}
 
-      {/* ABA 4: DRE GERENCIAL DA LOJA */}
-      {aba === 'dre' && (
-        <DrePainel
-          lista={lista}
-          veiculos={veiculos}
-          negociacoes={negociacoes}
-          filtroPeriodo={filtroPeriodoDre}
-          setFiltroPeriodo={setFiltroPeriodoDre}
-        />
+      {visualizacao === 'lucro_veiculos' && (
+        <div>
+          <button className="btn btn-sm" style={{ marginBottom: 14 }} onClick={() => setVisualizacao('contas')}>
+            ← Voltar para Contas a Pagar/Receber
+          </button>
+          <LucroVeiculosView
+            veiculos={veiculos}
+            onNovaDespesa={(v) => {
+              setEditando({
+                ...EMPTY_FIN,
+                tipo: 'despesa',
+                categoria: 'Preparação / Estética',
+                veiculo_id: v.id,
+                veiculo_desc: `${v.marca} ${v.modelo} (${v.placa || ''})`,
+                descricao: `Preparação / Manutenção — ${v.marca} ${v.modelo} (${v.placa || ''})`
+              });
+              setVisualizacao('novo_titulo');
+            }}
+          />
+        </div>
       )}
 
-      {editando && (
-        <FinanceiroModal
-          inicial={editando}
-          veiculos={veiculos}
-          clientes={clientes}
-          onClose={() => setEditando(null)}
-          onSave={async (fin) => {
-            try {
-              setLoadingMsg('Salvando lançamento financeiro...');
-              await saveFinanceiro(fin);
-              await recarregar();
-              setEditando(null);
-            } catch (err) {
-              alert('Erro ao salvar lançamento: ' + err.message);
-            } finally {
-              setLoadingMsg('');
-            }
-          }}
-          onDelete={async (id) => {
-            try {
-              setLoadingMsg('Excluindo lançamento...');
-              await deleteFinanceiro(id);
-              await recarregar();
-              setEditando(null);
-            } catch (err) {
-              alert('Erro ao excluir: ' + err.message);
-            } finally {
-              setLoadingMsg('');
-            }
-          }}
-        />
+      {visualizacao === 'dre' && (
+        <div>
+          <button className="btn btn-sm" style={{ marginBottom: 14 }} onClick={() => setVisualizacao('contas')}>
+            ← Voltar para Contas a Pagar/Receber
+          </button>
+          <DreView lista={lista} veiculos={veiculos} negociacoes={negociacoes} />
+        </div>
+      )}
+
+      {/* MODAL DE PESQUISA AVANÇADA (PRINT 4 ALTIMUS) */}
+      {modalAvancada && (
+        <div className="overlay" onClick={() => setModalAvancada(false)}>
+          <div className="card modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 840 }}>
+            <div className="modal-head" style={{ borderBottom: '1px solid var(--border)', paddingBottom: 12 }}>
+              <h2 style={{ fontSize: '1.05rem', margin: 0, color: '#4a148c' }}>Pesquisa avançada</h2>
+              <button type="button" className="btn btn-icon" onClick={() => setModalAvancada(false)}><X size={18} /></button>
+            </div>
+
+            <div className="form-grid" style={{ marginTop: 14 }}>
+              <div className="field">
+                <label>Revendas</label>
+                <select
+                  className="select"
+                  value={filtroAvancado.revenda}
+                  onChange={(e) => setFiltroAvancado({ ...filtroAvancado, revenda: e.target.value })}
+                >
+                  <option value="">- Selecione -</option>
+                  {REVE_PADRAO.map((r) => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </div>
+
+              <div className="field">
+                <label>Tipo</label>
+                <select
+                  className="select"
+                  value={filtroAvancado.tipo}
+                  onChange={(e) => setFiltroAvancado({ ...filtroAvancado, tipo: e.target.value })}
+                >
+                  <option value="">- Selecione -</option>
+                  <option value="despesa">Despesa (A Pagar)</option>
+                  <option value="receita">Receita (A Receber)</option>
+                </select>
+              </div>
+
+              <div className="field">
+                <label>ID</label>
+                <input
+                  className="input"
+                  placeholder="ID do título"
+                  value={filtroAvancado.id}
+                  onChange={(e) => setFiltroAvancado({ ...filtroAvancado, id: e.target.value })}
+                />
+              </div>
+
+              <div className="field">
+                <label>Data de emissão</label>
+                <input
+                  type="date"
+                  className="input"
+                  value={filtroAvancado.data_emissao}
+                  onChange={(e) => setFiltroAvancado({ ...filtroAvancado, data_emissao: e.target.value })}
+                />
+              </div>
+
+              <div className="field">
+                <label>Data de quitação</label>
+                <input
+                  type="date"
+                  className="input"
+                  value={filtroAvancado.data_quitacao}
+                  onChange={(e) => setFiltroAvancado({ ...filtroAvancado, data_quitacao: e.target.value })}
+                />
+              </div>
+
+              <div className="field">
+                <label>Status do título</label>
+                <select
+                  className="select"
+                  value={filtroAvancado.status_titulo}
+                  onChange={(e) => setFiltroAvancado({ ...filtroAvancado, status_titulo: e.target.value })}
+                >
+                  <option value="">Todos</option>
+                  <option value="sem_baixa">Sem baixa (Pendente)</option>
+                  <option value="com_baixa">Com baixa (Quitado)</option>
+                </select>
+              </div>
+
+              <div className="field">
+                <label>Forma de pagamento</label>
+                <select
+                  className="select"
+                  value={filtroAvancado.forma_pagamento}
+                  onChange={(e) => setFiltroAvancado({ ...filtroAvancado, forma_pagamento: e.target.value })}
+                >
+                  <option value="">- Selecione -</option>
+                  {['Pix / TED', 'Boleto', 'Cartão de Crédito', 'Cartão de Débito', 'Dinheiro', 'Financiamento', 'Cheque'].map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="field">
+                <label>Etiquetas</label>
+                <select
+                  className="select"
+                  value={filtroAvancado.etiqueta}
+                  onChange={(e) => setFiltroAvancado({ ...filtroAvancado, etiqueta: e.target.value })}
+                >
+                  <option value="">- Selecione -</option>
+                  {CATEGORIAS_FINANCEIRO.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+
+              <div className="field">
+                <label>Valor mínimo (R$)</label>
+                <input
+                  type="number"
+                  className="input"
+                  placeholder="0,00"
+                  value={filtroAvancado.valor_min}
+                  onChange={(e) => setFiltroAvancado({ ...filtroAvancado, valor_min: e.target.value })}
+                />
+              </div>
+
+              <div className="field">
+                <label>Valor máximo (R$)</label>
+                <input
+                  type="number"
+                  className="input"
+                  placeholder="0,00"
+                  value={filtroAvancado.valor_max}
+                  onChange={(e) => setFiltroAvancado({ ...filtroAvancado, valor_max: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="modal-actions" style={{ marginTop: 24, borderTop: '1px solid var(--border)', paddingTop: 14 }}>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  setFiltroAvancado({
+                    revenda: '', tipo: '', id: '', data_emissao: '', data_quitacao: '',
+                    status_titulo: '', etiqueta: '', forma_pagamento: '', valor_min: '', valor_max: ''
+                  });
+                  setModalAvancada(false);
+                }}
+              >
+                Limpar & Fechar
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                style={{ background: '#5d35b0' }}
+                onClick={() => setModalAvancada(false)}
+              >
+                Pesquisar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );
 }
 
-function DrePainel({ lista, veiculos, negociacoes, filtroPeriodo, setFiltroPeriodo }) {
+// ==============================================================================
+// FORMULÁRIO COMPLETO DO TÍTULO FINANCEIRO (PRINT 3 ALTIMUS)
+// ==============================================================================
+function NovoTituloForm({ inicial, veiculos, clientes, onClose, onSave, onDelete }) {
+  const [f, setF] = useState(inicial);
+  const [buscaCli, setBuscaCli] = useState(inicial.cliente_nome || '');
+  const [dropdownCliAberto, setDropdownCliAberto] = useState(false);
+
+  const [buscaVeic, setBuscaVeic] = useState(inicial.veiculo_desc || '');
+  const [dropdownVeicAberto, setDropdownVeicAberto] = useState(false);
+
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+
+  const clientesSugeridos = useMemo(() => {
+    if (!buscaCli) return clientes.slice(0, 8);
+    const termo = buscaCli.toLowerCase();
+    return clientes.filter((c) => (c.nome || '').toLowerCase().includes(termo) || (c.cpf_cnpj || '').includes(termo)).slice(0, 8);
+  }, [clientes, buscaCli]);
+
+  const veiculosSugeridos = useMemo(() => {
+    if (!buscaVeic) return veiculos.slice(0, 8);
+    const termo = buscaVeic.toLowerCase();
+    return veiculos.filter((v) =>
+      `${v.marca || ''} ${v.modelo || ''} ${v.placa || ''} ${v.chassi || ''}`.toLowerCase().includes(termo)
+    ).slice(0, 8);
+  }, [veiculos, buscaVeic]);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSave({
+      ...f,
+      cliente_nome: buscaCli,
+      veiculo_desc: buscaVeic
+    });
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Breadcrumb Altimus */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '.92rem', color: 'var(--muted)' }}>
+        <span>Financeiro</span>
+        <ChevronRight size={14} />
+        <span>Contas a Pagar/Receber</span>
+        <ChevronRight size={14} />
+        <strong style={{ color: 'var(--text)' }}>{f.id ? `Editar Conta #${f.id}` : 'Nova Conta a Pagar/Receber'}</strong>
+      </div>
+
+      <form onSubmit={handleSubmit} className="card" style={{ padding: 24, background: '#ffffff', borderRadius: 8, border: '1px solid var(--border)' }}>
+        <h2 style={{ fontSize: '1.05rem', fontWeight: 700, margin: '0 0 18px 0', color: 'var(--text)' }}>
+          Principal
+        </h2>
+
+        <div className="form-grid">
+          {/* Linha 1: Revendas, Operação, Emissão, Vencimento */}
+          <div className="field">
+            <label>Revendas *</label>
+            <select className="select" required value={f.revenda} onChange={set('revenda')}>
+              {REVE_PADRAO.map((r) => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+
+          <div className="field">
+            <label>Operação *</label>
+            <select className="select" required value={f.tipo} onChange={set('tipo')}>
+              <option value="despesa">Despesa (A Pagar)</option>
+              <option value="receita">Receita (A Receber)</option>
+            </select>
+          </div>
+
+          <div className="field">
+            <label>Emissão *</label>
+            <input type="date" required className="input" value={f.emissao} onChange={set('emissao')} />
+          </div>
+
+          <div className="field">
+            <label>Vencimento *</label>
+            <input type="date" required className="input" value={f.vencimento} onChange={set('vencimento')} />
+          </div>
+
+          {/* Linha 2: Cliente/Fornecedor (OBRIGATÓRIO COM DIGITAÇÃO LIVRE E AUTO-COMPLETE) e Número de Documento */}
+          <div className="field span-2" style={{ position: 'relative' }}>
+            <label>Cliente/Fornecedor * <span style={{ fontSize: '.75rem', color: 'var(--muted)', fontWeight: 400 }}>(Obrigatório — digite o nome ou escolha da lista)</span></label>
+            <div style={{ position: 'relative' }}>
+              <Search size={15} style={{ position: 'absolute', left: 12, top: 12, color: 'var(--muted)', pointerEvents: 'none' }} />
+              <input
+                className="input"
+                required
+                style={{ paddingLeft: 36 }}
+                placeholder="Pesquise por nome ou documento, ou digite um novo fornecedor..."
+                value={buscaCli}
+                onChange={(e) => {
+                  setBuscaCli(e.target.value);
+                  setDropdownCliAberto(true);
+                  setF({ ...f, cliente_id: '', cliente_nome: e.target.value });
+                }}
+                onFocus={() => setDropdownCliAberto(true)}
+              />
+              {buscaCli && (
+                <button
+                  type="button"
+                  style={{ position: 'absolute', right: 10, top: 10, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}
+                  onClick={() => { setBuscaCli(''); setF({ ...f, cliente_id: '', cliente_nome: '' }); }}
+                >
+                  <X size={15} />
+                </button>
+              )}
+            </div>
+
+            {dropdownCliAberto && clientesSugeridos.length > 0 && (
+              <div
+                style={{
+                  position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
+                  background: '#ffffff', border: '1px solid var(--border)', borderRadius: 8,
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.12)', maxHeight: 220, overflowY: 'auto'
+                }}
+              >
+                {clientesSugeridos.map((c) => (
+                  <div
+                    key={c.id}
+                    style={{ padding: '8px 14px', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: '.86rem' }}
+                    onClick={() => {
+                      setBuscaCli(c.nome);
+                      setF({ ...f, cliente_id: c.id, cliente_nome: c.nome });
+                      setDropdownCliAberto(false);
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#f3e8ff'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = '#ffffff'}
+                  >
+                    <strong>{c.nome}</strong>
+                    <div style={{ fontSize: '.74rem', color: 'var(--muted)' }}>
+                      {c.cpf_cnpj ? `Doc: ${c.cpf_cnpj}` : ''} {c.telefone ? `· Tel: ${c.telefone}` : ''}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="field span-2">
+            <label>Número de documento</label>
+            <input
+              className="input"
+              placeholder="Ex.: NF-e 1024, Recibo 50, Contrato..."
+              value={f.numero_documento ?? ''}
+              onChange={set('numero_documento')}
+            />
+          </div>
+
+          {/* Linha 3: Veículo (OPCIONAL COM DIGITAÇÃO LIVRE E AUTO-COMPLETE) */}
+          <div className="field span-4" style={{ position: 'relative' }}>
+            <label>Veículo <span style={{ fontSize: '.75rem', color: 'var(--muted)', fontWeight: 400 }}>(Opcional — digite a placa/modelo para anexar junto ao carro)</span></label>
+            <div style={{ position: 'relative' }}>
+              <Search size={15} style={{ position: 'absolute', left: 12, top: 12, color: 'var(--muted)', pointerEvents: 'none' }} />
+              <input
+                className="input"
+                style={{ paddingLeft: 36 }}
+                placeholder="Pesquise por placa, chassi, modelo ou digite livremente..."
+                value={buscaVeic}
+                onChange={(e) => {
+                  setBuscaVeic(e.target.value);
+                  setDropdownVeicAberto(true);
+                  setF({ ...f, veiculo_id: '', veiculo_desc: e.target.value });
+                }}
+                onFocus={() => setDropdownVeicAberto(true)}
+              />
+              {buscaVeic && (
+                <button
+                  type="button"
+                  style={{ position: 'absolute', right: 10, top: 10, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}
+                  onClick={() => { setBuscaVeic(''); setF({ ...f, veiculo_id: '', veiculo_desc: '' }); }}
+                >
+                  <X size={15} />
+                </button>
+              )}
+            </div>
+
+            {dropdownVeicAberto && veiculosSugeridos.length > 0 && (
+              <div
+                style={{
+                  position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
+                  background: '#ffffff', border: '1px solid var(--border)', borderRadius: 8,
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.12)', maxHeight: 220, overflowY: 'auto'
+                }}
+              >
+                {veiculosSugeridos.map((v) => (
+                  <div
+                    key={v.id}
+                    style={{ padding: '8px 14px', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: '.86rem' }}
+                    onClick={() => {
+                      const desc = `${v.marca} ${v.modelo} (${v.placa || v.ano})`;
+                      setBuscaVeic(desc);
+                      setF({ ...f, veiculo_id: v.id, veiculo_desc: desc });
+                      setDropdownVeicAberto(false);
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#f3e8ff'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = '#ffffff'}
+                  >
+                    <strong>{v.marca} {v.modelo}</strong> ({v.ano}) — Placa: <strong>{v.placa || 'Sem placa'}</strong>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Linha 4: Descrição */}
+          <div className="field span-4">
+            <label>Descrição *</label>
+            <input
+              className="input"
+              required
+              placeholder="Descrição do título financeiro..."
+              value={f.descricao}
+              onChange={set('descricao')}
+            />
+          </div>
+
+          {/* Linha 5: Forma de Pagamento e Etiquetas */}
+          <div className="field span-2">
+            <label>Forma de pagamento</label>
+            <select className="select" value={f.forma_pagamento} onChange={set('forma_pagamento')}>
+              {['Pix / TED', 'Boleto', 'Cartão de Crédito', 'Cartão de Débito', 'Dinheiro', 'Financiamento', 'Cheque'].map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="field span-2">
+            <label>Etiquetas</label>
+            <select className="select" value={f.categoria} onChange={set('categoria')}>
+              {CATEGORIAS_FINANCEIRO.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+
+          {/* Linha 6: Conta e Conta Financeira */}
+          <div className="field span-2">
+            <label>Conta</label>
+            <input
+              className="input"
+              placeholder="Caixa Geral / Itaú Empresas..."
+              value={f.conta ?? 'Itaú Empresas'}
+              onChange={set('conta')}
+            />
+          </div>
+
+          <div className="field span-2">
+            <label>Conta financeira</label>
+            <select className="select" value={f.conta_financeira ?? 'Conta Corrente'} onChange={set('conta_financeira')}>
+              <option value="Conta Corrente">Conta Corrente</option>
+              <option value="Caixa Operacional">Caixa Operacional / Loja</option>
+              <option value="Aplicação / Reserva">Aplicação / Reserva</option>
+            </select>
+          </div>
+
+          {/* Linha 7: Valor Total, Checkboxes Quitado e Agendado */}
+          <div className="field span-2">
+            <label>Valor total * (R$)</label>
+            <input
+              type="number"
+              step="0.01"
+              required
+              className="input"
+              placeholder="0,00"
+              value={f.valor}
+              onChange={set('valor')}
+            />
+          </div>
+
+          <div className="field span-2" style={{ display: 'flex', gap: 20, alignItems: 'center', marginTop: 22 }}>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '.9rem', fontWeight: 600 }}>
+              <input
+                type="checkbox"
+                checked={f.quitado}
+                onChange={(e) => setF({ ...f, quitado: e.target.checked, status: e.target.checked ? 'pago' : 'pendente' })}
+              />
+              Quitado
+            </label>
+
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '.9rem', fontWeight: 600 }}>
+              <input
+                type="checkbox"
+                checked={f.agendado}
+                onChange={(e) => setF({ ...f, agendado: e.target.checked })}
+              />
+              Agendado
+            </label>
+          </div>
+
+          {/* Linha 8: Observação */}
+          <div className="field span-4">
+            <label>Observação</label>
+            <textarea
+              className="input"
+              rows={3}
+              placeholder="Observações complementares..."
+              value={f.observacao ?? ''}
+              onChange={set('observacao')}
+            />
+          </div>
+        </div>
+
+        {/* BARRA INFERIOR DE BOTÕES (PRINT 3 ALTIMUS) */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+          {f.id ? (
+            <button
+              type="button"
+              className="btn btn-danger"
+              onClick={() => onDelete(f.id)}
+            >
+              Excluir
+            </button>
+          ) : (
+            <div />
+          )}
+
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button type="button" className="btn" onClick={onClose}>
+              Fechar
+            </button>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              style={{ background: '#5d35b0', color: '#ffffff', fontWeight: 700, padding: '0 24px' }}
+            >
+              Salvar
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+// ==============================================================================
+// VISÃO DE COMISSÕES DE VENDEDORES
+// ==============================================================================
+function ComissoesView({ lista, veiculos, clientes, negociacoes, usuarios, recarregar, setLoadingMsg }) {
+  const [filtroVendedor, setFiltroVendedor] = useState('');
+
+  const relatorio = useMemo(() => {
+    const comissoesPagas = lista.filter((f) => f.tipo === 'despesa' && f.categoria === 'Comissão' && f.status === 'pago');
+    const negsValidas = negociacoes.filter((n) => n.status !== 'cancelada');
+
+    return negsValidas.map((n) => {
+      const veic = veiculos.find((v) => v.id === n.veiculo_id) || {};
+      const cli = clientes.find((c) => c.id === n.cliente_id) || {};
+      const despVeic = Number(veic.despesas_veiculo || 0);
+      const custoTotalLoja = Number(veic.custo || 0) + despVeic;
+      const valorVenda = Number(n.valor_veiculo || veic.preco || 0);
+      const lucroBrutoCarro = valorVenda - custoTotalLoja;
+
+      let comissao = Number(n.comissao_vendedor || 0);
+      if (comissao === 0 && lucroBrutoCarro > 0) {
+        comissao = Math.round(lucroBrutoCarro * 0.10);
+      }
+
+      const jaPaga = comissoesPagas.some((f) => Number(f.negociacao_id) === Number(n.id) || f.descricao?.includes(`Venda #${n.id}`));
+      const vendObj = usuarios.find((u) => u.id === n.vendedor_id);
+      const vendedorNome = vendObj?.nome || n.vendedor_nome || 'Equipe DG Autos';
+
+      return {
+        negociacao_id: n.id,
+        data: n.data_negociacao || n.criado_em?.slice(0, 10) || new Date().toISOString().slice(0, 10),
+        vendedor_nome: vendedorNome,
+        veiculo_desc: `${n.veic_marca || veic.marca || ''} ${n.veic_modelo || veic.modelo || ''} (${n.veic_placa || veic.placa || 'Sem placa'})`.trim(),
+        cliente_nome: n.cliente_nome || cli.nome || 'Cliente não identificado',
+        valor_venda: valorVenda,
+        custo_loja: custoTotalLoja,
+        lucro_bruto: lucroBrutoCarro,
+        comissao_valor: comissao,
+        status_comissao: jaPaga ? 'pago' : 'pendente'
+      };
+    });
+  }, [negociacoes, veiculos, clientes, usuarios, lista]);
+
+  const filtrados = useMemo(() => {
+    return relatorio.filter((c) => !filtroVendedor || c.vendedor_nome === filtroVendedor);
+  }, [relatorio, filtroVendedor]);
+
+  const handlePagar = async (item) => {
+    if (!confirm(`Confirmar o pagamento de comissão de ${brl(item.comissao_valor)} para ${item.vendedor_nome}?`)) return;
+    try {
+      setLoadingMsg('Registrando pagamento no caixa...');
+      await pagarComissao({
+        negociacao_id: item.negociacao_id,
+        valor: item.comissao_valor,
+        vendedor_nome: item.vendedor_nome,
+        veiculo_desc: item.veiculo_desc
+      });
+      await recarregar();
+      alert('✓ Comissão paga e registrada no caixa!');
+    } catch (e) {
+      alert('Erro ao pagar: ' + e.message);
+    } finally {
+      setLoadingMsg('');
+    }
+  };
+
+  return (
+    <div className="card table-wrap" style={{ background: '#ffffff', borderRadius: 8, border: '1px solid var(--border)' }}>
+      <div style={{ padding: 14, borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h3 style={{ margin: 0, fontSize: '1rem' }}>Comissões da Equipe de Vendas</h3>
+        <select className="select" style={{ maxWidth: 220 }} value={filtroVendedor} onChange={(e) => setFiltroVendedor(e.target.value)}>
+          <option value="">Todos os Vendedores</option>
+          {usuarios.map((u) => <option key={u.id} value={u.nome}>{u.nome}</option>)}
+        </select>
+      </div>
+
+      <table className="table" style={{ margin: 0 }}>
+        <thead>
+          <tr style={{ background: '#f8fafc' }}>
+            <th>Data</th>
+            <th>Negociação</th>
+            <th>Vendedor</th>
+            <th>Veículo</th>
+            <th>Cliente</th>
+            <th>Valor Venda</th>
+            <th>Custo Loja</th>
+            <th>Lucro do Veículo</th>
+            <th>Comissão</th>
+            <th>Status</th>
+            <th>Ação</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filtrados.length === 0 ? (
+            <tr><td colSpan={11} style={{ textAlign: 'center', padding: '30px 0', color: 'var(--muted)' }}>Nenhuma comissão encontrada.</td></tr>
+          ) : (
+            filtrados.map((c, i) => (
+              <tr key={i}>
+                <td>{dataBr(c.data)}</td>
+                <td><strong>#{c.negociacao_id}</strong></td>
+                <td><strong>{c.vendedor_nome}</strong></td>
+                <td>{c.veiculo_desc}</td>
+                <td>{c.cliente_nome}</td>
+                <td>{brl(c.valor_venda)}</td>
+                <td style={{ color: 'var(--muted)' }}>{brl(c.custo_loja)}</td>
+                <td><strong style={{ color: c.lucro_bruto >= 0 ? 'var(--success)' : 'var(--danger)' }}>{brl(c.lucro_bruto)}</strong></td>
+                <td><strong style={{ color: 'var(--primary)' }}>{brl(c.comissao_valor)}</strong></td>
+                <td>
+                  <span className={`badge ${c.status_comissao === 'pago' ? 'badge-success' : 'badge-warning'}`}>
+                    {c.status_comissao === 'pago' ? '✓ Paga' : '⏳ Pendente'}
+                  </span>
+                </td>
+                <td>
+                  {c.status_comissao !== 'pago' && (
+                    <button className="btn btn-sm btn-primary" onClick={() => handlePagar(c)} style={{ background: '#5d35b0' }}>
+                      Pagar
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ==============================================================================
+// VISÃO DE LUCRO REAL POR VEÍCULO
+// ==============================================================================
+function LucroVeiculosView({ veiculos, onNovaDespesa }) {
+  return (
+    <div className="card table-wrap" style={{ background: '#ffffff', borderRadius: 8, border: '1px solid var(--border)' }}>
+      <table className="table" style={{ margin: 0 }}>
+        <thead>
+          <tr style={{ background: '#f8fafc' }}>
+            <th>Veículo</th>
+            <th>Status</th>
+            <th>Custo Aquisição</th>
+            <th>Despesas Oficina/Doc</th>
+            <th>Custo Total Loja</th>
+            <th>Preço Venda</th>
+            <th>Lucro Líquido Real</th>
+            <th>Margem %</th>
+            <th>Ação</th>
+          </tr>
+        </thead>
+        <tbody>
+          {veiculos.map((v) => {
+            const desp = Number(v.despesas_veiculo || 0);
+            const custoTotal = Number(v.custo || 0) + desp;
+            const lucroReal = Number(v.preco || 0) - custoTotal;
+            const perc = custoTotal > 0 ? ((lucroReal / custoTotal) * 100).toFixed(1) : 0;
+            return (
+              <tr key={v.id}>
+                <td>
+                  <strong>{v.marca} {v.modelo}</strong>
+                  <div style={{ fontSize: '.74rem', color: 'var(--muted)' }}>{v.ano} · Placa {v.placa || '—'}</div>
+                </td>
+                <td><span className={`badge badge-${v.status}`}>{STATUS[v.status] || v.status}</span></td>
+                <td>{brl(v.custo)}</td>
+                <td style={{ color: desp > 0 ? 'var(--warning)' : 'var(--muted)' }}>{brl(desp)}</td>
+                <td><strong>{brl(custoTotal)}</strong></td>
+                <td><strong>{brl(v.preco)}</strong></td>
+                <td><strong style={{ color: lucroReal >= 0 ? 'var(--success)' : 'var(--danger)' }}>{brl(lucroReal)}</strong></td>
+                <td><span style={{ fontWeight: 700, color: lucroReal >= 0 ? 'var(--success)' : 'var(--danger)' }}>{perc}%</span></td>
+                <td>
+                  <button className="btn btn-sm" onClick={() => onNovaDespesa(v)}>
+                    + Despesa
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ==============================================================================
+// VISÃO DRE GERENCIAL DA LOJA
+// ==============================================================================
+function DreView({ lista, veiculos, negociacoes }) {
   const vendidos = veiculos.filter((v) => v.status === 'vendido');
   const negsConcluidas = negociacoes.filter((n) => n.status === 'concluida');
 
-  // Faturamento bruto
   const faturamentoVendas = negsConcluidas.length > 0
     ? negsConcluidas.reduce((s, n) => s + Number(n.valor_veiculo || 0), 0)
     : vendidos.reduce((s, v) => s + Number(v.preco || 0), 0);
 
-  // CMV (Custo das mercadorias vendidas)
   const cmv = vendidos.reduce((s, v) => s + Number(v.custo || 0), 0);
   const lucroBrutoVendas = faturamentoVendas - cmv;
 
@@ -627,9 +1310,8 @@ function DrePainel({ lista, veiculos, negociacoes, filtroPeriodo, setFiltroPerio
   const despPrep = porCat('Preparação / Estética') + porCat('Funilaria / Mecânica') + porCat('Documentação / Transferência');
   const despComissao = porCat('Comissão') || negsConcluidas.reduce((s, n) => s + Number(n.comissao_vendedor || 0), 0);
   const despFixas = porCat('Despesa Fixa / Loja') + porCat('Impostos') + porCat('Outros');
-  const totalDespesasOperacionais = despPrep + despComissao + despFixas;
-  const resultadoLiquido = lucroBrutoVendas - totalDespesasOperacionais;
-  const margemLiquidaPerc = faturamentoVendas > 0 ? ((resultadoLiquido / faturamentoVendas) * 100).toFixed(1) : 0;
+  const totalDesp = despPrep + despComissao + despFixas;
+  const resultadoLiquido = lucroBrutoVendas - totalDesp;
 
   const linhas = [
     { label: '(+) Receita Bruta de Vendas de Veículos', valor: faturamentoVendas, cor: 'var(--success)', bold: true },
@@ -642,48 +1324,19 @@ function DrePainel({ lista, veiculos, negociacoes, filtroPeriodo, setFiltroPerio
   ];
 
   return (
-    <div className="card" style={{ padding: 24 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+    <div className="card" style={{ padding: 24, background: '#ffffff', borderRadius: 8, border: '1px solid var(--border)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div>
-          <h2 style={{ fontSize: '1.15rem', margin: 0 }}>Demonstrativo do Resultado do Exercício (DRE Gerencial Altimus)</h2>
-          <small style={{ color: 'var(--muted)' }}>Estrutura gerencial padrão para apuração do lucro real da revenda de veículos.</small>
+          <h2 style={{ fontSize: '1.15rem', margin: 0 }}>Demonstrativo do Resultado do Exercício (DRE Altimus)</h2>
+          <small style={{ color: 'var(--muted)' }}>Apuração contábil e operacional oficial do lucro real da revenda.</small>
         </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <select className="select" style={{ maxWidth: 180 }} value={filtroPeriodo} onChange={(e) => setFiltroPeriodo(e.target.value)}>
-            <option value="mes_atual">Mês Atual</option>
-            <option value="mes_anterior">Mês Anterior</option>
-            <option value="ano_atual">Ano Todo (2026)</option>
-          </select>
-          <button className="btn" onClick={() => window.print()} title="Imprimir DRE">
-            <Printer size={15} />Imprimir DRE
-          </button>
-        </div>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginBottom: 24 }}>
-        <div className="card stat" style={{ background: 'var(--color-neutral-80)' }}>
-          <div className="stat-label">Margem Líquida %</div>
-          <div className="stat-value" style={{ color: resultadoLiquido >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-            {margemLiquidaPerc}%
-          </div>
-          <div className="stat-sub">Sobre o faturamento bruto</div>
-        </div>
-        <div className="card stat" style={{ background: 'var(--color-neutral-80)' }}>
-          <div className="stat-label">Veículos Vendidos</div>
-          <div className="stat-value">{vendidos.length || negsConcluidas.length}</div>
-          <div className="stat-sub">Carros entregues no período</div>
-        </div>
-        <div className="card stat" style={{ background: 'var(--color-neutral-80)' }}>
-          <div className="stat-label">Ticket Médio de Venda</div>
-          <div className="stat-value">
-            {brl((vendidos.length || negsConcluidas.length) > 0 ? faturamentoVendas / (vendidos.length || negsConcluidas.length) : 0)}
-          </div>
-          <div className="stat-sub">Preço médio por veículo</div>
-        </div>
+        <button className="btn" onClick={() => window.print()}>
+          <Printer size={15} />Imprimir DRE
+        </button>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {linhas.map((l, i) => (
+        {linhas.map((l) => (
           <div
             key={l.label}
             className="list-row"
@@ -702,100 +1355,6 @@ function DrePainel({ lista, veiculos, negociacoes, filtroPeriodo, setFiltroPerio
           </div>
         ))}
       </div>
-    </div>
-  );
-}
-
-function FinanceiroModal({ inicial, veiculos, clientes, onClose, onSave, onDelete }) {
-  const [f, setF] = useState(inicial);
-  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
-
-  return (
-    <div className="overlay" onClick={onClose}>
-      <form className="card modal" onClick={(e) => e.stopPropagation()} onSubmit={(e) => { e.preventDefault(); onSave(f); }}>
-        <div className="modal-head">
-          <h2>{f.id ? `Editar Título #${f.id}` : 'Novo Lançamento Financeiro / Despesa de Veículo'}</h2>
-          <button type="button" className="btn btn-icon" onClick={onClose}><X size={18} /></button>
-        </div>
-
-        <div className="form-grid">
-          <div className="field">
-            <label>Tipo de Lançamento</label>
-            <select className="select" value={f.tipo} onChange={set('tipo')}>
-              <option value="despesa">Despesa (A Pagar)</option>
-              <option value="receita">Receita (A Receber)</option>
-            </select>
-          </div>
-          <div className="field">
-            <label>Categoria</label>
-            <select className="select" value={f.categoria} onChange={set('categoria')}>
-              {CATEGORIAS_FINANCEIRO.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-          <div className="field">
-            <label>Status</label>
-            <select className="select" value={f.status} onChange={set('status')}>
-              <option value="pendente">Pendente</option>
-              <option value="pago">Pago / Recebido</option>
-              <option value="atrasado">Atrasado</option>
-            </select>
-          </div>
-
-          <div className="field span-2">
-            <label>Descrição do Lançamento *</label>
-            <input className="input" required value={f.descricao} onChange={set('descricao')} placeholder="Ex.: Polimento + higienização ou Aluguel da loja" />
-          </div>
-          <div className="field">
-            <label>Valor (R$) *</label>
-            <input className="input" type="number" step="0.01" required value={f.valor} onChange={set('valor')} />
-          </div>
-
-          <div className="field">
-            <label>Data de Vencimento</label>
-            <input className="input" type="date" value={f.vencimento ?? ''} onChange={set('vencimento')} />
-          </div>
-          <div className="field">
-            <label>Forma de Pagamento</label>
-            <select className="select" value={f.forma_pagamento ?? 'Pix / TED'} onChange={set('forma_pagamento')}>
-              {['Pix / TED', 'Boleto', 'Financiamento', 'Cartão', 'Dinheiro', 'Cheque'].map((m) => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </select>
-          </div>
-          <div className="field">
-            <label>Conta Bancária / Caixa</label>
-            <input className="input" value={f.conta_bancaria ?? 'Itaú Empresas'} onChange={set('conta_bancaria')} />
-          </div>
-
-          <div className="field span-2">
-            <label>Vincular a um Veículo do Estoque (compõe o Custo Real do Veículo)</label>
-            <select className="select" value={f.veiculo_id ?? ''} onChange={set('veiculo_id')}>
-              <option value="">— Sem vínculo (Despesa / Receita geral da loja) —</option>
-              {veiculos.map((v) => (
-                <option key={v.id} value={v.id}>{v.marca} {v.modelo} ({v.placa || v.ano})</option>
-              ))}
-            </select>
-          </div>
-          <div className="field">
-            <label>Cliente / Fornecedor</label>
-            <select className="select" value={f.cliente_id ?? ''} onChange={set('cliente_id')}>
-              <option value="">— Opcional —</option>
-              {clientes.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-            </select>
-          </div>
-        </div>
-
-        <div className="modal-actions" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 16 }}>
-          {f.id && (
-            <button type="button" className="btn btn-danger" style={{ marginRight: 'auto' }}
-              onClick={() => confirm('Excluir este lançamento?') && onDelete(f.id)}>
-              <Trash2 size={16} />Excluir
-            </button>
-          )}
-          <button type="button" className="btn" onClick={onClose}>Cancelar</button>
-          <button type="submit" className="btn btn-primary">Salvar Lançamento</button>
-        </div>
-      </form>
     </div>
   );
 }
