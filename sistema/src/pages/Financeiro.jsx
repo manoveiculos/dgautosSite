@@ -10,7 +10,7 @@ import {
   brl, dataBr, CATEGORIAS_FINANCEIRO, STATUS
 } from '../store';
 
-const REVE_PADRAO = ['DG Automóveis', 'Raccar Manos Veículos', 'Matriz'];
+const REVE_PADRAO = ['DG Automóveis'];
 
 const EMPTY_FIN = {
   id: null,
