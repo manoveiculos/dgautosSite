@@ -935,27 +935,53 @@ export async function getContratosGerados(negociacaoId) {
 }
 
 // ==============================================================================
-// 6. FINANCEIRO
+// 6. FINANCEIRO & DRE & COMISSÕES
 // ==============================================================================
 export async function getFinanceiro() {
+  let list = [];
   if (IS_LOCAL) {
     try {
       const f = await api('/financeiro');
-      if (Array.isArray(f)) return f;
+      if (Array.isArray(f)) list = f;
     } catch {}
   }
 
-  try {
-    const { data, error } = await supabase.from('financeiro_DGAUTOS').select('*').order('vencimento', { ascending: true });
-    if (!error && Array.isArray(data)) {
-      salvarCache('financeiro', data);
-      return data;
-    }
-  } catch {}
+  if (list.length === 0) {
+    try {
+      const [resFin, resVeic, resCli] = await Promise.all([
+        supabase.from('financeiro_DGAUTOS').select('*').order('vencimento', { ascending: true }),
+        supabase.from('veiculos_DGAUTOS').select('id, marca, modelo, ano, placa'),
+        supabase.from('clientes_DGAUTOS').select('id, nome, telefone')
+      ]);
 
-  const emCache = lerCache('financeiro', null);
-  if (Array.isArray(emCache)) return emCache;
-  return [];
+      if (!resFin.error && Array.isArray(resFin.data)) {
+        const vMap = {};
+        const cMap = {};
+        (resVeic.data || []).forEach((v) => { vMap[v.id] = v; });
+        (resCli.data || []).forEach((c) => { cMap[c.id] = c; });
+
+        list = resFin.data.map((item) => {
+          const v = vMap[item.veiculo_id] || {};
+          const c = cMap[item.cliente_id] || {};
+          return {
+            ...item,
+            veic_marca: item.veic_marca || v.marca || '',
+            veic_modelo: item.veic_modelo || v.modelo || '',
+            veic_placa: item.veic_placa || v.placa || '',
+            cliente_nome: item.cliente_nome || c.nome || ''
+          };
+        });
+        salvarCache('financeiro', list);
+      }
+    } catch {}
+  }
+
+  if (list.length === 0) {
+    const emCache = lerCache('financeiro', null);
+    if (Array.isArray(emCache)) list = emCache;
+  }
+
+  return list;
 }
 
 export async function saveFinanceiro(f) {
@@ -966,7 +992,13 @@ export async function saveFinanceiro(f) {
     descricao: f.descricao,
     valor: Number(f.valor) || 0,
     vencimento: f.vencimento || new Date().toISOString().slice(0, 10),
-    status: f.status || 'pendente'
+    pagamento_data: f.pagamento_data || (f.status === 'pago' ? new Date().toISOString().slice(0, 10) : null),
+    status: f.status || 'pendente',
+    forma_pagamento: f.forma_pagamento || 'Pix / TED',
+    conta_bancaria: f.conta_bancaria || 'Conta Principal',
+    veiculo_id: f.veiculo_id ? Number(f.veiculo_id) : null,
+    cliente_id: f.cliente_id ? Number(f.cliente_id) : null,
+    negociacao_id: f.negociacao_id ? Number(f.negociacao_id) : null
   };
 
   try {
@@ -975,7 +1007,32 @@ export async function saveFinanceiro(f) {
     } else {
       await supabase.from('financeiro_DGAUTOS').insert([payload]);
     }
-  } catch {}
+  } catch (err) {
+    console.warn('Supabase saveFinanceiro error:', err);
+  }
+
+  return await getFinanceiro();
+}
+
+export async function pagarComissao({ negociacao_id, valor, vendedor_nome, veiculo_desc, conta_bancaria }) {
+  const payload = {
+    tipo: 'despesa',
+    categoria: 'Comissão',
+    descricao: `Comissão Venda #${negociacao_id} — ${vendedor_nome} (${veiculo_desc || 'Veículo'})`,
+    valor: Number(valor) || 0,
+    vencimento: new Date().toISOString().slice(0, 10),
+    pagamento_data: new Date().toISOString().slice(0, 10),
+    status: 'pago',
+    forma_pagamento: 'Pix / TED',
+    conta_bancaria: conta_bancaria || 'Conta Principal',
+    negociacao_id: negociacao_id ? Number(negociacao_id) : null
+  };
+
+  try {
+    await supabase.from('financeiro_DGAUTOS').insert([payload]);
+  } catch (err) {
+    console.warn('Supabase pagarComissao error:', err);
+  }
 
   return await getFinanceiro();
 }
@@ -1044,6 +1101,11 @@ export async function getConfig() {
   }
 
   return { loja, usuarios, auditoria: [] };
+}
+
+export async function getUsuarios() {
+  const cfg = await getConfig();
+  return cfg.usuarios || [];
 }
 
 export async function saveConfigLoja(loja) {

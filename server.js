@@ -7827,12 +7827,17 @@ async function startServer() {
   const isDev = process.env.NODE_ENV !== "production" && process.argv.some((arg) => String(arg).includes("tsx") || String(arg).includes("server.ts"));
   const isProduction = !isDev;
   if (!isProduction) {
-    const { createServer: createViteServer } = await import("vite");
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa"
-    });
-    app2.use(vite.middlewares);
+    try {
+      const { createServer: createViteServer } = await import("vite");
+      const vite = await createViteServer({
+        configFile: path2.resolve(process.cwd(), "vite.config.ts"),
+        server: { middlewareMode: true },
+        appType: "spa"
+      });
+      app2.use(vite.middlewares);
+    } catch (viteErr) {
+      console.error("[ERRO VITE]", viteErr);
+    }
   } else {
     const distPath = fs2.existsSync(path2.resolve(__dirname, "dist")) ? path2.resolve(__dirname, "dist") : path2.resolve(process.cwd(), "dist");
     const sistemaDist2 = path2.resolve(distPath, "sistema");
