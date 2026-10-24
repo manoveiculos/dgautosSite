@@ -802,11 +802,23 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 /* ==========================================================================
    REGRA GLOBAL OBRIGATÓRIA: CAIXA ALTA EM TODOS OS CAMPOS DO SISTEMA
+   (EXCETO TELA DE LOGIN: PERMITIR MINÚSCULAS E MAIÚSCULAS NORMALMENTE)
    ========================================================================== */
 input:not([type="email"]):not([type="password"]):not([type="file"]):not([type="date"]):not([type="time"]):not([type="datetime-local"]):not([type="color"]):not([type="checkbox"]):not([type="radio"]),
 textarea,
 select {
   text-transform: uppercase;
+}
+
+/* Exceção explícita na tela de Login: autoriza digitação de letras minúsculas */
+.login-wrap input,
+.login-card input,
+.login-card input[type="text"],
+.login-card input[type="password"],
+.login-card input[type="email"],
+#login-email,
+#login-senha {
+  text-transform: none !important;
 }
 
 /* Área de Upload Tracejada Oficial Altimus (Documentos / Anexos) */

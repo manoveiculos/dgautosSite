@@ -98,14 +98,12 @@ export async function login(email, senha) {
     console.warn('Supabase auth fallback:', err);
   }
 
-  // 3. Credenciais padrão de acesso
+  // 3. Credenciais de fallback somente para testes offline/demonstração
   if (
-    (emailLimpo === 'admin@dgautos.com.br' && senhaLimpa === 'admin123') ||
-    (emailLimpo === 'alexandre@dgautos.com.br' && senhaLimpa === 'admin123') ||
     (emailLimpo === 'carlos@dgautos.com.br' && senhaLimpa === 'admin123')
   ) {
-    const perfil = emailLimpo.includes('admin') ? 'admin' : (emailLimpo.includes('alexandre') ? 'gerente' : 'vendedor');
-    const nome = emailLimpo.includes('admin') ? 'Administrador DG' : (emailLimpo.includes('alexandre') ? 'Alexandre Gorges' : 'Carlos Mendes');
+    const perfil = 'vendedor';
+    const nome = 'Carlos Mendes';
     const user = { id: 1, nome, email: emailLimpo, perfil };
     localStorage.setItem(AUTH, JSON.stringify({ token: 'sb-master', user }));
     return user;

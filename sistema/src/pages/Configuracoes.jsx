@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Building2, Users, ShieldCheck, Plus, Trash2, Save, Loader2, KeyRound,
-  Landmark, DollarSign, Wallet, Phone, Mail, CheckCircle2, Globe
+  Landmark, DollarSign, Wallet, Phone, Mail, CheckCircle2, Globe, Lock
 } from 'lucide-react';
 import {
   getConfig, saveConfigLoja, createUsuario, updateUsuario, deleteUsuario, alterarSenhaUsuario,
@@ -207,6 +207,11 @@ export default function Configuracoes({ user }) {
   const handleSalvarSenhaUsuario = async (e) => {
     e.preventDefault();
     if (!usuarioEditandoSenha) return;
+    if (usuarioEditandoSenha.email === 'admin@dgautos.com.br' && emailAtual !== 'admin@dgautos.com.br') {
+      alert('Acesso negado: Somente o próprio Administrador Master logado tem autorização para alterar sua senha.');
+      setUsuarioEditandoSenha(null);
+      return;
+    }
     setLoadingAcao(`Atualizando senha de ${usuarioEditandoSenha.nome}...`);
     try {
       await alterarSenhaUsuario(usuarioEditandoSenha.id, novaSenhaInput);
@@ -629,30 +634,64 @@ export default function Configuracoes({ user }) {
                     </td>
                     <td style={{ textAlign: 'center' }}>
                       <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-                        <button
-                          type="button"
-                          className="btn btn-sm"
-                          title={`Alterar senha de ${u.nome}`}
-                          disabled={Boolean(loadingAcao)}
-                          onClick={() => {
-                            setUsuarioEditandoSenha(u);
-                            setNovaSenhaInput('');
-                          }}
-                          style={{ padding: '4px 8px', fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }}
-                        >
-                          <KeyRound size={13} /> Senha
-                        </button>
-                        {u.email !== 'admin@dgautos.com.br' ? (
-                          <button
-                            className="btn btn-sm btn-danger"
-                            title="Excluir este usuário"
-                            disabled={Boolean(loadingAcao)}
-                            onClick={() => handleDeleteUser(u)}
-                          >
-                            <Trash2 size={13} />
-                          </button>
+                        {u.email === 'admin@dgautos.com.br' ? (
+                          emailAtual === 'admin@dgautos.com.br' ? (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-primary"
+                              title="Alterar minha senha de Admin Master"
+                              disabled={Boolean(loadingAcao)}
+                              onClick={() => {
+                                setUsuarioEditandoSenha(u);
+                                setNovaSenhaInput('');
+                              }}
+                              style={{ padding: '4px 10px', fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 700 }}
+                            >
+                              <KeyRound size={13} /> Alterar Minha Senha
+                            </button>
+                          ) : (
+                            <span
+                              style={{
+                                fontSize: 11,
+                                color: '#475569',
+                                background: '#f1f5f9',
+                                border: '1px solid #cbd5e1',
+                                padding: '4px 8px',
+                                borderRadius: 6,
+                                fontWeight: 700,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4
+                              }}
+                              title="Acesso e alteração de senha restritos exclusivamente ao titular do Admin Master"
+                            >
+                              <Lock size={12} /> Acesso Restrito
+                            </span>
+                          )
                         ) : (
-                          <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, padding: '0 4px' }}>PADRÃO</span>
+                          <>
+                            <button
+                              type="button"
+                              className="btn btn-sm"
+                              title={`Alterar senha de ${u.nome}`}
+                              disabled={Boolean(loadingAcao)}
+                              onClick={() => {
+                                setUsuarioEditandoSenha(u);
+                                setNovaSenhaInput('');
+                              }}
+                              style={{ padding: '4px 8px', fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                            >
+                              <KeyRound size={13} /> Senha
+                            </button>
+                            <button
+                              className="btn btn-sm btn-danger"
+                              title="Excluir este usuário"
+                              disabled={Boolean(loadingAcao)}
+                              onClick={() => handleDeleteUser(u)}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </>
                         )}
                       </div>
                     </td>
