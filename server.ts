@@ -575,7 +575,44 @@ async function startServer() {
   });
 
 
-  // Placa lookup (apiplacas/wdapi2). Token fica no servidor; nunca no client.
+  // Helper para buscar FIPE do mês anterior via API oficial Parallelum
+  async function fetchFipeMesAnterior(codigoFipe: string, anoModelo: string | number, refAtual: number | string = 338) {
+    try {
+      const refAnterior = Number(refAtual) - 1;
+      const rYears = await fetch(`https://parallelum.com.br/fipe/api/v2/cars/${codigoFipe}/years?reference=${refAnterior}`);
+      if (!rYears.ok) return null;
+      const years = await rYears.json();
+      if (!Array.isArray(years) || !years.length) return null;
+      const anoStr = String(anoModelo || '').split('/')[0].slice(0, 4);
+      const matchYear = years.find((y: any) => y.code.startsWith(anoStr)) || years[0];
+      const rPrice = await fetch(`https://parallelum.com.br/fipe/api/v2/cars/${codigoFipe}/years/${matchYear.code}?reference=${refAnterior}`);
+      if (!rPrice.ok) return null;
+      const priceData = await rPrice.json();
+      return {
+        mes_anterior: priceData.referenceMonth || 'Mês Anterior',
+        valor_anterior: priceData.price || '',
+        valor_num: Number(String(priceData.price || '').replace(/[^\d]/g, '')) / 100,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  // Endpoint para histórico/mês anterior FIPE sob demanda
+  app.get("/api/fipe/mes-anterior", async (req, res) => {
+    try {
+      const codigoFipe = String(req.query.codigo || "");
+      const anoModelo = String(req.query.ano || "");
+      const ref = Number(req.query.ref || 338);
+      if (!codigoFipe) return res.status(400).json({ ok: false, error: "Código FIPE obrigatório" });
+      const resultado = await fetchFipeMesAnterior(codigoFipe, anoModelo, ref);
+      res.json({ ok: true, ...(resultado || {}) });
+    } catch (err: any) {
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  // Placa lookup (apiplacas/wdapi2) com FIPE completa, histórico mensal e dados de procedência
   app.get("/api/placa/:placa", async (req, res) => {
     try {
       const placa = String(req.params.placa || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 7);
@@ -587,25 +624,68 @@ async function startServer() {
       if (!data || data.message || (!data.marca && !data.MARCA)) {
         return res.status(200).json({ ok: false, error: "Não encontramos os dados dessa placa. Você pode seguir sem ela." });
       }
-      // FIPE: escolhe o maior score (melhor correspondência) p/ valor + versão.
+
+      // FIPE: lista todas as opções e seleciona a melhor por score
+      const fipeList = data?.fipe?.dados;
+      let fipe_opcoes: any[] = [];
+      let bestFipe: any = null;
       let fipeValor = "";
       let versaoFipe = "";
-      const fipeList = data?.fipe?.dados;
+      let codigoFipe = "";
+      let mesAtual = "";
+      let refFipe = 338;
+
       if (Array.isArray(fipeList) && fipeList.length) {
-        const best = [...fipeList].sort((a: any, b: any) => (b?.score || 0) - (a?.score || 0))[0];
-        fipeValor = best?.texto_valor || "";
-        versaoFipe = best?.texto_modelo || "";
+        fipe_opcoes = fipeList.map((d: any) => ({
+          codigo_fipe: d.codigo_fipe,
+          texto_modelo: d.texto_modelo,
+          texto_valor: d.texto_valor,
+          valor_num: Number(String(d.texto_valor || "").replace(/[^\d]/g, "")) / 100,
+          mes_referencia: d.mes_referencia || d.texto_mes || "",
+          referencia_fipe: d.referencia_fipe || 338,
+          score: d.score || 0,
+        }));
+        bestFipe = [...fipe_opcoes].sort((a: any, b: any) => (b.score || 0) - (a.score || 0))[0];
+        fipeValor = bestFipe?.texto_valor || "";
+        versaoFipe = bestFipe?.texto_modelo || "";
+        codigoFipe = bestFipe?.codigo_fipe || "";
+        mesAtual = bestFipe?.mes_referencia || "";
+        refFipe = bestFipe?.referencia_fipe || 338;
       }
+
+      // Consulta mês anterior da FIPE em paralelo
+      let fipeAnteriorData: any = null;
+      if (codigoFipe) {
+        const anoBusca = data.anoModelo || data.ano || "";
+        fipeAnteriorData = await fetchFipeMesAnterior(codigoFipe, anoBusca, refFipe);
+      }
+
+      const municipioStr = data.municipio || data?.extra?.municipio || "";
+      const ufStr = data.uf || data?.extra?.uf_placa || "";
+      const cidadeLicenciamento = municipioStr ? `${municipioStr}${ufStr ? " - " + ufStr : ""}` : "";
+
       const veiculo = {
         marca: data.marca || data.MARCA || "",
         modelo: data.modelo || data.MODELO || "",
         versao: versaoFipe || data.VERSAO || data.SUBMODELO || "",
         ano: data.ano || data.anoModelo || "",
+        ano_fabricacao: data.ano || data.anoFabricacao || "",
+        ano_modelo: data.anoModelo || data.ano || "",
         cor: data.cor || "",
-        combustivel: data?.extra?.combustivel || "",
-        municipio: data.municipio || data?.extra?.municipio || "",
-        uf: data.uf || data?.extra?.uf_placa || "",
+        combustivel: data?.extra?.combustivel || data?.combustivel || "",
+        municipio: municipioStr,
+        uf: ufStr,
+        cidade_emplacamento: cidadeLicenciamento,
+        chassi: data.chassi || data.CHASSI || "",
+        renavam: data.renavam || data.RENAVAM || "",
         fipeValor,
+        fipe_num: bestFipe ? bestFipe.valor_num : 0,
+        codigo_fipe: codigoFipe,
+        fipe_mes_atual: mesAtual,
+        fipe_mes_anterior: fipeAnteriorData?.mes_anterior || "",
+        fipe_valor_anterior: fipeAnteriorData?.valor_anterior || "",
+        valor_fipe_anterior: fipeAnteriorData?.valor_num || 0,
+        fipe_opcoes,
         logo: data.logo || "",
       };
       res.json({ ok: true, veiculo });

@@ -2,14 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Plus, Search, Handshake, CheckCircle2, FileText, Trash2, X, Car, DollarSign, RefreshCw, LayoutGrid, List, Edit3,
-  UserPlus, ShieldAlert, ShieldCheck, AlertTriangle, ExternalLink
+  UserPlus, ShieldAlert, ShieldCheck, AlertTriangle, ExternalLink, Sparkles
 } from 'lucide-react';
 import {
   getNegociacoes, saveNegociacao, concluirNegociacao, deleteNegociacao,
   getClientes, saveCliente, getVeiculos, brl, dataBr
 } from '../store';
 import { ClienteModalAltimus, EMPTY_CLI } from './Clientes';
-import { buscarPlaca, mascaraPlaca } from '../utils/mascaras';
+import { buscarPlaca, mascaraPlaca, buscarFipeMesAnterior } from '../utils/mascaras';
 
 const EMPTY_NEG = {
   tipo: 'venda',
@@ -26,6 +26,15 @@ const EMPTY_NEG = {
   troca_km: 0,
   troca_cor: '',
   troca_valor: 0,
+  troca_renavam: '',
+  troca_chassi: '',
+  troca_cidade: '',
+  fipe: 0,
+  valor_fipe_anterior: 0,
+  codigo_fipe: '',
+  fipe_mes_atual: '',
+  fipe_mes_anterior: '',
+  fipe_opcoes: [],
   pagamentos: [{ forma: 'Pix / TED', financeira: 'À vista', parcelas: 1, valor: 0 }],
   comissao_vendedor: 0,
   observacoes: '',
@@ -476,14 +485,15 @@ function NegociacaoWizardModal({ inicial, clientes, veiculos, onClose, onSave, o
     if (limpo.length !== 7) return;
 
     setBuscandoPlacaTroca(true);
-    setMsgPlacaTroca('🔍 Consultando dados do veículo pela placa...');
+    setMsgPlacaTroca('🔍 Consultando dados do veículo, procedência e FIPE...');
     try {
       const v = await buscarPlaca(limpo);
       if (v) {
         setF((prev) => {
-          const anoFab = v.ano ? String(v.ano).slice(0, 4) : '';
+          const anoFab = v.ano_fabricacao ? String(v.ano_fabricacao).slice(0, 4) : (v.ano ? String(v.ano).slice(0, 4) : '');
           const anoMod = v.ano_modelo ? String(v.ano_modelo).slice(-4) : (v.ano ? String(v.ano).slice(-4) : '');
           const anoCompleto = anoFab && anoMod ? `${anoFab}/${anoMod}` : (v.ano || prev.troca_ano);
+          const fipeNum = v.fipe_num || (v.fipeValor ? Number(String(v.fipeValor).replace(/[^\d]/g, '')) / 100 : prev.fipe);
           return {
             ...prev,
             troca_placa: limpo,
@@ -491,10 +501,18 @@ function NegociacaoWizardModal({ inicial, clientes, veiculos, onClose, onSave, o
             troca_modelo: `${v.modelo || ''} ${v.versao || ''}`.trim() || prev.troca_modelo,
             troca_ano: anoCompleto || prev.troca_ano,
             troca_cor: v.cor || prev.troca_cor,
-            fipe: v.fipeValor ? Number(String(v.fipeValor).replace(/[^\d]/g, '')) / 100 : prev.fipe
+            troca_chassi: v.chassi || prev.troca_chassi,
+            troca_renavam: v.renavam || prev.troca_renavam,
+            troca_cidade: v.cidade_emplacamento || prev.troca_cidade,
+            fipe: fipeNum,
+            valor_fipe_anterior: v.valor_fipe_anterior || prev.valor_fipe_anterior,
+            codigo_fipe: v.codigo_fipe || prev.codigo_fipe,
+            fipe_mes_atual: v.fipe_mes_atual || prev.fipe_mes_atual,
+            fipe_mes_anterior: v.fipe_mes_anterior || prev.fipe_mes_anterior,
+            fipe_opcoes: Array.isArray(v.fipe_opcoes) ? v.fipe_opcoes : []
           };
         });
-        setMsgPlacaTroca(`✓ ${v.marca} ${v.modelo} preenchido via API!`);
+        setMsgPlacaTroca(`✓ ${v.marca} ${v.modelo} preenchido via API Nacional!`);
         setTimeout(() => setMsgPlacaTroca(''), 5000);
       } else {
         setMsgPlacaTroca('Placa não encontrada na base nacional.');
@@ -506,6 +524,31 @@ function NegociacaoWizardModal({ inicial, clientes, veiculos, onClose, onSave, o
     } finally {
       setBuscandoPlacaTroca(false);
     }
+  };
+
+  const handleSelecionarFipeOpcao = async (codigoEscolhido) => {
+    const opcao = (f.fipe_opcoes || []).find((o) => o.codigo_fipe === codigoEscolhido);
+    if (!opcao) return;
+    const novoValorAtual = opcao.valor_num || (Number(String(opcao.texto_valor || '').replace(/[^\d]/g, '')) / 100);
+    setF((prev) => ({
+      ...prev,
+      codigo_fipe: opcao.codigo_fipe,
+      troca_modelo: opcao.texto_modelo || prev.troca_modelo,
+      fipe: novoValorAtual,
+      fipe_mes_atual: opcao.mes_referencia || prev.fipe_mes_atual,
+    }));
+
+    // Busca mês anterior da nova opção escolhida
+    try {
+      const resAnt = await buscarFipeMesAnterior(opcao.codigo_fipe, f.troca_ano, opcao.referencia_fipe);
+      if (resAnt && resAnt.valor_num) {
+        setF((prev) => ({
+          ...prev,
+          valor_fipe_anterior: resAnt.valor_num,
+          fipe_mes_anterior: resAnt.mes_anterior || prev.fipe_mes_anterior
+        }));
+      }
+    } catch {}
   };
 
   const handleTrocaPlacaChange = (e) => {
@@ -1015,32 +1058,10 @@ function NegociacaoWizardModal({ inicial, clientes, veiculos, onClose, onSave, o
                     </div>
                     <div className="form-grid">
                       <div className="field">
-                        <label>Marca (Troca)</label>
-                        <input className="input" value={f.troca_marca ?? ''} onChange={set('troca_marca')} placeholder="Ex: Honda" />
-                      </div>
-                      <div className="field span-2">
-                        <label>Modelo / Versão (Troca)</label>
-                        <input className="input" value={f.troca_modelo ?? ''} onChange={set('troca_modelo')} placeholder="Ex: Civic LXR 2.0 Flex Aut." />
-                      </div>
-                      <div className="field">
-                        <label>Ano (Troca)</label>
-                        <input className="input" value={f.troca_ano ?? ''} onChange={set('troca_ano')} placeholder="2016/2017" />
-                      </div>
-                      <div className="field">
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                          <label style={{ margin: 0 }}>Placa (Troca)</label>
-                          {buscandoPlacaTroca ? (
-                            <span style={{ fontSize: '.72rem', color: '#6d28d9', fontWeight: 700 }}>Buscando...</span>
-                          ) : (
-                            f.troca_placa && f.troca_placa.length === 7 && (
-                              <button
-                                type="button"
-                                onClick={() => handleConsultarPlacaTroca(f.troca_placa)}
-                                style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '.72rem', fontWeight: 700, cursor: 'pointer', padding: 0 }}
-                              >
-                                🔄 Buscar API
-                              </button>
-                            )
+                          <label style={{ margin: 0 }}>Placa (Troca) *</label>
+                          {buscandoPlacaTroca && (
+                            <span style={{ fontSize: '.72rem', color: '#6d28d9', fontWeight: 700 }}>Buscando dados...</span>
                           )}
                         </div>
                         <input
@@ -1061,6 +1082,36 @@ function NegociacaoWizardModal({ inicial, clientes, veiculos, onClose, onSave, o
                         )}
                       </div>
                       <div className="field">
+                        <label>Marca (Troca)</label>
+                        <input className="input" value={f.troca_marca ?? ''} onChange={set('troca_marca')} placeholder="Ex: Honda" />
+                      </div>
+                      <div className="field span-2">
+                        <label>Modelo / Versão (Troca)</label>
+                        <input className="input" value={f.troca_modelo ?? ''} onChange={set('troca_modelo')} placeholder="Ex: Civic LXR 2.0 Flex Aut." />
+                      </div>
+                      <div className="field">
+                        <label>Ano Fabricação/Modelo</label>
+                        <input className="input" value={f.troca_ano ?? ''} onChange={set('troca_ano')} placeholder="2016/2017" />
+                      </div>
+                      <div className="field">
+                        <label>Cor</label>
+                        <input className="input" value={f.troca_cor ?? ''} onChange={set('troca_cor')} placeholder="Ex: Prata" />
+                      </div>
+
+                      {/* CAMPOS REQUISITADOS: RENAVAM, CHASSI E CIDADE DE LICENCIAMENTO */}
+                      <div className="field">
+                        <label>Renavam (Troca)</label>
+                        <input className="input" value={f.troca_renavam ?? ''} onChange={set('troca_renavam')} placeholder="Ex: 00491117370" />
+                      </div>
+                      <div className="field">
+                        <label>Chassi (Troca)</label>
+                        <input className="input" value={f.troca_chassi ?? ''} onChange={set('troca_chassi')} placeholder="Ex: 9BD195152D..." />
+                      </div>
+                      <div className="field">
+                        <label>Cidade / UF Licenciamento</label>
+                        <input className="input" value={f.troca_cidade ?? ''} onChange={set('troca_cidade')} placeholder="Ex: Rio do Sul - SC" />
+                      </div>
+                      <div className="field">
                         <label>KM Hodômetro (Troca) *</label>
                         <input className="input" type="number" value={f.troca_km ?? 0} onChange={set('troca_km')} placeholder="Hodômetro conferido" />
                       </div>
@@ -1068,6 +1119,107 @@ function NegociacaoWizardModal({ inicial, clientes, veiculos, onClose, onSave, o
                         <label>Valor Avaliado na Troca (R$)</label>
                         <input className="input" type="number" value={f.troca_valor ?? 0} onChange={set('troca_valor')} />
                       </div>
+
+                      {/* SELETOR INTERATIVO QUANDO EXISTE MAIS DE UMA VERSÃO NA FIPE */}
+                      {Array.isArray(f.fipe_opcoes) && f.fipe_opcoes.length > 1 && (
+                        <div style={{
+                          gridColumn: 'span 3',
+                          background: 'rgba(99, 102, 241, 0.08)',
+                          border: '1.5px solid #6366f1',
+                          borderRadius: 10,
+                          padding: '12px 14px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 8
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                            <strong style={{ fontSize: '.88rem', color: '#4338ca', display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <Sparkles size={16} /> Encontradas {f.fipe_opcoes.length} versões na Tabela FIPE para este modelo. Selecione a correta:
+                            </strong>
+                            <span style={{ fontSize: '.72rem', color: '#4f46e5', fontWeight: 700 }}>
+                              Código selecionado: {f.codigo_fipe || '-'}
+                            </span>
+                          </div>
+                          <select
+                            className="select"
+                            value={f.codigo_fipe || ''}
+                            onChange={(e) => handleSelecionarFipeOpcao(e.target.value)}
+                            style={{ fontWeight: 700, borderColor: '#6366f1', background: '#ffffff', color: '#1e1b4b' }}
+                          >
+                            {f.fipe_opcoes.map((op, idx) => (
+                              <option key={op.codigo_fipe || idx} value={op.codigo_fipe}>
+                                {op.texto_modelo} — {op.texto_valor} (FIPE: {op.codigo_fipe})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+
+                      {/* COMPARATIVO FIPE: MÊS ATUAL E MÊS ANTERIOR */}
+                      {(f.fipe > 0 || f.valor_fipe_anterior > 0) && (
+                        <div style={{
+                          gridColumn: 'span 3',
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                          gap: 12,
+                          marginTop: 4,
+                          marginBottom: 4
+                        }}>
+                          <div style={{
+                            background: 'var(--card-bg, #ffffff)',
+                            border: '1.5px solid #10b981',
+                            borderRadius: 10,
+                            padding: '10px 14px',
+                            boxShadow: '0 2px 8px rgba(16,185,129,0.08)'
+                          }}>
+                            <div style={{ fontSize: '.72rem', color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.5px' }}>
+                              Tabela FIPE Mês Atual ({f.fipe_mes_atual || 'Mês Atual'})
+                            </div>
+                            <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#047857', marginTop: 2 }}>
+                              {brl(f.fipe || 0)}
+                            </div>
+                            {f.codigo_fipe && <div style={{ fontSize: '.7rem', color: 'var(--muted)', marginTop: 2 }}>Cód. FIPE: {f.codigo_fipe}</div>}
+                          </div>
+
+                          <div style={{
+                            background: 'var(--card-bg, #ffffff)',
+                            border: '1.5px solid #64748b',
+                            borderRadius: 10,
+                            padding: '10px 14px',
+                            boxShadow: '0 2px 8px rgba(100,116,139,0.08)'
+                          }}>
+                            <div style={{ fontSize: '.72rem', color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.5px' }}>
+                              Tabela FIPE Mês Anterior ({f.fipe_mes_anterior || 'Mês Anterior'})
+                            </div>
+                            <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#334155', marginTop: 2 }}>
+                              {brl(f.valor_fipe_anterior || 0)}
+                            </div>
+                            <div style={{ fontSize: '.7rem', color: 'var(--muted)', marginTop: 2 }}>Histórico de referência</div>
+                          </div>
+
+                          {f.fipe > 0 && f.valor_fipe_anterior > 0 && (
+                            <div style={{
+                              background: (f.fipe >= f.valor_fipe_anterior) ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)',
+                              border: `1.5px solid ${(f.fipe >= f.valor_fipe_anterior) ? '#10b981' : '#ef4444'}`,
+                              borderRadius: 10,
+                              padding: '10px 14px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              justifyContent: 'center'
+                            }}>
+                              <div style={{ fontSize: '.72rem', fontWeight: 700, color: (f.fipe >= f.valor_fipe_anterior) ? '#047857' : '#b91c1c', textTransform: 'uppercase' }}>
+                                Variação Mensal FIPE
+                              </div>
+                              <div style={{ fontSize: '1.15rem', fontWeight: 900, color: (f.fipe >= f.valor_fipe_anterior) ? '#047857' : '#b91c1c', marginTop: 2 }}>
+                                {f.fipe >= f.valor_fipe_anterior ? '▲ +' : '▼ '}{brl(f.fipe - f.valor_fipe_anterior)} ({(((f.fipe - f.valor_fipe_anterior) / f.valor_fipe_anterior) * 100).toFixed(2)}%)
+                              </div>
+                              <div style={{ fontSize: '.68rem', opacity: .8, marginTop: 2 }}>
+                                {f.fipe >= f.valor_fipe_anterior ? 'Veículo valorizou no mercado' : 'Desvalorização no período'}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       {/* LEMBRETE OBRIGATÓRIO DE PROCEDÊNCIA: DETRAN E AUTOLOOK */}
                       <div
@@ -1105,10 +1257,11 @@ function NegociacaoWizardModal({ inicial, clientes, veiculos, onClose, onSave, o
                             style={{ background: '#2563eb', color: '#fff', fontWeight: 700, border: 'none', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '.8rem', padding: '7px 14px', borderRadius: 6 }}
                             onClick={() => {
                               const p = (f.troca_placa || '').trim().toUpperCase();
-                              const url = `https://servicos.detran.sc.gov.br/consulta-dossie-veiculo?placa=${encodeURIComponent(p)}`;
+                              const r = (f.troca_renavam || '').trim();
+                              const url = `https://servicos.detran.sc.gov.br/consulta-dossie-veiculo?placa=${encodeURIComponent(p)}${r ? `&renavam=${encodeURIComponent(r)}` : ''}`;
                               window.open(url, '_blank', 'noopener,noreferrer');
                             }}
-                            title="Abrir Consulta Oficial DETRAN-SC"
+                            title="Abrir Consulta Oficial DETRAN-SC (com Placa e Renavam)"
                           >
                             <Search size={14} /> DETRAN-SC ↗
                           </button>
@@ -1140,18 +1293,8 @@ function NegociacaoWizardModal({ inicial, clientes, veiculos, onClose, onSave, o
                     <div className="field">
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                         <label style={{ margin: 0 }}>Placa *</label>
-                        {buscandoPlacaTroca ? (
+                        {buscandoPlacaTroca && (
                           <span style={{ fontSize: '.72rem', color: '#6d28d9', fontWeight: 700 }}>Buscando...</span>
-                        ) : (
-                          f.troca_placa && f.troca_placa.length === 7 && (
-                            <button
-                              type="button"
-                              onClick={() => handleConsultarPlacaTroca(f.troca_placa)}
-                              style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '.72rem', fontWeight: 700, cursor: 'pointer', padding: 0 }}
-                            >
-                              🔄 Buscar API
-                            </button>
-                          )
                         )}
                       </div>
                       <input
@@ -1184,6 +1327,24 @@ function NegociacaoWizardModal({ inicial, clientes, veiculos, onClose, onSave, o
                       <input className="input" value={f.troca_ano ?? '2023/2024'} onChange={set('troca_ano')} />
                     </div>
                     <div className="field">
+                      <label>Cor</label>
+                      <input className="input" value={f.troca_cor ?? ''} onChange={set('troca_cor')} placeholder="Ex: Preto" />
+                    </div>
+
+                    {/* CAMPOS REQUISITADOS: RENAVAM, CHASSI E CIDADE DE LICENCIAMENTO */}
+                    <div className="field">
+                      <label>Renavam *</label>
+                      <input className="input" value={f.troca_renavam ?? ''} onChange={set('troca_renavam')} placeholder="Ex: 00491117370" />
+                    </div>
+                    <div className="field">
+                      <label>Chassi *</label>
+                      <input className="input" value={f.troca_chassi ?? ''} onChange={set('troca_chassi')} placeholder="Ex: 9BD195152D..." />
+                    </div>
+                    <div className="field">
+                      <label>Cidade / UF Licenciamento</label>
+                      <input className="input" value={f.troca_cidade ?? ''} onChange={set('troca_cidade')} placeholder="Ex: Rio do Sul - SC" />
+                    </div>
+                    <div className="field">
                       <label>KM Hodômetro Atual *</label>
                       <input className="input" type="number" value={f.troca_km ?? 0} onChange={set('troca_km')} />
                     </div>
@@ -1191,6 +1352,107 @@ function NegociacaoWizardModal({ inicial, clientes, veiculos, onClose, onSave, o
                       <label>Valor de {f.tipo === 'compra' ? 'Compra (R$)' : 'Avaliação (R$)'} *</label>
                       <input className="input" type="number" value={f.valor_veiculo ?? f.troca_valor ?? 0} onChange={(e) => setF({ ...f, valor_veiculo: Number(e.target.value), troca_valor: Number(e.target.value) })} />
                     </div>
+
+                    {/* SELETOR INTERATIVO QUANDO EXISTE MAIS DE UMA VERSÃO NA FIPE */}
+                    {Array.isArray(f.fipe_opcoes) && f.fipe_opcoes.length > 1 && (
+                      <div style={{
+                        gridColumn: 'span 3',
+                        background: 'rgba(99, 102, 241, 0.08)',
+                        border: '1.5px solid #6366f1',
+                        borderRadius: 10,
+                        padding: '12px 14px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 8
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                          <strong style={{ fontSize: '.88rem', color: '#4338ca', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <Sparkles size={16} /> Encontradas {f.fipe_opcoes.length} versões na Tabela FIPE para este modelo. Selecione a correta:
+                          </strong>
+                          <span style={{ fontSize: '.72rem', color: '#4f46e5', fontWeight: 700 }}>
+                            Código selecionado: {f.codigo_fipe || '-'}
+                          </span>
+                        </div>
+                        <select
+                          className="select"
+                          value={f.codigo_fipe || ''}
+                          onChange={(e) => handleSelecionarFipeOpcao(e.target.value)}
+                          style={{ fontWeight: 700, borderColor: '#6366f1', background: '#ffffff', color: '#1e1b4b' }}
+                        >
+                          {f.fipe_opcoes.map((op, idx) => (
+                            <option key={op.codigo_fipe || idx} value={op.codigo_fipe}>
+                              {op.texto_modelo} — {op.texto_valor} (FIPE: {op.codigo_fipe})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {/* COMPARATIVO FIPE: MÊS ATUAL E MÊS ANTERIOR */}
+                    {(f.fipe > 0 || f.valor_fipe_anterior > 0) && (
+                      <div style={{
+                        gridColumn: 'span 3',
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                        gap: 12,
+                        marginTop: 4,
+                        marginBottom: 4
+                      }}>
+                        <div style={{
+                          background: 'var(--card-bg, #ffffff)',
+                          border: '1.5px solid #10b981',
+                          borderRadius: 10,
+                          padding: '10px 14px',
+                          boxShadow: '0 2px 8px rgba(16,185,129,0.08)'
+                        }}>
+                          <div style={{ fontSize: '.72rem', color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.5px' }}>
+                            Tabela FIPE Mês Atual ({f.fipe_mes_atual || 'Mês Atual'})
+                          </div>
+                          <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#047857', marginTop: 2 }}>
+                            {brl(f.fipe || 0)}
+                          </div>
+                          {f.codigo_fipe && <div style={{ fontSize: '.7rem', color: 'var(--muted)', marginTop: 2 }}>Cód. FIPE: {f.codigo_fipe}</div>}
+                        </div>
+
+                        <div style={{
+                          background: 'var(--card-bg, #ffffff)',
+                          border: '1.5px solid #64748b',
+                          borderRadius: 10,
+                          padding: '10px 14px',
+                          boxShadow: '0 2px 8px rgba(100,116,139,0.08)'
+                        }}>
+                          <div style={{ fontSize: '.72rem', color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.5px' }}>
+                            Tabela FIPE Mês Anterior ({f.fipe_mes_anterior || 'Mês Anterior'})
+                          </div>
+                          <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#334155', marginTop: 2 }}>
+                            {brl(f.valor_fipe_anterior || 0)}
+                          </div>
+                          <div style={{ fontSize: '.7rem', color: 'var(--muted)', marginTop: 2 }}>Histórico de referência</div>
+                        </div>
+
+                        {f.fipe > 0 && f.valor_fipe_anterior > 0 && (
+                          <div style={{
+                            background: (f.fipe >= f.valor_fipe_anterior) ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)',
+                            border: `1.5px solid ${(f.fipe >= f.valor_fipe_anterior) ? '#10b981' : '#ef4444'}`,
+                            borderRadius: 10,
+                            padding: '10px 14px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'center'
+                          }}>
+                            <div style={{ fontSize: '.72rem', fontWeight: 700, color: (f.fipe >= f.valor_fipe_anterior) ? '#047857' : '#b91c1c', textTransform: 'uppercase' }}>
+                              Variação Mensal FIPE
+                            </div>
+                            <div style={{ fontSize: '1.15rem', fontWeight: 900, color: (f.fipe >= f.valor_fipe_anterior) ? '#047857' : '#b91c1c', marginTop: 2 }}>
+                              {f.fipe >= f.valor_fipe_anterior ? '▲ +' : '▼ '}{brl(f.fipe - f.valor_fipe_anterior)} ({(((f.fipe - f.valor_fipe_anterior) / f.valor_fipe_anterior) * 100).toFixed(2)}%)
+                            </div>
+                            <div style={{ fontSize: '.68rem', opacity: .8, marginTop: 2 }}>
+                              {f.fipe >= f.valor_fipe_anterior ? 'Veículo valorizou no mercado' : 'Desvalorização no período'}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* LEMBRETE OBRIGATÓRIO DE PROCEDÊNCIA: DETRAN E AUTOLOOK NA COMPRA */}
                     <div
@@ -1228,10 +1490,11 @@ function NegociacaoWizardModal({ inicial, clientes, veiculos, onClose, onSave, o
                           style={{ background: '#2563eb', color: '#fff', fontWeight: 700, border: 'none', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '.8rem', padding: '7px 14px', borderRadius: 6 }}
                           onClick={() => {
                             const p = (f.troca_placa || '').trim().toUpperCase();
-                            const url = `https://servicos.detran.sc.gov.br/consulta-dossie-veiculo?placa=${encodeURIComponent(p)}`;
+                            const r = (f.troca_renavam || '').trim();
+                            const url = `https://servicos.detran.sc.gov.br/consulta-dossie-veiculo?placa=${encodeURIComponent(p)}${r ? `&renavam=${encodeURIComponent(r)}` : ''}`;
                             window.open(url, '_blank', 'noopener,noreferrer');
                           }}
-                          title="Abrir Consulta Oficial DETRAN-SC"
+                          title="Abrir Consulta Oficial DETRAN-SC (com Placa e Renavam)"
                         >
                           <Search size={14} /> DETRAN-SC ↗
                         </button>

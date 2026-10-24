@@ -276,6 +276,77 @@ export const DG_DEFAULT_VEHICLES: FeedVehicle[] = [];
 export async function getVehicles(): Promise<FeedVehicle[]> {
   if (cache && Date.now() - cache.at < CACHE_TTL_MS && cache.vehicles.length > 0) return cache.vehicles;
 
+  // 1. Fonte Oficial e Prioritária: Supabase REST API (veículos reais cadastrados no ERP com todas as fotos)
+  try {
+    const sbUrl = process.env.SUPABASE_URL || 'https://jkblxdxnbmciicakusnl.supabase.co';
+    const sbKey = process.env.SUPABASE_KEY || process.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_a_LZCcUT50c9-2JspQf1aQ_-khIilRb';
+    const [resVeics, resFotos] = await Promise.all([
+      fetch(`${sbUrl}/rest/v1/veiculos_DGAUTOS?select=*&order=id.desc`, {
+        headers: { apikey: sbKey, Authorization: `Bearer ${sbKey}` }
+      }),
+      fetch(`${sbUrl}/rest/v1/veiculos_fotos_DGAUTOS?select=*&order=ordem.asc`, {
+        headers: { apikey: sbKey, Authorization: `Bearer ${sbKey}` }
+      })
+    ]);
+
+    if (resVeics.ok) {
+      const veics = await resVeics.json();
+      const fotos = resFotos.ok ? await resFotos.json() : [];
+
+      if (Array.isArray(veics) && veics.length > 0) {
+        const listaAlvo = veics.filter((v: any) => v.publicar_site !== false);
+
+        const vehicles: FeedVehicle[] = listaAlvo.map((v: any) => {
+          const fotosTabela = (Array.isArray(fotos) ? fotos : [])
+            .filter((f: any) => Number(f.veiculo_id) === Number(v.id))
+            .map((f: any) => f.url_foto)
+            .filter(Boolean);
+          const altimusFotos = Array.isArray(v.dados_altimus?.fotos) ? v.dados_altimus.fotos : [];
+          const fotosCol = Array.isArray(v.fotos) ? v.fotos : [];
+          const imgs = fotosTabela.length > 0
+            ? fotosTabela
+            : (altimusFotos.length > 0 ? altimusFotos : (fotosCol.length > 0 ? fotosCol : (v.foto_capa ? [v.foto_capa] : [])));
+
+          const brandName = (v.marca || '').trim() || 'DG Automóveis';
+          const modelName = (v.modelo || '').trim();
+          const versaoName = (v.modelo_complemento || v.versao || '').trim();
+          const fullName = `${brandName} ${modelName} ${versaoName}`.trim() || 'Veículo DG Automóveis';
+          const price = Number(v.preco || v.preco_venda || 0);
+          const kmNumber = Number(v.km || 0);
+          const ops = Array.isArray(v.opcionais) ? v.opcionais : (v.dados_altimus?.itens_opcionais || []);
+          const anoFormatado = v.ano || `${v.ano_fabricacao || ''}/${v.ano_modelo || ''}`.replace(/^\/|\/$/g, '');
+
+          return {
+            id: String(v.id),
+            slug: `${slugify(fullName)}-${v.id}`,
+            title: fullName,
+            brand: brandName,
+            tipo: String(v.tipo || '1'),
+            year: anoFormatado,
+            price,
+            priceFormatted: price > 0 ? formatBRL(price) : 'Consulte',
+            km: formatKm(kmNumber),
+            kmNumber,
+            color: v.cor || '',
+            fuel: v.combustivel || '',
+            transmission: v.cambio || detectTransmission(fullName, ops),
+            options: ops,
+            images: imgs,
+            description: v.observacao_anuncio || v.observacao_internet || fullName,
+            placa: (v.placa || '').toUpperCase(),
+            status: v.status || 'disponivel',
+          };
+        });
+
+        cache = { at: Date.now(), vehicles };
+        return vehicles;
+      }
+    }
+  } catch (err) {
+    console.warn('Erro ao consultar Supabase em catalog.ts:', err);
+  }
+
+  // 2. Feed fallback (XML/JSON legado)
   const urlsToTry = [
     FEED_URL,
     'http://127.0.0.1:3333/api/estoquejson?estoque=20706bbe-4a09-4a03-8e2a-1f47e73d7a14',

@@ -144,7 +144,43 @@ export function mascaraPlaca(v) {
   return String(v).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 7);
 }
 
-// Consulta de Placa via API Nacional / WDAPI2 / Backend DG Autos
+// Busca FIPE do mês anterior para uma versão selecionada
+export async function buscarFipeMesAnterior(codigoFipe, anoModelo, refAtual = 338) {
+  if (!codigoFipe) return null;
+  try {
+    const res = await fetch(`/api/fipe/mes-anterior?codigo=${encodeURIComponent(codigoFipe)}&ano=${encodeURIComponent(anoModelo || '')}&ref=${encodeURIComponent(refAtual)}`);
+    if (res.ok) {
+      const d = await res.json();
+      if (d && d.ok) return d;
+    }
+  } catch {}
+
+  // Fallback direto via Parallelum v2 se backend não responder
+  try {
+    const refAnterior = Number(refAtual) - 1;
+    const rYears = await fetch(`https://parallelum.com.br/fipe/api/v2/cars/${codigoFipe}/years?reference=${refAnterior}`);
+    if (rYears.ok) {
+      const years = await rYears.json();
+      if (Array.isArray(years) && years.length) {
+        const anoStr = String(anoModelo || '').split('/')[0].slice(0, 4);
+        const matchYear = years.find((y) => y.code.startsWith(anoStr)) || years[0];
+        const rPrice = await fetch(`https://parallelum.com.br/fipe/api/v2/cars/${codigoFipe}/years/${matchYear.code}?reference=${refAnterior}`);
+        if (rPrice.ok) {
+          const priceData = await rPrice.json();
+          return {
+            mes_anterior: priceData.referenceMonth || 'Mês Anterior',
+            valor_anterior: priceData.price || '',
+            valor_num: Number(String(priceData.price || '').replace(/[^\d]/g, '')) / 100,
+          };
+        }
+      }
+    }
+  } catch {}
+
+  return null;
+}
+
+// Consulta de Placa via API Nacional / WDAPI2 / Backend DG Autos com FIPE Completa e Histórico
 export async function buscarPlaca(placa) {
   const limpo = String(placa || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 7);
   if (!/^[A-Z]{3}[0-9][0-9A-Z][0-9]{2}$/.test(limpo)) return null;
@@ -161,12 +197,23 @@ export async function buscarPlaca(placa) {
           modelo: (v.modelo || '').toUpperCase(),
           versao: (v.versao || '').toUpperCase(),
           ano: v.ano || '',
-          ano_modelo: v.ano || '',
+          ano_fabricacao: v.ano_fabricacao || v.ano || '',
+          ano_modelo: v.ano_modelo || v.ano || '',
           cor: (v.cor || '').toUpperCase(),
           combustivel: (v.combustivel || '').toUpperCase(),
           municipio: (v.municipio || '').toUpperCase(),
           uf: (v.uf || '').toUpperCase(),
+          cidade_emplacamento: v.cidade_emplacamento || (v.municipio ? `${v.municipio}${v.uf ? ' - ' + v.uf : ''}` : ''),
+          chassi: (v.chassi || '').toUpperCase(),
+          renavam: v.renavam || '',
           fipeValor: v.fipeValor || '',
+          fipe_num: Number(v.fipe_num || 0),
+          codigo_fipe: v.codigo_fipe || '',
+          fipe_mes_atual: v.fipe_mes_atual || '',
+          fipe_mes_anterior: v.fipe_mes_anterior || '',
+          fipe_valor_anterior: v.fipe_valor_anterior || '',
+          valor_fipe_anterior: Number(v.valor_fipe_anterior || 0),
+          fipe_opcoes: Array.isArray(v.fipe_opcoes) ? v.fipe_opcoes : [],
           logo: v.logo || ''
         };
       }
@@ -182,23 +229,53 @@ export async function buscarPlaca(placa) {
       if (data && (data.marca || data.MARCA)) {
         let fipeValor = '';
         let versaoFipe = '';
+        let codigoFipe = '';
+        let mesAtual = '';
+        let refFipe = 338;
+        let fipe_opcoes = [];
+
         const fipeList = data?.fipe?.dados;
         if (Array.isArray(fipeList) && fipeList.length) {
-          const best = [...fipeList].sort((a, b) => (b?.score || 0) - (a?.score || 0))[0];
+          fipe_opcoes = fipeList.map((d) => ({
+            codigo_fipe: d.codigo_fipe,
+            texto_modelo: d.texto_modelo,
+            texto_valor: d.texto_valor,
+            valor_num: Number(String(d.texto_valor || '').replace(/[^\d]/g, '')) / 100,
+            mes_referencia: d.mes_referencia || d.texto_mes || '',
+            referencia_fipe: d.referencia_fipe || 338,
+            score: d.score || 0,
+          }));
+          const best = [...fipe_opcoes].sort((a, b) => (b.score || 0) - (a.score || 0))[0];
           fipeValor = best?.texto_valor || '';
           versaoFipe = best?.texto_modelo || '';
+          codigoFipe = best?.codigo_fipe || '';
+          mesAtual = best?.mes_referencia || '';
+          refFipe = best?.referencia_fipe || 338;
         }
+
+        const mun = (data.municipio || data?.extra?.municipio || '').toUpperCase();
+        const uf = (data.uf || data?.extra?.uf_placa || '').toUpperCase();
+
         return {
           marca: (data.marca || data.MARCA || '').toUpperCase(),
           modelo: (data.modelo || data.MODELO || '').toUpperCase(),
           versao: (versaoFipe || data.VERSAO || data.SUBMODELO || '').toUpperCase(),
           ano: data.ano || data.anoModelo || '',
+          ano_fabricacao: data.ano || '',
           ano_modelo: data.anoModelo || data.ano || '',
           cor: (data.cor || '').toUpperCase(),
           combustivel: (data?.extra?.combustivel || data?.combustivel || '').toUpperCase(),
-          municipio: (data.municipio || data?.extra?.municipio || '').toUpperCase(),
-          uf: (data.uf || data?.extra?.uf_placa || '').toUpperCase(),
+          municipio: mun,
+          uf: uf,
+          cidade_emplacamento: mun ? `${mun}${uf ? ' - ' + uf : ''}` : '',
           fipeValor,
+          fipe_num: Number(String(fipeValor).replace(/[^\d]/g, '')) / 100,
+          codigo_fipe: codigoFipe,
+          fipe_mes_atual: mesAtual,
+          fipe_mes_anterior: '',
+          fipe_valor_anterior: '',
+          valor_fipe_anterior: 0,
+          fipe_opcoes,
           chassi: (data.chassi || '').toUpperCase(),
           renavam: data.renavam || ''
         };

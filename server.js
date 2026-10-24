@@ -535,6 +535,63 @@ function ordenarPorRecencia(lista) {
 }
 async function getVehicles() {
   if (cache && Date.now() - cache.at < CACHE_TTL_MS && cache.vehicles.length > 0) return cache.vehicles;
+  try {
+    const sbUrl = process.env.SUPABASE_URL || "https://jkblxdxnbmciicakusnl.supabase.co";
+    const sbKey = process.env.SUPABASE_KEY || process.env.VITE_SUPABASE_ANON_KEY || "sb_publishable_a_LZCcUT50c9-2JspQf1aQ_-khIilRb";
+    const [resVeics, resFotos] = await Promise.all([
+      fetch(`${sbUrl}/rest/v1/veiculos_DGAUTOS?select=*&order=id.desc`, {
+        headers: { apikey: sbKey, Authorization: `Bearer ${sbKey}` }
+      }),
+      fetch(`${sbUrl}/rest/v1/veiculos_fotos_DGAUTOS?select=*&order=ordem.asc`, {
+        headers: { apikey: sbKey, Authorization: `Bearer ${sbKey}` }
+      })
+    ]);
+    if (resVeics.ok) {
+      const veics = await resVeics.json();
+      const fotos = resFotos.ok ? await resFotos.json() : [];
+      if (Array.isArray(veics) && veics.length > 0) {
+        const listaAlvo = veics.filter((v) => v.publicar_site !== false);
+        const vehicles = listaAlvo.map((v) => {
+          const fotosTabela = (Array.isArray(fotos) ? fotos : []).filter((f) => Number(f.veiculo_id) === Number(v.id)).map((f) => f.url_foto).filter(Boolean);
+          const altimusFotos = Array.isArray(v.dados_altimus?.fotos) ? v.dados_altimus.fotos : [];
+          const fotosCol = Array.isArray(v.fotos) ? v.fotos : [];
+          const imgs = fotosTabela.length > 0 ? fotosTabela : altimusFotos.length > 0 ? altimusFotos : fotosCol.length > 0 ? fotosCol : v.foto_capa ? [v.foto_capa] : [];
+          const brandName = (v.marca || "").trim() || "DG Autom\xF3veis";
+          const modelName = (v.modelo || "").trim();
+          const versaoName = (v.modelo_complemento || v.versao || "").trim();
+          const fullName = `${brandName} ${modelName} ${versaoName}`.trim() || "Ve\xEDculo DG Autom\xF3veis";
+          const price = Number(v.preco || v.preco_venda || 0);
+          const kmNumber = Number(v.km || 0);
+          const ops = Array.isArray(v.opcionais) ? v.opcionais : v.dados_altimus?.itens_opcionais || [];
+          const anoFormatado = v.ano || `${v.ano_fabricacao || ""}/${v.ano_modelo || ""}`.replace(/^\/|\/$/g, "");
+          return {
+            id: String(v.id),
+            slug: `${slugify(fullName)}-${v.id}`,
+            title: fullName,
+            brand: brandName,
+            tipo: String(v.tipo || "1"),
+            year: anoFormatado,
+            price,
+            priceFormatted: price > 0 ? formatBRL(price) : "Consulte",
+            km: formatKm(kmNumber),
+            kmNumber,
+            color: v.cor || "",
+            fuel: v.combustivel || "",
+            transmission: v.cambio || detectTransmission(fullName, ops),
+            options: ops,
+            images: imgs,
+            description: v.observacao_anuncio || v.observacao_internet || fullName,
+            placa: (v.placa || "").toUpperCase(),
+            status: v.status || "disponivel"
+          };
+        });
+        cache = { at: Date.now(), vehicles };
+        return vehicles;
+      }
+    }
+  } catch (err) {
+    console.warn("Erro ao consultar Supabase em catalog.ts:", err);
+  }
   const urlsToTry = [
     FEED_URL,
     "http://127.0.0.1:3333/api/estoquejson?estoque=20706bbe-4a09-4a03-8e2a-1f47e73d7a14",
@@ -7400,6 +7457,39 @@ async function startServer() {
       res.status(500).json({ ok: false, error: "Failed to forward repasse cadastro" });
     }
   });
+  async function fetchFipeMesAnterior(codigoFipe, anoModelo, refAtual = 338) {
+    try {
+      const refAnterior = Number(refAtual) - 1;
+      const rYears = await fetch(`https://parallelum.com.br/fipe/api/v2/cars/${codigoFipe}/years?reference=${refAnterior}`);
+      if (!rYears.ok) return null;
+      const years = await rYears.json();
+      if (!Array.isArray(years) || !years.length) return null;
+      const anoStr = String(anoModelo || "").split("/")[0].slice(0, 4);
+      const matchYear = years.find((y) => y.code.startsWith(anoStr)) || years[0];
+      const rPrice = await fetch(`https://parallelum.com.br/fipe/api/v2/cars/${codigoFipe}/years/${matchYear.code}?reference=${refAnterior}`);
+      if (!rPrice.ok) return null;
+      const priceData = await rPrice.json();
+      return {
+        mes_anterior: priceData.referenceMonth || "M\xEAs Anterior",
+        valor_anterior: priceData.price || "",
+        valor_num: Number(String(priceData.price || "").replace(/[^\d]/g, "")) / 100
+      };
+    } catch {
+      return null;
+    }
+  }
+  app2.get("/api/fipe/mes-anterior", async (req, res) => {
+    try {
+      const codigoFipe = String(req.query.codigo || "");
+      const anoModelo = String(req.query.ano || "");
+      const ref = Number(req.query.ref || 338);
+      if (!codigoFipe) return res.status(400).json({ ok: false, error: "C\xF3digo FIPE obrigat\xF3rio" });
+      const resultado = await fetchFipeMesAnterior(codigoFipe, anoModelo, ref);
+      res.json({ ok: true, ...resultado || {} });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
   app2.get("/api/placa/:placa", async (req, res) => {
     try {
       const placa = String(req.params.placa || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 7);
@@ -7411,24 +7501,61 @@ async function startServer() {
       if (!data || data.message || !data.marca && !data.MARCA) {
         return res.status(200).json({ ok: false, error: "N\xE3o encontramos os dados dessa placa. Voc\xEA pode seguir sem ela." });
       }
+      const fipeList = data?.fipe?.dados;
+      let fipe_opcoes = [];
+      let bestFipe = null;
       let fipeValor = "";
       let versaoFipe = "";
-      const fipeList = data?.fipe?.dados;
+      let codigoFipe = "";
+      let mesAtual = "";
+      let refFipe = 338;
       if (Array.isArray(fipeList) && fipeList.length) {
-        const best = [...fipeList].sort((a, b) => (b?.score || 0) - (a?.score || 0))[0];
-        fipeValor = best?.texto_valor || "";
-        versaoFipe = best?.texto_modelo || "";
+        fipe_opcoes = fipeList.map((d) => ({
+          codigo_fipe: d.codigo_fipe,
+          texto_modelo: d.texto_modelo,
+          texto_valor: d.texto_valor,
+          valor_num: Number(String(d.texto_valor || "").replace(/[^\d]/g, "")) / 100,
+          mes_referencia: d.mes_referencia || d.texto_mes || "",
+          referencia_fipe: d.referencia_fipe || 338,
+          score: d.score || 0
+        }));
+        bestFipe = [...fipe_opcoes].sort((a, b) => (b.score || 0) - (a.score || 0))[0];
+        fipeValor = bestFipe?.texto_valor || "";
+        versaoFipe = bestFipe?.texto_modelo || "";
+        codigoFipe = bestFipe?.codigo_fipe || "";
+        mesAtual = bestFipe?.mes_referencia || "";
+        refFipe = bestFipe?.referencia_fipe || 338;
       }
+      let fipeAnteriorData = null;
+      if (codigoFipe) {
+        const anoBusca = data.anoModelo || data.ano || "";
+        fipeAnteriorData = await fetchFipeMesAnterior(codigoFipe, anoBusca, refFipe);
+      }
+      const municipioStr = data.municipio || data?.extra?.municipio || "";
+      const ufStr = data.uf || data?.extra?.uf_placa || "";
+      const cidadeLicenciamento = municipioStr ? `${municipioStr}${ufStr ? " - " + ufStr : ""}` : "";
       const veiculo = {
         marca: data.marca || data.MARCA || "",
         modelo: data.modelo || data.MODELO || "",
         versao: versaoFipe || data.VERSAO || data.SUBMODELO || "",
         ano: data.ano || data.anoModelo || "",
+        ano_fabricacao: data.ano || data.anoFabricacao || "",
+        ano_modelo: data.anoModelo || data.ano || "",
         cor: data.cor || "",
-        combustivel: data?.extra?.combustivel || "",
-        municipio: data.municipio || data?.extra?.municipio || "",
-        uf: data.uf || data?.extra?.uf_placa || "",
+        combustivel: data?.extra?.combustivel || data?.combustivel || "",
+        municipio: municipioStr,
+        uf: ufStr,
+        cidade_emplacamento: cidadeLicenciamento,
+        chassi: data.chassi || data.CHASSI || "",
+        renavam: data.renavam || data.RENAVAM || "",
         fipeValor,
+        fipe_num: bestFipe ? bestFipe.valor_num : 0,
+        codigo_fipe: codigoFipe,
+        fipe_mes_atual: mesAtual,
+        fipe_mes_anterior: fipeAnteriorData?.mes_anterior || "",
+        fipe_valor_anterior: fipeAnteriorData?.valor_anterior || "",
+        valor_fipe_anterior: fipeAnteriorData?.valor_num || 0,
+        fipe_opcoes,
         logo: data.logo || ""
       };
       res.json({ ok: true, veiculo });

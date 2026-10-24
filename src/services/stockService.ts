@@ -17,8 +17,8 @@ export interface Vehicle {
 }
 
 const STOCK_JSON_URL = '/api/stock';
-const CACHE_KEY = 'dg_automoveis_stock_cache_v4';
-const CACHE_TTL = 1000 * 60 * 3; // 3 minutes
+const CACHE_KEY = 'dg_automoveis_stock_cache_v5';
+const CACHE_TTL = 1000 * 30; // 30 segundos para manter sempre sincronizado
 
 function slugify(input: string): string {
   return (input || '')
@@ -90,20 +90,43 @@ export async function fetchStock(): Promise<Vehicle[]> {
       }
     } catch {}
 
-    // Fallback de Produção: Consulta direta ao banco de dados Supabase DGAUTOS
+    // Consulta direta e oficial ao banco de dados Supabase DGAUTOS (com todas as fotos)
     try {
-      const { data, error } = await supabase
-        .from('veiculos_DGAUTOS')
-        .select('*');
+      const [resVeics, resFotos] = await Promise.all([
+        supabase.from('veiculos_DGAUTOS').select('*').order('id', { ascending: false }),
+        supabase.from('veiculos_fotos_DGAUTOS').select('*').order('ordem', { ascending: true })
+      ]);
 
-      if (!error && Array.isArray(data) && data.length > 0) {
-        const publicados = data.filter((v: any) => v.publicar_site !== false && v.status !== 'vendido');
-        const listaAlvo = publicados.length > 0 ? publicados : data;
+      const data = resVeics.data;
+      const fotosData = Array.isArray(resFotos.data) ? resFotos.data : [];
+
+      if (!resVeics.error && Array.isArray(data) && data.length > 0) {
+        const listaAlvo = data.filter((v: any) => v.publicar_site !== false);
 
         const vehicles: Vehicle[] = listaAlvo.map((v: any) => {
-          const imgs: string[] = Array.isArray(v.fotos) && v.fotos.length > 0
-            ? v.fotos
-            : (v.foto_capa ? [v.foto_capa] : ['/logo-dg.png']);
+          // 1. Fotos salvas na tabela veiculos_fotos_DGAUTOS
+          const fotosTabela = fotosData
+            .filter((f: any) => Number(f.veiculo_id) === Number(v.id))
+            .map((f: any) => f.url_foto)
+            .filter(Boolean);
+
+          // 2. Fotos no payload JSON dados_altimus
+          const altimusFotos = Array.isArray(v.dados_altimus?.fotos) ? v.dados_altimus.fotos : [];
+          const fotosProprias = Array.isArray(v.fotos) ? v.fotos : [];
+
+          let imgs: string[] = [];
+          if (fotosTabela.length > 0) {
+            imgs = fotosTabela;
+          } else if (altimusFotos.length > 0) {
+            imgs = altimusFotos;
+          } else if (fotosProprias.length > 0) {
+            imgs = fotosProprias;
+          } else if (v.foto_capa) {
+            imgs = [v.foto_capa];
+          } else {
+            imgs = ['/logo-dg.png'];
+          }
+
           const vSlug = `${slugify(`${v.marca} ${v.modelo}`)}-${v.id}`;
           const vAno = v.ano || `${v.ano_fabricacao || ''}/${v.ano_modelo || ''}`.replace(/^\/|\/$/g, '');
           const precoNum = Number(v.preco || v.preco_venda || 0);
@@ -122,12 +145,15 @@ export async function fetchStock(): Promise<Vehicle[]> {
             fuel: v.combustivel || '',
             transmission: v.cambio || '',
             color: v.cor || '',
-            options: Array.isArray(v.opcionais) ? v.opcionais : [],
+            options: Array.isArray(v.opcionais) ? v.opcionais : (v.dados_altimus?.itens_opcionais || []),
             link: `/estoque/${vSlug}`,
+            status: v.status || 'disponivel',
           };
         });
 
-        localStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), vehicles }));
+        try {
+          localStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), vehicles }));
+        } catch {}
         return vehicles;
       }
     } catch (errSupabase) {

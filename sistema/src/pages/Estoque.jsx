@@ -10,7 +10,7 @@ import {
   getVeiculos, saveVeiculo, deleteVeiculo, getClientes,
   saveFinanceiro, deleteFinanceiro, brl, dataBr, STATUS, CATEGORIAS_FINANCEIRO
 } from '../store';
-import { buscarPlaca, mascaraPlaca } from '../utils/mascaras';
+import { buscarPlaca, mascaraPlaca, buscarFipeMesAnterior } from '../utils/mascaras';
 
 const GRUPOS_OPCIONAIS = [
   {
@@ -122,6 +122,9 @@ const EMPTY_VEICULO = {
   fipe: 0,
   valor_fipe_anterior: 0,
   codigo_fipe: '',
+  fipe_mes_atual: '',
+  fipe_mes_anterior: '',
+  fipe_opcoes: [],
   entrada: new Date().toISOString().slice(0, 10),
   venda: '',
   cliente_entrada_id: '',
@@ -1049,13 +1052,14 @@ function VeiculoModal({ inicial, clientes, onClose, onSave, onCancelarVeiculo, o
     if (limpo.length !== 7) return;
 
     setBuscandoPlaca(true);
-    setMsgPlaca('🔍 Consultando dados do veículo pela placa...');
+    setMsgPlaca('🔍 Consultando dados, procedência e FIPE...');
     try {
       const v = await buscarPlaca(limpo);
       if (v) {
         setF((prev) => {
-          const anoFab = v.ano ? String(v.ano).slice(0, 4) : prev.ano_fabricacao;
+          const anoFab = v.ano_fabricacao ? String(v.ano_fabricacao).slice(0, 4) : (v.ano ? String(v.ano).slice(0, 4) : prev.ano_fabricacao);
           const anoMod = v.ano_modelo ? String(v.ano_modelo).slice(-4) : (v.ano ? String(v.ano).slice(-4) : prev.ano_modelo);
+          const fipeNum = v.fipe_num || (v.fipeValor ? Number(String(v.fipeValor).replace(/[^\d]/g, '')) / 100 : prev.fipe);
           return {
             ...prev,
             placa: limpo,
@@ -1069,10 +1073,16 @@ function VeiculoModal({ inicial, clientes, onClose, onSave, onCancelarVeiculo, o
             combustivel: v.combustivel || prev.combustivel,
             chassi: v.chassi || prev.chassi,
             renavam: v.renavam || prev.renavam,
-            fipe: v.fipeValor ? Number(String(v.fipeValor).replace(/[^\d]/g, '')) / 100 : prev.fipe
+            cidade_emplacamento: v.cidade_emplacamento || prev.cidade_emplacamento,
+            fipe: fipeNum,
+            valor_fipe_anterior: v.valor_fipe_anterior || prev.valor_fipe_anterior,
+            codigo_fipe: v.codigo_fipe || prev.codigo_fipe,
+            fipe_mes_atual: v.fipe_mes_atual || prev.fipe_mes_atual,
+            fipe_mes_anterior: v.fipe_mes_anterior || prev.fipe_mes_anterior,
+            fipe_opcoes: Array.isArray(v.fipe_opcoes) ? v.fipe_opcoes : []
           };
         });
-        setMsgPlaca(`✓ ${v.marca} ${v.modelo} preenchido automaticamente!`);
+        setMsgPlaca(`✓ ${v.marca} ${v.modelo} preenchido via API Nacional!`);
         setTimeout(() => setMsgPlaca(''), 5000);
       } else {
         setMsgPlaca('Placa não encontrada na base nacional.');
@@ -1084,6 +1094,30 @@ function VeiculoModal({ inicial, clientes, onClose, onSave, onCancelarVeiculo, o
     } finally {
       setBuscandoPlaca(false);
     }
+  };
+
+  const handleSelecionarFipeOpcaoEstoque = async (codigoEscolhido) => {
+    const opcao = (f.fipe_opcoes || []).find((o) => o.codigo_fipe === codigoEscolhido);
+    if (!opcao) return;
+    const novoValorAtual = opcao.valor_num || (Number(String(opcao.texto_valor || '').replace(/[^\d]/g, '')) / 100);
+    setF((prev) => ({
+      ...prev,
+      codigo_fipe: opcao.codigo_fipe,
+      modelo_complemento: opcao.texto_modelo || prev.modelo_complemento,
+      fipe: novoValorAtual,
+      fipe_mes_atual: opcao.mes_referencia || prev.fipe_mes_atual,
+    }));
+
+    try {
+      const resAnt = await buscarFipeMesAnterior(opcao.codigo_fipe, f.ano_modelo || f.ano, opcao.referencia_fipe);
+      if (resAnt && resAnt.valor_num) {
+        setF((prev) => ({
+          ...prev,
+          valor_fipe_anterior: resAnt.valor_num,
+          fipe_mes_anterior: resAnt.mes_anterior || prev.fipe_mes_anterior
+        }));
+      }
+    } catch {}
   };
 
   const handlePlacaChange = (e) => {
@@ -1445,21 +1479,10 @@ function VeiculoModal({ inicial, clientes, onClose, onSave, onCancelarVeiculo, o
                 <div className="field">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                     <label style={{ margin: 0 }}>Placa *</label>
-                    {buscandoPlaca ? (
+                    {buscandoPlaca && (
                       <span style={{ fontSize: '.72rem', color: '#6d28d9', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                         <div className="spinner-sm" style={{ width: 12, height: 12 }} /> Consultando API...
                       </span>
-                    ) : (
-                      f.placa && f.placa.length === 7 && (
-                        <button
-                          type="button"
-                          onClick={() => handleConsultarPlacaAuto(f.placa)}
-                          style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '.72rem', fontWeight: 700, cursor: 'pointer', padding: 0 }}
-                          title="Recarregar dados do veículo da API"
-                        >
-                          🔄 Buscar via API
-                        </button>
-                      )
                     )}
                   </div>
                   <input
@@ -1508,6 +1531,42 @@ function VeiculoModal({ inicial, clientes, onClose, onSave, onCancelarVeiculo, o
                     placeholder="17 caracteres"
                   />
                 </div>
+
+                {/* SELETOR INTERATIVO QUANDO EXISTE MAIS DE UMA VERSÃO NA FIPE */}
+                {Array.isArray(f.fipe_opcoes) && f.fipe_opcoes.length > 1 && (
+                  <div style={{
+                    gridColumn: 'span 3',
+                    background: 'rgba(99, 102, 241, 0.08)',
+                    border: '1.5px solid #6366f1',
+                    borderRadius: 10,
+                    padding: '12px 14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                    marginTop: 4
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                      <strong style={{ fontSize: '.88rem', color: '#4338ca', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Sparkles size={16} /> Encontradas {f.fipe_opcoes.length} versões na Tabela FIPE para este modelo. Selecione a correta:
+                      </strong>
+                      <span style={{ fontSize: '.72rem', color: '#4f46e5', fontWeight: 700 }}>
+                        Código selecionado: {f.codigo_fipe || '-'}
+                      </span>
+                    </div>
+                    <select
+                      className="select"
+                      value={f.codigo_fipe || ''}
+                      onChange={(e) => handleSelecionarFipeOpcaoEstoque(e.target.value)}
+                      style={{ fontWeight: 700, borderColor: '#6366f1', background: '#ffffff', color: '#1e1b4b' }}
+                    >
+                      {f.fipe_opcoes.map((op, idx) => (
+                        <option key={op.codigo_fipe || idx} value={op.codigo_fipe}>
+                          {op.texto_modelo} — {op.texto_valor} (FIPE: {op.codigo_fipe})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1783,6 +1842,108 @@ function VeiculoModal({ inicial, clientes, onClose, onSave, onCancelarVeiculo, o
                 )}
               </div>
 
+              {/* SELETOR INTERATIVO QUANDO EXISTE MAIS DE UMA VERSÃO NA FIPE */}
+              {Array.isArray(f.fipe_opcoes) && f.fipe_opcoes.length > 1 && (
+                <div style={{
+                  gridColumn: 'span 3',
+                  background: 'rgba(99, 102, 241, 0.08)',
+                  border: '1.5px solid #6366f1',
+                  borderRadius: 10,
+                  padding: '12px 14px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 8,
+                  marginBottom: 6
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <strong style={{ fontSize: '.88rem', color: '#4338ca', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Sparkles size={16} /> Encontradas {f.fipe_opcoes.length} versões na Tabela FIPE para este modelo. Selecione a correta:
+                    </strong>
+                    <span style={{ fontSize: '.72rem', color: '#4f46e5', fontWeight: 700 }}>
+                      Código selecionado: {f.codigo_fipe || '-'}
+                    </span>
+                  </div>
+                  <select
+                    className="select"
+                    value={f.codigo_fipe || ''}
+                    onChange={(e) => handleSelecionarFipeOpcaoEstoque(e.target.value)}
+                    style={{ fontWeight: 700, borderColor: '#6366f1', background: '#ffffff', color: '#1e1b4b' }}
+                  >
+                    {f.fipe_opcoes.map((op, idx) => (
+                      <option key={op.codigo_fipe || idx} value={op.codigo_fipe}>
+                        {op.texto_modelo} — {op.texto_valor} (FIPE: {op.codigo_fipe})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* CARDS COMPARATIVOS FIPE MÊS ATUAL E MÊS ANTERIOR */}
+              {(f.fipe > 0 || f.valor_fipe_anterior > 0) && (
+                <div style={{
+                  gridColumn: 'span 3',
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                  gap: 12,
+                  marginTop: 2,
+                  marginBottom: 8
+                }}>
+                  <div style={{
+                    background: 'var(--card-bg, #ffffff)',
+                    border: '1.5px solid #10b981',
+                    borderRadius: 10,
+                    padding: '10px 14px',
+                    boxShadow: '0 2px 8px rgba(16,185,129,0.08)'
+                  }}>
+                    <div style={{ fontSize: '.72rem', color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.5px' }}>
+                      Tabela FIPE Mês Atual ({f.fipe_mes_atual || 'Mês Atual'})
+                    </div>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#047857', marginTop: 2 }}>
+                      {brl(f.fipe || 0)}
+                    </div>
+                    {f.codigo_fipe && <div style={{ fontSize: '.7rem', color: 'var(--muted)', marginTop: 2 }}>Cód. FIPE: {f.codigo_fipe}</div>}
+                  </div>
+
+                  <div style={{
+                    background: 'var(--card-bg, #ffffff)',
+                    border: '1.5px solid #64748b',
+                    borderRadius: 10,
+                    padding: '10px 14px',
+                    boxShadow: '0 2px 8px rgba(100,116,139,0.08)'
+                  }}>
+                    <div style={{ fontSize: '.72rem', color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.5px' }}>
+                      Tabela FIPE Mês Anterior ({f.fipe_mes_anterior || 'Mês Anterior'})
+                    </div>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#334155', marginTop: 2 }}>
+                      {brl(f.valor_fipe_anterior || 0)}
+                    </div>
+                    <div style={{ fontSize: '.7rem', color: 'var(--muted)', marginTop: 2 }}>Histórico de referência</div>
+                  </div>
+
+                  {f.fipe > 0 && f.valor_fipe_anterior > 0 && (
+                    <div style={{
+                      background: (f.fipe >= f.valor_fipe_anterior) ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)',
+                      border: `1.5px solid ${(f.fipe >= f.valor_fipe_anterior) ? '#10b981' : '#ef4444'}`,
+                      borderRadius: 10,
+                      padding: '10px 14px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'center'
+                    }}>
+                      <div style={{ fontSize: '.72rem', fontWeight: 700, color: (f.fipe >= f.valor_fipe_anterior) ? '#047857' : '#b91c1c', textTransform: 'uppercase' }}>
+                        Variação Mensal FIPE
+                      </div>
+                      <div style={{ fontSize: '1.15rem', fontWeight: 900, color: (f.fipe >= f.valor_fipe_anterior) ? '#047857' : '#b91c1c', marginTop: 2 }}>
+                        {f.fipe >= f.valor_fipe_anterior ? '▲ +' : '▼ '}{brl(f.fipe - f.valor_fipe_anterior)} ({(((f.fipe - f.valor_fipe_anterior) / f.valor_fipe_anterior) * 100).toFixed(2)}%)
+                      </div>
+                      <div style={{ fontSize: '.68rem', opacity: .8, marginTop: 2 }}>
+                        {f.fipe >= f.valor_fipe_anterior ? 'Veículo valorizou no mercado' : 'Desvalorização no período'}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="field">
                 <label>Código FIPE</label>
                 <input className="input" value={f.codigo_fipe ?? ''} onChange={set('codigo_fipe')} placeholder="002111-3" />
@@ -1791,11 +1952,6 @@ function VeiculoModal({ inicial, clientes, onClose, onSave, onCancelarVeiculo, o
               <div className="field">
                 <label>Valor Tabela FIPE Mês Atual (R$)</label>
                 <input className="input" type="number" value={f.fipe ?? 0} onChange={set('fipe')} />
-                {f.fipe > 0 && f.valor_fipe_anterior > 0 && (
-                  <small style={{ color: (f.fipe >= f.valor_fipe_anterior) ? 'var(--success)' : 'var(--danger)', fontSize: '.74rem', fontWeight: 600 }}>
-                    Variação mensal: {f.fipe >= f.valor_fipe_anterior ? '▲ +' : '▼ '}{brl(f.fipe - f.valor_fipe_anterior)} ({(((f.fipe - f.valor_fipe_anterior) / f.valor_fipe_anterior) * 100).toFixed(2)}%)
-                  </small>
-                )}
               </div>
 
               <div className="field">
