@@ -801,14 +801,15 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 
 /* ==========================================================================
-   KANBAN CRM ALTIMUS
+   KANBAN CRM ALTIMUS (15 ESTÁGIOS COM ROLAGEM HORIZONTAL SUAVE)
    ========================================================================== */
 .kanban {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(260px, 1fr));
-  gap: 12px;
+  display: flex;
+  gap: 14px;
   overflow-x: auto;
-  padding-bottom: 12px;
+  padding-bottom: 16px;
+  align-items: flex-start;
+  scroll-behavior: smooth;
 }
 .kanban-col {
   background: #eef0f4;
@@ -818,7 +819,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
   display: flex;
   flex-direction: column;
   gap: 10px;
-  min-height: 460px;
+  min-height: 480px;
+  flex: 0 0 290px;
+  width: 290px;
 }
 .kanban-head {
   display: flex;

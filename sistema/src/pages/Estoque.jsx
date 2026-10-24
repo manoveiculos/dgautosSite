@@ -11,17 +11,40 @@ import {
   saveFinanceiro, deleteFinanceiro, brl, dataBr, STATUS, CATEGORIAS_FINANCEIRO
 } from '../store';
 
-const OPCIONAIS_PADRAO = [
-  'Airbag', 'Airbag duplo / cortina', 'Alarme', 'Ar Condicionado', 'Ar Digital Dual Zone',
-  'Bancos de Couro', 'Banco com regulagem elétrica', 'Blindado', 'Câmera de Ré', 'Câmera 360°',
-  'Central Multimídia', 'Chave Presencial (Keyless)', 'Computador de bordo', 'Conexão USB / CarPlay',
-  'Controle automático de velocidade (Piloto)', 'Controle de tração e estabilidade',
-  'Direção Elétrica', 'Faróis Full LED', 'Faróis de neblina', 'Freios ABS',
-  'Interface Bluetooth', 'Navegador GPS', 'Paddle Shift (Borboleta)', 'Partida Start/Stop',
-  'Rodas de liga leve', 'Sensor de estacionamento dianteiro/traseiro', 'Sensor de chuva',
-  'Sensor de ré', 'Som Premium', 'Teto solar', 'Teto panorâmico', 'Tração 4x4',
-  'Trava elétrica', 'Vidro elétrico nas 4 portas', 'Volante multifuncional'
+const GRUPOS_OPCIONAIS = [
+  {
+    nome: 'Segurança',
+    itens: [
+      'Airbag', 'Airbag duplo / cortina', 'Alarme', 'Controle de tração e estabilidade',
+      'Freios ABS', 'Sensor de estacionamento dianteiro/traseiro', 'Sensor de ré',
+      'Câmera de Ré', 'Câmera 360°', 'Faróis Full LED', 'Faróis de neblina', 'Blindado'
+    ]
+  },
+  {
+    nome: 'Conforto & Conveniência',
+    itens: [
+      'Ar Condicionado', 'Ar Digital Dual Zone', 'Bancos de Couro', 'Banco com regulagem elétrica',
+      'Chave Presencial (Keyless)', 'Direção Elétrica', 'Partida Start/Stop',
+      'Controle automático de velocidade (Piloto)', 'Teto solar', 'Teto panorâmico',
+      'Trava elétrica', 'Vidro elétrico nas 4 portas', 'Volante multifuncional', 'Sensor de chuva'
+    ]
+  },
+  {
+    nome: 'Tecnologia & Som',
+    itens: [
+      'Central Multimídia', 'Conexão USB / CarPlay', 'Interface Bluetooth', 'Navegador GPS',
+      'Som Premium', 'Computador de bordo'
+    ]
+  },
+  {
+    nome: 'Performance & Estilo',
+    itens: [
+      'Rodas de liga leve', 'Tração 4x4', 'Paddle Shift (Borboleta)'
+    ]
+  }
 ];
+
+const OPCIONAIS_PADRAO = GRUPOS_OPCIONAIS.flatMap((g) => g.itens);
 
 const DESTAQUES_PADRAO = [
   'Único dono', 'IPVA Pago', 'Licenciado', 'Revisões feitas em concessionária',
@@ -1551,24 +1574,51 @@ function VeiculoModal({ inicial, clientes, onClose, onSave, onCancelarVeiculo, o
               <div className="field">
                 <label>Valor de Entrada / Compra (R$)</label>
                 <input className="input" type="number" value={f.custo ?? 0} onChange={set('custo')} />
+                <small style={{ color: 'var(--muted)', fontSize: '.74rem' }}>
+                  Custo Loja total (+ despesas): <strong style={{ color: 'var(--text)' }}>{brl(custoTotalReal)}</strong>
+                </small>
               </div>
+
               <div className="field">
                 <label>Valor Mínimo de Venda (R$)</label>
                 <input className="input" type="number" value={f.valor_minimo ?? 0} onChange={set('valor_minimo')} />
+                {custoTotalReal > 0 && f.valor_minimo > 0 && (
+                  <small style={{ color: (f.valor_minimo - custoTotalReal) >= 0 ? 'var(--success)' : 'var(--danger)', fontSize: '.74rem', fontWeight: 600 }}>
+                    Margem: {brl(f.valor_minimo - custoTotalReal)} ({(((f.valor_minimo - custoTotalReal) / custoTotalReal) * 100).toFixed(1)}% s/ custo)
+                  </small>
+                )}
               </div>
+
               <div className="field">
                 <label>Valor de Venda À Vista (R$) *</label>
                 <input className="input" type="number" required value={f.preco ?? 0} onChange={set('preco')} />
+                {custoTotalReal > 0 && f.preco > 0 && (
+                  <small style={{ color: (f.preco - custoTotalReal) >= 0 ? 'var(--success)' : 'var(--danger)', fontSize: '.74rem', fontWeight: 600 }}>
+                    Margem: {brl(f.preco - custoTotalReal)} ({(((f.preco - custoTotalReal) / custoTotalReal) * 100).toFixed(1)}% s/ custo)
+                  </small>
+                )}
               </div>
 
               <div className="field">
                 <label>Valor para Troca (R$)</label>
                 <input className="input" type="number" value={f.valor_troca ?? 0} onChange={set('valor_troca')} />
+                {custoTotalReal > 0 && f.valor_troca > 0 && (
+                  <small style={{ color: (f.valor_troca - custoTotalReal) >= 0 ? 'var(--success)' : 'var(--danger)', fontSize: '.74rem', fontWeight: 600 }}>
+                    Margem: {brl(f.valor_troca - custoTotalReal)} ({(((f.valor_troca - custoTotalReal) / custoTotalReal) * 100).toFixed(1)}% s/ custo)
+                  </small>
+                )}
               </div>
+
               <div className="field">
                 <label>Valor Anunciado no Site / Portais (R$)</label>
                 <input className="input" type="number" value={f.valor_site ?? f.preco ?? 0} onChange={set('valor_site')} />
+                {custoTotalReal > 0 && (f.valor_site || f.preco) > 0 && (
+                  <small style={{ color: ((f.valor_site || f.preco) - custoTotalReal) >= 0 ? 'var(--success)' : 'var(--danger)', fontSize: '.74rem', fontWeight: 600 }}>
+                    Margem: {brl((f.valor_site || f.preco) - custoTotalReal)} ({((((f.valor_site || f.preco) - custoTotalReal) / custoTotalReal) * 100).toFixed(1)}% s/ custo)
+                  </small>
+                )}
               </div>
+
               <div className="field">
                 <label>Código FIPE</label>
                 <input className="input" value={f.codigo_fipe ?? ''} onChange={set('codigo_fipe')} placeholder="002111-3" />
@@ -1577,11 +1627,19 @@ function VeiculoModal({ inicial, clientes, onClose, onSave, onCancelarVeiculo, o
               <div className="field">
                 <label>Valor Tabela FIPE Mês Atual (R$)</label>
                 <input className="input" type="number" value={f.fipe ?? 0} onChange={set('fipe')} />
+                {f.fipe > 0 && f.valor_fipe_anterior > 0 && (
+                  <small style={{ color: (f.fipe >= f.valor_fipe_anterior) ? 'var(--success)' : 'var(--danger)', fontSize: '.74rem', fontWeight: 600 }}>
+                    Variação mensal: {f.fipe >= f.valor_fipe_anterior ? '▲ +' : '▼ '}{brl(f.fipe - f.valor_fipe_anterior)} ({(((f.fipe - f.valor_fipe_anterior) / f.valor_fipe_anterior) * 100).toFixed(2)}%)
+                  </small>
+                )}
               </div>
+
               <div className="field">
                 <label>Valor Tabela FIPE Mês Anterior (R$)</label>
                 <input className="input" type="number" value={f.valor_fipe_anterior ?? 0} onChange={set('valor_fipe_anterior')} />
+                <small style={{ color: 'var(--muted)', fontSize: '.74rem' }}>Histórico do mês anterior para comparação de mercado</small>
               </div>
+
               <div className="field" style={{ justifyContent: 'end' }}>
                 <button
                   type="button"
@@ -1697,33 +1755,65 @@ function VeiculoModal({ inicial, clientes, onClose, onSave, onCancelarVeiculo, o
 
               <input
                 className="input"
-                style={{ marginBottom: 12 }}
-                placeholder="Filtrar opcional (ex: teto solar, couro, 4x4)…"
+                style={{ marginBottom: 16 }}
+                placeholder="Filtrar opcional por nome (ex: teto solar, couro, 4x4, câmera)…"
                 value={buscaOpcional}
                 onChange={(e) => setBuscaOpcional(e.target.value)}
               />
 
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {OPCIONAIS_PADRAO
-                  .filter((op) => op.toLowerCase().includes(buscaOpcional.toLowerCase()))
-                  .map((op) => {
-                    const ativo = (f.itens_opcionais || []).includes(op);
-                    return (
-                      <button
-                        key={op}
-                        type="button"
-                        onClick={() => toggleItemLista('itens_opcionais', op)}
-                        className="btn btn-sm"
-                        style={{
-                          background: ativo ? 'var(--primary)' : '#ffffff',
-                          borderColor: ativo ? 'var(--primary)' : 'var(--border-strong)',
-                          color: ativo ? '#ffffff' : 'var(--text)'
-                        }}
-                      >
-                        {ativo ? '✓ ' : '+ '}{op}
-                      </button>
-                    );
-                  })}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {GRUPOS_OPCIONAIS.map((grupo) => {
+                  const itensFiltrados = grupo.itens.filter((op) => op.toLowerCase().includes(buscaOpcional.toLowerCase()));
+                  if (itensFiltrados.length === 0) return null;
+                  const todosMarcados = grupo.itens.every((op) => (f.itens_opcionais || []).includes(op));
+                  return (
+                    <div key={grupo.nome} style={{ background: '#ffffff', border: '1px solid var(--border)', borderRadius: 8, padding: 12 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 6 }}>
+                        <span style={{ fontWeight: 700, fontSize: '.88rem', color: 'var(--text)' }}>
+                          {grupo.nome}
+                        </span>
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          style={{ fontSize: '.72rem', padding: '3px 8px' }}
+                          onClick={() => {
+                            const atuais = f.itens_opcionais || [];
+                            if (todosMarcados) {
+                              setF({ ...f, itens_opcionais: atuais.filter((x) => !grupo.itens.includes(x)) });
+                            } else {
+                              const uniao = Array.from(new Set([...atuais, ...grupo.itens]));
+                              setF({ ...f, itens_opcionais: uniao });
+                            }
+                          }}
+                        >
+                          {todosMarcados ? 'Desmarcar grupo' : 'Marcar grupo'}
+                        </button>
+                      </div>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {itensFiltrados.map((op) => {
+                          const ativo = (f.itens_opcionais || []).includes(op);
+                          return (
+                            <button
+                              key={op}
+                              type="button"
+                              onClick={() => toggleItemLista('itens_opcionais', op)}
+                              className="btn btn-sm"
+                              style={{
+                                background: ativo ? 'var(--primary)' : '#f8fafc',
+                                borderColor: ativo ? 'var(--primary)' : 'var(--border)',
+                                color: ativo ? '#ffffff' : 'var(--text)',
+                                fontSize: '.78rem',
+                                padding: '4px 10px'
+                              }}
+                            >
+                              {ativo ? '✓ ' : '+ '}{op}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 

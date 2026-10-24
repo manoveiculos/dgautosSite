@@ -527,24 +527,33 @@ const CRM_PADRAO = [
 ];
 
 export async function getOportunidades() {
+  let list = [];
   if (IS_LOCAL) {
     try {
       const ops = await api('/oportunidades');
-      if (Array.isArray(ops)) return ops;
+      if (Array.isArray(ops)) list = ops;
     } catch {}
   }
 
-  try {
-    const { data, error } = await supabase.from('oportunidades_crm_DGAUTOS').select('*').order('id', { ascending: false });
-    if (!error && Array.isArray(data)) {
-      salvarCache('crm', data);
-      return data;
-    }
-  } catch {}
+  if (list.length === 0) {
+    try {
+      const { data, error } = await supabase.from('oportunidades_crm_DGAUTOS').select('*').order('id', { ascending: false });
+      if (!error && Array.isArray(data)) {
+        list = data;
+        salvarCache('crm', data);
+      }
+    } catch {}
+  }
 
-  const emCache = lerCache('crm', null);
-  if (Array.isArray(emCache)) return emCache;
-  return [];
+  if (list.length === 0) {
+    const emCache = lerCache('crm', null);
+    if (Array.isArray(emCache)) list = emCache;
+  }
+
+  return (Array.isArray(list) ? list : []).map((item) => ({
+    ...item,
+    estagio: normalizarEstagio(item.estagio),
+  }));
 }
 
 export async function saveOportunidade(o) {
@@ -559,7 +568,7 @@ export async function saveOportunidade(o) {
     troca_veiculo: o.troca_veiculo || '',
     valor_proposta: Number(o.valor_proposta) || 0,
     origem: o.origem || 'WHATSAPP',
-    estagio: o.estagio || 'pendente',
+    estagio: normalizarEstagio(o.estagio || 'pendente'),
     etiquetas: Array.isArray(o.etiquetas) ? o.etiquetas : [],
     proxima_acao_tipo: o.proxima_acao_tipo || 'Contato',
     proxima_acao_data: o.proxima_acao_data || null,
@@ -1205,29 +1214,52 @@ export const STATUS = {
   vendido: 'Vendido',
 };
 
+export const normalizarEstagio = (estagio) => {
+  if (!estagio) return 'pendente';
+  const mapa = {
+    em_atendimento: 'primeiro_contato',
+    visita: 'aguardando_visita',
+    negociacao: 'em_negociacao',
+    concluido: 'venda_realizada',
+    perdido: 'venda_perdida',
+  };
+  return mapa[estagio] || estagio;
+};
+
 export const ESTAGIOS_CRM = [
-  { id: 'pendente', label: 'Pendente', cor: '#ffbf00' },
-  { id: 'em_atendimento', label: 'Em Atendimento', cor: '#38bdf8' },
-  { id: 'visita', label: 'Visita / Test-drive', cor: '#a855f7' },
-  { id: 'negociacao', label: 'Proposta / Negociação', cor: '#04b8b2' },
-  { id: 'concluido', label: 'Concluído (Ganho)', cor: '#2bb673' },
-  { id: 'perdido', label: 'Perdido / Arquivado', cor: '#ef4444' },
+  { id: 'pendente', label: 'Pendente', cor: '#f59e0b', grupo: 'entrada' },
+  { id: 'primeiro_contato', label: 'Primeiro contato feito', cor: '#3b82f6', grupo: 'atendimento' },
+  { id: 'segundo_contato', label: 'Segundo contato', cor: '#6366f1', grupo: 'atendimento' },
+  { id: 'aguardando_resposta', label: 'Aguardando resposta', cor: '#eab308', grupo: 'atendimento' },
+  { id: 'prioridade', label: 'Prioridade no atendimento', cor: '#ef4444', grupo: 'atendimento' },
+  { id: 'aguardando_visita', label: 'Aguardando visita', cor: '#8b5cf6', grupo: 'visita' },
+  { id: 'whatsapp', label: 'WhatsApp', cor: '#22c55e', grupo: 'atendimento' },
+  { id: 'em_negociacao', label: 'Em negociação', cor: '#06b6d4', grupo: 'negociacao' },
+  { id: 'venda_realizada', label: 'Venda realizada', cor: '#10b981', grupo: 'ganho' },
+  { id: 'venda_perdida', label: 'Venda perdida', cor: '#64748b', grupo: 'perdido' },
+  { id: 'sem_contato', label: 'Sem contato', cor: '#94a3b8', grupo: 'atendimento' },
+  { id: 'contato_futuro', label: 'Contato futuro', cor: '#a855f7', grupo: 'atendimento' },
+  { id: 'sem_interesse', label: 'Cliente sem interesse', cor: '#71717a', grupo: 'perdido' },
+  { id: 'transferencia', label: 'Transferência de setor', cor: '#f97316', grupo: 'atendimento' },
+  { id: 'score_baixo', label: 'SCORE BAIXO', cor: '#dc2626', grupo: 'perdido' },
 ];
 
 export const ORIGENS_LEAD = {
-  WHATSAPP: 'WhatsApp',
-  INSTAGRAM: 'Instagram',
-  FACEBOOK: 'Facebook',
-  PORTAL_OLX: 'Portal OLX',
+  PORTAL_MERCADOLIVRE: 'Portal Mercado Livre',
   PORTAL_WEBMOTORS: 'Portal Webmotors',
+  PORTAL_OLX: 'Portal OLX',
+  SITE_AUTOS_360: 'Site DG Autos / Autos 360',
+  INSTAGRAM: 'Instagram',
+  WHATSAPP: 'WhatsApp',
+  LOJA_FISICA: 'Loja Física',
   PORTAL_ICARROS: 'Portal iCarros',
-  PORTAL_MERCADOLIVRE: 'Mercado Livre',
   PORTAL_CHAVES_NA_MAO: 'Chaves na Mão',
   PORTAL_MOBIAUTO: 'Mobiauto',
   PORTAL_SO_CARRAO: 'Só Carrão',
+  FACEBOOK: 'Facebook',
   TRAFEGO_PAGO: 'Tráfego Pago',
-  SITE: 'Site da Loja',
-  MANUAL: 'Balcão / Manual',
+  INDICACAO: 'Indicação',
+  OUTROS: 'Outros',
 };
 
 export const ETIQUETAS_CRM = [
