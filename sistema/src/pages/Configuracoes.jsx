@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Building2, Users, ShieldCheck, Plus, Trash2, Save, Loader2, KeyRound,
-  Landmark, DollarSign, Wallet, Phone, Mail, CheckCircle2
+  Landmark, DollarSign, Wallet, Phone, Mail, CheckCircle2, Globe
 } from 'lucide-react';
 import {
   getConfig, saveConfigLoja, createUsuario, updateUsuario, deleteUsuario, alterarSenhaUsuario,
@@ -9,22 +10,34 @@ import {
   getFinanceiras, saveFinanceira, deleteFinanceira
 } from '../store';
 import { mascaraMoeda, desformatarMoeda, mascaraTelefone } from '../utils/mascaras';
+import IntegracaoSite from './IntegracaoSite';
 
 export default function Configuracoes({ user }) {
+  const [searchParams] = useSearchParams();
   const emailAtual = (user?.email || '').trim().toLowerCase();
-  if (emailAtual !== 'admin@dgautos.com.br') {
+  const nomeAtual = (user?.nome || '').trim().toLowerCase();
+  const isAuthorized = user?.perfil === 'admin' ||
+    emailAtual === 'admin@dgautos.com.br' ||
+    emailAtual === 'douglasaraujooficial@live.com' ||
+    emailAtual.includes('alexan') ||
+    nomeAtual.includes('alexan');
+
+  if (!isAuthorized) {
     return (
       <div className="card" style={{ padding: 40, textAlign: 'center', maxWidth: 600, margin: '40px auto' }}>
-        <h2 style={{ color: '#ef4444', marginBottom: 12 }}>Acesso Restrito ao Administrador Geral</h2>
+        <h2 style={{ color: '#ef4444', marginBottom: 12 }}>Acesso Restrito ao Administrador</h2>
         <p style={{ color: 'var(--muted)', lineHeight: 1.6 }}>
           Esta área contém dados fiscais, razão social e gerenciamento de equipe da empresa. 
-          O acesso é restrito exclusivamente ao login oficial <strong>admin@dgautos.com.br</strong>.
+          O acesso é restrito exclusivamente aos administradores do sistema.
         </p>
       </div>
     );
   }
 
-  const [aba, setAba] = useState('loja'); // loja | contas | financeiras | usuarios | auditoria
+  // Exclusivo para o admin Alexandre (ou admin master)
+  const isAlexandre = emailAtual.includes('alexan') || nomeAtual.includes('alexan') || emailAtual === 'admin@dgautos.com.br';
+
+  const [aba, setAba] = useState(searchParams.get('tab') || 'loja'); // loja | contas | financeiras | usuarios | auditoria | site
   const [loja, setLoja] = useState({
     razao_social: 'DG Automóveis Comércio de Veículos Ltda',
     nome_fantasia: 'DG Automóveis',
@@ -240,6 +253,11 @@ export default function Configuracoes({ user }) {
           <button className={`tab ${aba === 'auditoria' ? 'active' : ''}`} onClick={() => setAba('auditoria')}>
             <ShieldCheck size={15} />Log de Auditoria
           </button>
+          {isAlexandre && (
+            <button className={`tab ${aba === 'site' ? 'active' : ''}`} onClick={() => setAba('site')}>
+              <Globe size={15} />Integração Site
+            </button>
+          )}
         </div>
       </header>
 
@@ -708,6 +726,12 @@ export default function Configuracoes({ user }) {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {aba === 'site' && isAlexandre && (
+        <div style={{ marginTop: 10 }}>
+          <IntegracaoSite user={user} embedded={true} />
         </div>
       )}
 

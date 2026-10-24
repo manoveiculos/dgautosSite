@@ -37,7 +37,13 @@ function Shell({ user, onLogout }) {
     }
   };
 
-  const isAdminMaster = (user?.email || '').trim().toLowerCase() === 'admin@dgautos.com.br';
+  const emailAtual = (user?.email || '').trim().toLowerCase();
+  const nomeAtual = (user?.nome || '').trim().toLowerCase();
+  const isAdminMaster = user?.perfil === 'admin' ||
+    emailAtual === 'admin@dgautos.com.br' ||
+    emailAtual === 'douglasaraujooficial@live.com' ||
+    emailAtual.includes('alexan') ||
+    nomeAtual.includes('alexan');
 
   return (
     <div className={`altimus-wrapper ${collapsed ? 'sidebar-collapsed' : ''}`}>
@@ -163,12 +169,6 @@ function Shell({ user, onLogout }) {
             <Contact size={18} />
             <span className="nav-label">Clientes / Fornecedores</span>
           </NavLink>
-          {isAdminMaster && (
-            <NavLink to="/integracao-site" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-              <Globe size={18} />
-              <span className="nav-label">Integração Site</span>
-            </NavLink>
-          )}
 
           <div className="nav-group-label">Gestão & Fiscal</div>
           <NavLink to="/financeiro" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
@@ -201,7 +201,7 @@ function Shell({ user, onLogout }) {
           <Route path="/crm" element={<Crm user={user} />} />
           <Route path="/clientes" element={<Clientes user={user} />} />
           <Route path="/negociacoes" element={<Negociacoes user={user} />} />
-          <Route path="/integracao-site" element={isAdminMaster ? <IntegracaoSite user={user} /> : <Navigate to="/" replace />} />
+          <Route path="/integracao-site" element={<Navigate to="/configuracoes?tab=site" replace />} />
           <Route path="/financeiro" element={<Financeiro user={user} />} />
           <Route path="/documentos" element={<Documentos user={user} />} />
           <Route path="/configuracoes" element={isAdminMaster ? <Configuracoes user={user} /> : <Navigate to="/" replace />} />

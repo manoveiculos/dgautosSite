@@ -5,15 +5,24 @@ import {
 } from 'lucide-react';
 import { getIntegracaoSite, saveIntegracaoSite, regerarTokenSite, getVeiculos, saveOportunidade, brl } from '../store';
 
-export default function IntegracaoSite({ user }) {
+export default function IntegracaoSite({ user, embedded = false }) {
   const emailAtual = (user?.email || '').trim().toLowerCase();
-  if (emailAtual !== 'admin@dgautos.com.br') {
+  const nomeAtual = (user?.nome || '').trim().toLowerCase();
+  const isAuthorized = (
+    user?.perfil === 'admin' ||
+    emailAtual === 'admin@dgautos.com.br' ||
+    emailAtual === 'douglasaraujooficial@live.com' ||
+    emailAtual.includes('alexan') ||
+    nomeAtual.includes('alexan')
+  );
+
+  if (!isAuthorized) {
     return (
       <div className="card" style={{ padding: 40, textAlign: 'center', maxWidth: 600, margin: '40px auto' }}>
-        <h2 style={{ color: '#ef4444', marginBottom: 12 }}>Acesso Restrito ao Administrador Geral</h2>
+        <h2 style={{ color: '#ef4444', marginBottom: 12 }}>Acesso Restrito ao Administrador Alexandre</h2>
         <p style={{ color: 'var(--muted)', lineHeight: 1.6 }}>
           Esta área contém links de feeds, chaves e webhooks de integração do site e portais parceiros. 
-          O acesso é restrito exclusivamente ao login oficial <strong>admin@dgautos.com.br</strong>.
+          O acesso é restrito exclusivamente ao Administrador Alexandre em Configurações.
         </p>
       </div>
     );
@@ -137,29 +146,45 @@ export default function IntegracaoSite({ user }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* CABEÇALHO */}
-      <header className="topbar">
-        <div>
-          <h1 style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Globe size={24} style={{ color: 'var(--primary)' }} /> Integração com Site Oficial & Portais
-          </h1>
-          <p>
-            Gere o feed de estoque em tempo real (JSON / XML) no mesmo padrão da Altimus para abastecer o site <strong>DG Automóveis</strong> e portais parceiros.
-          </p>
+      {!embedded ? (
+        <header className="topbar">
+          <div>
+            <h1 style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <Globe size={24} style={{ color: 'var(--primary)' }} /> Integração com Site Oficial & Portais
+            </h1>
+            <p>
+              Gere o feed de estoque em tempo real (JSON / XML) no mesmo padrão da Altimus para abastecer o site <strong>DG Automóveis</strong> e portais parceiros.
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <button type="button" className="btn" onClick={carregar} title="Recarregar">
+              <RefreshCw size={15} /> Atualizar
+            </button>
+            <a
+              href={dados.url_site}
+              target="_blank"
+              rel="noreferrer"
+              className="btn btn-primary"
+            >
+              <ExternalLink size={15} /> Acessar Site Oficial
+            </a>
+          </div>
+        </header>
+      ) : (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, flexWrap: 'wrap', gap: 10 }}>
+          <div style={{ fontSize: '.85rem', color: 'var(--muted)' }}>
+            Configurações e URLs de integração com o site oficial e portais externos — acesso exclusivo de <strong>Admin Alexandre</strong>.
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" className="btn btn-sm" onClick={carregar} title="Recarregar">
+              <RefreshCw size={14} /> Atualizar
+            </button>
+            <a href={dados.url_site} target="_blank" rel="noreferrer" className="btn btn-sm btn-primary">
+              <ExternalLink size={14} /> Acessar Site Oficial
+            </a>
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <button type="button" className="btn" onClick={carregar} title="Recarregar">
-            <RefreshCw size={15} /> Atualizar
-          </button>
-          <a
-            href={dados.url_site}
-            target="_blank"
-            rel="noreferrer"
-            className="btn btn-primary"
-          >
-            <ExternalLink size={15} /> Acessar Site Oficial
-          </a>
-        </div>
-      </header>
+      )}
 
       {msgSucesso && (
         <div style={{ background: '#dcfce7', color: '#15803d', padding: '12px 16px', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 10, border: '1px solid #bbf7d0', fontWeight: 600 }}>
