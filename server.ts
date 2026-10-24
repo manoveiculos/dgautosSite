@@ -1241,12 +1241,17 @@ async function startServer() {
   const isProduction = !isDev;
 
   if (!isProduction) {
-    const { createServer: createViteServer } = await import("vite");
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
+    try {
+      const { createServer: createViteServer } = await import("vite");
+      const vite = await createViteServer({
+        configFile: path.resolve(process.cwd(), "vite.config.ts"),
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+    } catch (viteErr) {
+      console.error("[ERRO VITE]", viteErr);
+    }
   } else {
     // Serve static files in production
     const distPath = fs.existsSync(path.resolve(__dirname, 'dist'))
