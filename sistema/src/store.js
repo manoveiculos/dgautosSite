@@ -1045,6 +1045,7 @@ export async function getContratosGerados(negociacaoId) {
 // ==============================================================================
 // 6. FINANCEIRO & DRE & COMISSÕES
 // ==============================================================================
+export const getLancamentos = getFinanceiro;
 export async function getFinanceiro() {
   let list = [];
   if (IS_LOCAL) {
@@ -1647,3 +1648,63 @@ export function validarCpfCnpj(valor) {
   }
   return { valido: false, tipo: 'INCOMPLETO', mensagem: 'Documento incompleto (CPF deve ter 11 números e CNPJ 14 números).' };
 }
+
+// ==============================================================================
+// 10. PÓS-VENDA & GARANTIA LEGAL (90 DIAS CDC)
+// ==============================================================================
+export async function getChamadosGarantia() {
+  try {
+    const { data, error } = await supabase.from('pos_venda_garantia_DGAUTOS').select('*').order('id', { ascending: false });
+    if (!error && Array.isArray(data) && data.length > 0) return data;
+  } catch {}
+  try {
+    const local = localStorage.getItem('dgautos_chamados_garantia');
+    if (local) return JSON.parse(local);
+  } catch {}
+  return [];
+}
+
+export async function saveChamadoGarantia(item) {
+  try {
+    const localArr = JSON.parse(localStorage.getItem('dgautos_chamados_garantia') || '[]');
+    let atualizados = [];
+    if (item.id) {
+      atualizados = localArr.map((c) => String(c.id) === String(item.id) ? { ...c, ...item, atualizado_em: new Date().toISOString() } : c);
+    } else {
+      const novo = { ...item, id: Date.now(), criado_em: new Date().toISOString() };
+      atualizados = [novo, ...localArr];
+    }
+    localStorage.setItem('dgautos_chamados_garantia', JSON.stringify(atualizados));
+
+    // Supabase sync
+    try {
+      const payload = { ...item };
+      delete payload.id;
+      if (item.id && typeof item.id === 'number' && item.id < 1000000000) {
+        await supabase.from('pos_venda_garantia_DGAUTOS').update(payload).eq('id', item.id);
+      } else {
+        await supabase.from('pos_venda_garantia_DGAUTOS').insert([payload]);
+      }
+    } catch {}
+
+    return atualizados;
+  } catch (err) {
+    console.error('saveChamadoGarantia falhou:', err);
+    throw err;
+  }
+}
+
+export async function deleteChamadoGarantia(id) {
+  try {
+    const localArr = JSON.parse(localStorage.getItem('dgautos_chamados_garantia') || '[]');
+    const atualizados = localArr.filter((c) => String(c.id) !== String(id));
+    localStorage.setItem('dgautos_chamados_garantia', JSON.stringify(atualizados));
+    try {
+      await supabase.from('pos_venda_garantia_DGAUTOS').delete().eq('id', id);
+    } catch {}
+    return atualizados;
+  } catch (err) {
+    throw err;
+  }
+}
+

@@ -2,9 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Plus, Search, Users, MessageCircle, Trash2, X, Building2, UserCheck,
   Upload, FileText, CheckCircle2, AlertCircle, Phone, Mail, MapPin, ChevronRight,
-  UserPlus, Smartphone, Download, Eye
+  UserPlus, Smartphone, Download, Eye, Car, ShieldAlert, History, ArrowRight, ExternalLink, RefreshCw
 } from 'lucide-react';
-import { getClientes, saveCliente, deleteCliente, ORIGENS_LEAD, limparObservacoes } from '../store';
+import {
+  getClientes, saveCliente, deleteCliente, ORIGENS_LEAD, limparObservacoes,
+  getNegociacoes, getChamadosGarantia, brl, dataBr
+} from '../store';
 import { mascaraCpfCnpj, mascaraTelefone, mascaraCep, buscarCep, validarCpfCnpj, buscarCnpj } from '../utils/mascaras';
 
 export const EMPTY_CLI = {
@@ -58,6 +61,8 @@ const ESTADOS_CIVIS = [
 
 export default function Clientes({ user }) {
   const [lista, setLista] = useState([]);
+  const [negociacoes, setNegociacoes] = useState([]);
+  const [chamadosGarantia, setChamadosGarantia] = useState([]);
   const [busca, setBusca] = useState('');
   const [papel, setPapel] = useState('');
   const [editando, setEditando] = useState(null);
@@ -66,8 +71,16 @@ export default function Clientes({ user }) {
 
   const carregarDados = () => {
     setCarregando(true);
-    getClientes()
-      .then((res) => setLista(Array.isArray(res) ? res : []))
+    Promise.all([
+      getClientes(),
+      getNegociacoes(),
+      getChamadosGarantia()
+    ])
+      .then(([c, n, g]) => {
+        setLista(Array.isArray(c) ? c : []);
+        setNegociacoes(Array.isArray(n) ? n : []);
+        setChamadosGarantia(Array.isArray(g) ? g : []);
+      })
       .catch(() => {})
       .finally(() => setCarregando(false));
   };
@@ -194,6 +207,8 @@ export default function Clientes({ user }) {
       {editando && (
         <ClienteModalAltimus
           inicial={editando}
+          negociacoes={negociacoes}
+          chamadosGarantia={chamadosGarantia}
           onClose={() => setEditando(null)}
           onSave={async (cli) => {
             try {
@@ -221,6 +236,7 @@ export default function Clientes({ user }) {
               setCarregando(false);
             }
           }}
+          user={user}
         />
       )}
     </>
@@ -230,16 +246,51 @@ export default function Clientes({ user }) {
 // ==============================================================================
 // FORMULÁRIO COMPLETO DE PESSOAS IDÊNTICO AO ALTIMUS (PRINTS OFICIAIS)
 // ==============================================================================
-export function ClienteModalAltimus({ inicial, onClose, onSave, onDelete, user }) {
+export function ClienteModalAltimus({ inicial, onClose, onSave, onDelete, user, negociacoes = [], chamadosGarantia = [] }) {
   const [f, setF] = useState(() => ({
     ...inicial,
     observacoes: limparObservacoes(inicial?.observacoes || '')
   }));
+  const [tabModal, setTabModal] = useState('cadastro'); // 'cadastro' | 'vendas' | 'trocas' | 'garantias' | 'documentos'
   const [erroCpfCnpj, setErroCpfCnpj] = useState('');
   const [buscandoCep, setBuscandoCep] = useState(false);
   const [buscandoCnpj, setBuscandoCnpj] = useState(false);
 
   const isAdmin = user?.perfil === 'admin' || user?.email === 'admin@dgautos.com.br' || !user;
+
+  // CÁLCULOS 360º DO CLIENTE
+  const cpfLimpo = String(f.cpf_cnpj || '').replace(/\D/g, '');
+  const nomeUpper = String(f.nome || '').trim().toUpperCase();
+
+  const vendasCliente = useMemo(() => {
+    return (negociacoes || []).filter((n) => {
+      const nCpf = String(n.cliente_cpf || '').replace(/\D/g, '');
+      const nNome = String(n.cliente_nome || '').trim().toUpperCase();
+      const isMesmo = (f.id && n.cliente_id === f.id) || (cpfLimpo && nCpf === cpfLimpo) || (nomeUpper && nNome === nomeUpper);
+      const tp = String(n.tipo || '').toLowerCase();
+      const isVenda = tp === 'venda' || tp === 'venda_troca' || (!tp && n.valor_veiculo);
+      return isMesmo && isVenda;
+    });
+  }, [negociacoes, f.id, cpfLimpo, nomeUpper]);
+
+  const trocasCliente = useMemo(() => {
+    return (negociacoes || []).filter((n) => {
+      const nCpf = String(n.cliente_cpf || '').replace(/\D/g, '');
+      const nNome = String(n.cliente_nome || '').trim().toUpperCase();
+      const isMesmo = (f.id && n.cliente_id === f.id) || (cpfLimpo && nCpf === cpfLimpo) || (nomeUpper && nNome === nomeUpper);
+      const temTroca = Boolean(n.troca_modelo || n.troca_placa || Number(n.troca_valor || 0) > 0);
+      const isCompraLoja = String(n.tipo || '').toLowerCase() === 'compra';
+      return isMesmo && (temTroca || isCompraLoja);
+    });
+  }, [negociacoes, f.id, cpfLimpo, nomeUpper]);
+
+  const garantiasCliente = useMemo(() => {
+    return (chamadosGarantia || []).filter((g) => {
+      const gCpf = String(g.cliente_cpf || '').replace(/\D/g, '');
+      const gNome = String(g.cliente_nome || '').trim().toUpperCase();
+      return (f.id && g.cliente_id === f.id) || (cpfLimpo && gCpf === cpfLimpo) || (nomeUpper && gNome === nomeUpper);
+    });
+  }, [chamadosGarantia, f.id, cpfLimpo, nomeUpper]);
 
   // Manipulador genérico que força LETRA MAIÚSCULA em todo o sistema
   const setUpper = (k) => (e) => {
@@ -490,6 +541,52 @@ export function ClienteModalAltimus({ inicial, onClose, onSave, onDelete, user }
           <button type="button" className="btn btn-icon" onClick={onClose} style={{ borderRadius: '50%' }}><X size={18} /></button>
         </div>
 
+        {/* NAVEGAÇÃO DE ABAS 360º DO CLIENTE */}
+        <div style={{ display: 'flex', gap: 6, borderBottom: '2px solid var(--border)', marginBottom: 20, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className={`tab ${tabModal === 'cadastro' ? 'active' : ''}`}
+            onClick={() => setTabModal('cadastro')}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', fontWeight: 700 }}
+          >
+            <UserCheck size={16} /> Dados Cadastrais & Contatos
+          </button>
+          <button
+            type="button"
+            className={`tab ${tabModal === 'vendas' ? 'active' : ''}`}
+            onClick={() => setTabModal('vendas')}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', fontWeight: 700 }}
+          >
+            <Car size={16} /> Carros Comprados ({vendasCliente.length})
+          </button>
+          <button
+            type="button"
+            className={`tab ${tabModal === 'trocas' ? 'active' : ''}`}
+            onClick={() => setTabModal('trocas')}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', fontWeight: 700 }}
+          >
+            <RefreshCw size={16} /> Veículos na Troca ({trocasCliente.length})
+          </button>
+          <button
+            type="button"
+            className={`tab ${tabModal === 'garantias' ? 'active' : ''}`}
+            onClick={() => setTabModal('garantias')}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', fontWeight: 700 }}
+          >
+            <ShieldAlert size={16} /> Pós-Venda CDC ({garantiasCliente.length})
+          </button>
+          <button
+            type="button"
+            className={`tab ${tabModal === 'documentos' ? 'active' : ''}`}
+            onClick={() => setTabModal('documentos')}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', fontWeight: 700 }}
+          >
+            <FileText size={16} /> Documentos ({f.documentos?.length || 0})
+          </button>
+        </div>
+
+        {tabModal === 'cadastro' && (
+        <>
         {/* BARRA SUPERIOR DE CONTROLES: STATUS CHIPS, TIPO SWITCH E SEXO */}
         <div
           style={{
@@ -1008,10 +1105,185 @@ export function ClienteModalAltimus({ inicial, onClose, onSave, onDelete, user }
             </div>
           )}
         </div>
+        </>
+        )}
+
+        {/* ==================================================================== */}
+        {/* ABA 2: CARROS JÁ COMPRADOS PELO CLIENTE (HISTÓRICO 360º) */}
+        {/* ==================================================================== */}
+        {tabModal === 'vendas' && (
+          <div style={{ marginBottom: 20 }}>
+            <div className="grid grid-3" style={{ gap: 14, marginBottom: 18 }}>
+              <div className="card" style={{ padding: '14px', borderLeft: '4px solid #7c3aed' }}>
+                <div style={{ fontSize: '.75rem', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>Veículos Adquiridos</div>
+                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#7c3aed', marginTop: 4 }}>{vendasCliente.length} carros</div>
+                <div style={{ fontSize: '.76rem', color: 'var(--muted)', marginTop: 2 }}>Histórico na DG Autos</div>
+              </div>
+              <div className="card" style={{ padding: '14px', borderLeft: '4px solid #10b981' }}>
+                <div style={{ fontSize: '.75rem', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>Volume Total Negociado</div>
+                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#10b981', marginTop: 4 }}>
+                  {brl(vendasCliente.reduce((acc, v) => acc + Number(v.valor_veiculo || v.valor_total || 0), 0))}
+                </div>
+                <div style={{ fontSize: '.76rem', color: 'var(--muted)', marginTop: 2 }}>Lifetime Value (LTV)</div>
+              </div>
+              <div className="card" style={{ padding: '14px', borderLeft: '4px solid #0284c7' }}>
+                <div style={{ fontSize: '.75rem', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>Status do Relacionamento</div>
+                <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0284c7', marginTop: 6 }}>
+                  {vendasCliente.length > 1 ? '⭐ Cliente Recorrente' : (vendasCliente.length === 1 ? '✓ Cliente Ativo' : 'Lead / Sem Compras')}
+                </div>
+                <div style={{ fontSize: '.76rem', color: 'var(--muted)', marginTop: 2 }}>Fidelidade à loja</div>
+              </div>
+            </div>
+
+            {vendasCliente.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '40px 20px', background: '#f8fafc', borderRadius: 8, border: '1px dashed var(--border)' }}>
+                <Car size={36} style={{ color: 'var(--muted)', opacity: 0.5, marginBottom: 8 }} />
+                <h4 style={{ margin: '0 0 4px', fontWeight: 700 }}>Nenhum veículo comprado por este cliente ainda</h4>
+                <p style={{ margin: 0, color: 'var(--muted)', fontSize: '.84rem' }}>
+                  Assim que uma negociação de venda for criada para este cliente, ela aparecerá aqui automaticamente.
+                </p>
+              </div>
+            ) : (
+              <div className="table-responsive" style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+                <table className="table" style={{ margin: 0, fontSize: '.84rem' }}>
+                  <thead>
+                    <tr style={{ background: '#f8fafc' }}>
+                      <th>Data</th>
+                      <th>Veículo</th>
+                      <th>Placa</th>
+                      <th>Valor Negociado</th>
+                      <th>Condições de Pgto</th>
+                      <th>Vendedor</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {vendasCliente.map((v) => (
+                      <tr key={v.id}>
+                        <td>{dataBr((v.data_venda || v.data_criacao || v.created_at || '').slice(0, 10))}</td>
+                        <td>
+                          <strong>{v.veiculo_marca || ''} {v.veiculo_modelo || 'Veículo'}</strong>
+                        </td>
+                        <td>
+                          <span className="badge" style={{ background: '#0f172a', color: '#fff' }}>
+                            {v.veiculo_placa || '-'}
+                          </span>
+                        </td>
+                        <td><strong style={{ color: 'var(--primary)' }}>{brl(v.valor_veiculo || v.valor_total || 0)}</strong></td>
+                        <td style={{ fontSize: '.78rem', color: 'var(--muted)' }}>
+                          {v.forma_pagamento || v.tipo_pagamento || 'À Vista / Financiado'}
+                        </td>
+                        <td>{v.vendedor_nome || v.vendedor || 'DG Autos'}</td>
+                        <td>
+                          <span className={`badge badge-${v.status || 'concluida'}`}>{v.status || 'Concluída'}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ==================================================================== */}
+        {/* ABA 3: VEÍCULOS ENTREGUES NA TROCA / COMPRADOS PELA LOJA */}
+        {/* ==================================================================== */}
+        {tabModal === 'trocas' && (
+          <div style={{ marginBottom: 20 }}>
+            {trocasCliente.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '40px 20px', background: '#f8fafc', borderRadius: 8, border: '1px dashed var(--border)' }}>
+                <RefreshCw size={36} style={{ color: 'var(--muted)', opacity: 0.5, marginBottom: 8 }} />
+                <h4 style={{ margin: '0 0 4px', fontWeight: 700 }}>Nenhum veículo entregue na troca ou vendido à loja</h4>
+                <p style={{ margin: 0, color: 'var(--muted)', fontSize: '.84rem' }}>
+                  Carros que este cliente der como entrada ou vender para a DG Autos ficarão registrados aqui.
+                </p>
+              </div>
+            ) : (
+              <div className="table-responsive" style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+                <table className="table" style={{ margin: 0, fontSize: '.84rem' }}>
+                  <thead>
+                    <tr style={{ background: '#f8fafc' }}>
+                      <th>Data</th>
+                      <th>Veículo Entregue</th>
+                      <th>Placa</th>
+                      <th>Ano</th>
+                      <th>Valor de Entrada / Avaliação</th>
+                      <th>Negociação Vinculada</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {trocasCliente.map((t, idx) => (
+                      <tr key={idx}>
+                        <td>{dataBr((t.data_venda || t.data_criacao || t.created_at || '').slice(0, 10))}</td>
+                        <td><strong>{t.troca_modelo || t.veiculo_modelo || 'Veículo na Troca'}</strong></td>
+                        <td><span className="badge" style={{ background: '#475569', color: '#fff' }}>{t.troca_placa || '-'}</span></td>
+                        <td>{t.troca_ano || '-'}</td>
+                        <td><strong style={{ color: '#059669' }}>{brl(t.troca_valor || t.valor_veiculo || 0)}</strong></td>
+                        <td style={{ fontSize: '.78rem', color: 'var(--muted)' }}>
+                          {t.veiculo_modelo ? `Entrou na compra de ${t.veiculo_modelo}` : 'Compra direta pela loja'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ==================================================================== */}
+        {/* ABA 4: CHAMADOS DE PÓS-VENDA & GARANTIA CDC (90 DIAS) */}
+        {/* ==================================================================== */}
+        {tabModal === 'garantias' && (
+          <div style={{ marginBottom: 20 }}>
+            {garantiasCliente.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '40px 20px', background: '#f8fafc', borderRadius: 8, border: '1px dashed var(--border)' }}>
+                <ShieldAlert size={36} style={{ color: 'var(--muted)', opacity: 0.5, marginBottom: 8 }} />
+                <h4 style={{ margin: '0 0 4px', fontWeight: 700 }}>Nenhum chamado de garantia registrado</h4>
+                <p style={{ margin: 0, color: 'var(--muted)', fontSize: '.84rem' }}>
+                  Este cliente não possui solicitações de reparo ou chamados de garantia nos 90 dias do CDC.
+                </p>
+              </div>
+            ) : (
+              <div className="table-responsive" style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+                <table className="table" style={{ margin: 0, fontSize: '.84rem' }}>
+                  <thead>
+                    <tr style={{ background: '#f8fafc' }}>
+                      <th>Protocolo</th>
+                      <th>Data Abertura</th>
+                      <th>Veículo</th>
+                      <th>Sistema Afetado</th>
+                      <th>Oficina / Parceiro</th>
+                      <th>Custo Reparo</th>
+                      <th>Status CDC</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {garantiasCliente.map((g) => (
+                      <tr key={g.id}>
+                        <td><strong style={{ color: '#0284c7' }}>{g.protocolo || g.id}</strong></td>
+                        <td>{dataBr(g.data_abertura)}</td>
+                        <td><strong>{g.veiculo_nome || '-'}</strong></td>
+                        <td>{g.sistema_afetado || '-'}</td>
+                        <td>{g.oficina_nome || 'A definir'}</td>
+                        <td><strong>{brl(g.custo_reparo || 0)}</strong></td>
+                        <td>
+                          <span className={`badge badge-${g.status || 'aberto'}`}>{g.status || 'Aberto'}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ==================================================================== */}
         {/* SEÇÃO 4: DOCUMENTOS (DROPZONE TRACEJADA OFICIAL ALTIMUS) */}
         {/* ==================================================================== */}
+        {tabModal === 'documentos' && (
         <div style={{ marginBottom: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
             <h3 style={{ fontSize: '1rem', fontWeight: 800, margin: 0, color: 'var(--text)' }}>
@@ -1100,6 +1372,7 @@ export function ClienteModalAltimus({ inicial, onClose, onSave, onDelete, user }
             </div>
           )}
         </div>
+        )}
 
         {/* BARRA INFERIOR DE BOTÕES (GRANDES E FÁCEIS DE CLICAR) */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 28, paddingTop: 18, borderTop: '1px solid var(--border)' }}>

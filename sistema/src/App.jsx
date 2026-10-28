@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import {
   Car, LayoutDashboard, LogOut, Users, Handshake, Wallet,
-  FileText, Settings, Contact, Menu, X, PlusCircle, Building2, Globe, KeyRound, Calculator
+  FileText, Settings, Contact, Menu, X, PlusCircle, Building2, Globe, KeyRound, Calculator,
+  ShieldAlert, BarChart3
 } from 'lucide-react';
 import { getUser, logout, alterarSenhaUsuario } from './store';
 import Login from './pages/Login';
@@ -13,6 +14,8 @@ import Clientes from './pages/Clientes';
 import Negociacoes from './pages/Negociacoes';
 import Financeiro from './pages/Financeiro';
 import Documentos from './pages/Documentos';
+import PosVenda from './pages/PosVenda';
+import Relatorios from './pages/Relatorios';
 import Configuracoes from './pages/Configuracoes';
 import IntegracaoSite from './pages/IntegracaoSite';
 import SimuladorFinanciamentoModal from './components/SimuladorFinanciamentoModal';
@@ -180,11 +183,19 @@ function Shell({ user, onLogout }) {
             <Contact size={18} />
             <span className="nav-label">Clientes / Fornecedores</span>
           </NavLink>
+          <NavLink to="/pos-venda" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <ShieldAlert size={18} />
+            <span className="nav-label">Pós-Venda & Garantia</span>
+          </NavLink>
 
           <div className="nav-group-label">Gestão & Fiscal</div>
           <NavLink to="/financeiro" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
             <Wallet size={18} />
             <span className="nav-label">Financeiro & DRE</span>
+          </NavLink>
+          <NavLink to="/relatorios" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <BarChart3 size={18} />
+            <span className="nav-label">Relatórios Gerenciais</span>
           </NavLink>
           <NavLink to="/documentos" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
             <FileText size={18} />
@@ -212,8 +223,10 @@ function Shell({ user, onLogout }) {
           <Route path="/crm" element={<Crm user={user} />} />
           <Route path="/clientes" element={<Clientes user={user} />} />
           <Route path="/negociacoes" element={<Negociacoes user={user} />} />
+          <Route path="/pos-venda" element={<PosVenda user={user} />} />
           <Route path="/integracao-site" element={<Navigate to="/configuracoes?tab=site" replace />} />
           <Route path="/financeiro" element={<Financeiro user={user} />} />
+          <Route path="/relatorios" element={<Relatorios user={user} />} />
           <Route path="/documentos" element={<Documentos user={user} />} />
           <Route path="/configuracoes" element={isAdminMaster ? <Configuracoes user={user} /> : <Navigate to="/" replace />} />
           <Route path="*" element={<Navigate to="/" />} />
