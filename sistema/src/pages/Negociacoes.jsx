@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Plus, Search, Handshake, CheckCircle2, FileText, Trash2, X, Car, DollarSign, RefreshCw, LayoutGrid, List, Edit3,
-  UserPlus, ShieldAlert, ShieldCheck, AlertTriangle, ExternalLink, Sparkles
+  UserPlus, ShieldAlert, ShieldCheck, AlertTriangle, ExternalLink, Sparkles, Calculator
 } from 'lucide-react';
 import {
   getNegociacoes, saveNegociacao, concluirNegociacao, deleteNegociacao,
@@ -10,6 +10,7 @@ import {
 } from '../store';
 import { ClienteModalAltimus, EMPTY_CLI } from './Clientes';
 import { buscarPlaca, mascaraPlaca, buscarFipeMesAnterior } from '../utils/mascaras';
+import SimuladorFinanciamentoModal from '../components/SimuladorFinanciamentoModal';
 
 const EMPTY_NEG = {
   tipo: 'venda',
@@ -465,6 +466,7 @@ const PASSOS = [
 
 function NegociacaoWizardModal({ inicial, clientes, veiculos, onClose, onSave, onDelete, onConcluir, onCancelarNegociacao, onContrato, user }) {
   const [passo, setPasso] = useState(0);
+  const [modalSimulador, setModalSimulador] = useState(false);
   const clienteInicial = clientes.find((c) => String(c.id) === String(inicial.cliente_id));
 
   const [f, setF] = useState({
@@ -636,6 +638,28 @@ function NegociacaoWizardModal({ inicial, clientes, veiculos, onClose, onSave, o
     ...f,
     pagamentos: [...(Array.isArray(f.pagamentos) ? f.pagamentos : []), { forma: 'Financiamento', financeira: 'Banco / Financeira', parcelas: 36, valor: Math.max(0, diferenca) }]
   });
+
+  const handleAplicarSimulacao = (sim) => {
+    setF((prev) => {
+      const pags = Array.isArray(prev.pagamentos) ? [...prev.pagamentos] : [];
+      const idxFin = pags.findIndex((p) => p.forma === 'Financiamento');
+      const novoPag = {
+        forma: 'Financiamento',
+        financeira: `${sim.financeira} (${sim.parcelas}x de ${brl(sim.valorParcela)})`,
+        valor: sim.valorFinanciado,
+      };
+      if (idxFin >= 0) {
+        pags[idxFin] = novoPag;
+      } else {
+        pags.push(novoPag);
+      }
+      return {
+        ...prev,
+        pagamentos: pags,
+        comissao_retorno_banco: sim.retornoLoja || 0
+      };
+    });
+  };
 
   const rmPag = (idx) => setF({ ...f, pagamentos: (Array.isArray(f.pagamentos) ? f.pagamentos : []).filter((_, i) => i !== idx) });
 
@@ -1539,9 +1563,20 @@ function NegociacaoWizardModal({ inicial, clientes, veiculos, onClose, onSave, o
                   Soma das formas de pagamento: {brl(somaPagamentos)} · {diferenca === 0 ? '✓ Valores fechados!' : `Diferença a compor: ${brl(diferenca)}`}
                 </div>
               </div>
-              <button type="button" className="btn btn-sm btn-primary" onClick={addPag}>
-                <Plus size={14} />Adicionar Forma de Pagamento
-              </button>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  style={{ borderColor: '#0284c7', color: '#0284c7', fontWeight: 700 }}
+                  onClick={() => setModalSimulador(true)}
+                  title="Simular Financiamento Bancário com Retorno"
+                >
+                  <Calculator size={14} /> ⚡ Simular Financiamento
+                </button>
+                <button type="button" className="btn btn-sm btn-primary" onClick={addPag}>
+                  <Plus size={14} />Adicionar Pagamento
+                </button>
+              </div>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -1879,6 +1914,20 @@ function NegociacaoWizardModal({ inicial, clientes, veiculos, onClose, onSave, o
           onDelete={() => {}}
         />
       )}
+
+      {/* SIMULADOR DE FINANCIAMENTO BANCÁRIO COM RETORNO */}
+      <SimuladorFinanciamentoModal
+        isOpen={modalSimulador}
+        onClose={() => setModalSimulador(false)}
+        veiculoInicial={{
+          marca: f.veic_marca,
+          modelo: f.veic_modelo,
+          ano: f.veic_ano,
+          preco: valorLiquido,
+          placa: f.veic_placa
+        }}
+        onAplicarSimulacao={handleAplicarSimulacao}
+      />
     </form>
   );
 }

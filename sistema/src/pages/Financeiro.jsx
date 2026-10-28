@@ -1312,6 +1312,8 @@ function NovoTituloForm({ inicial, veiculos, clientes, onClose, onSave, onDelete
 // ==============================================================================
 function ComissoesView({ lista, veiculos, clientes, negociacoes, usuarios, recarregar, avisoSucesso, setLoadingMsg }) {
   const [filtroVendedor, setFiltroVendedor] = useState('');
+  const [filtroMesAno, setFiltroMesAno] = useState('');
+  const [imprimindoExtrato, setImprimindoExtrato] = useState(false);
 
   const relatorio = useMemo(() => {
     const comissoesPagas = lista.filter((f) => f.tipo === 'despesa' && f.categoria === 'Comissão' && f.status === 'pago');
@@ -1333,10 +1335,12 @@ function ComissoesView({ lista, veiculos, clientes, negociacoes, usuarios, recar
       const jaPaga = comissoesPagas.some((f) => Number(f.negociacao_id) === Number(n.id) || f.descricao?.includes(`Venda #${n.id}`));
       const vendObj = usuarios.find((u) => u.id === n.vendedor_id);
       const vendedorNome = vendObj?.nome || n.vendedor_nome || 'Equipe DG Autos';
+      const dataNeg = n.data_negociacao || n.criado_em?.slice(0, 10) || new Date().toISOString().slice(0, 10);
 
       return {
         negociacao_id: n.id,
-        data: n.data_negociacao || n.criado_em?.slice(0, 10) || new Date().toISOString().slice(0, 10),
+        data: dataNeg,
+        mesAno: dataNeg.slice(0, 7), // YYYY-MM
         vendedor_nome: vendedorNome,
         veiculo_desc: `${n.veic_marca || veic.marca || ''} ${n.veic_modelo || veic.modelo || ''} (${n.veic_placa || veic.placa || 'Sem placa'})`.trim(),
         cliente_nome: n.cliente_nome || cli.nome || 'Cliente não identificado',
@@ -1350,8 +1354,30 @@ function ComissoesView({ lista, veiculos, clientes, negociacoes, usuarios, recar
   }, [negociacoes, veiculos, clientes, usuarios, lista]);
 
   const filtrados = useMemo(() => {
-    return relatorio.filter((c) => !filtroVendedor || c.vendedor_nome === filtroVendedor);
-  }, [relatorio, filtroVendedor]);
+    return relatorio.filter((c) => {
+      if (filtroVendedor && c.vendedor_nome !== filtroVendedor) return false;
+      if (filtroMesAno && c.mesAno !== filtroMesAno) return false;
+      return true;
+    });
+  }, [relatorio, filtroVendedor, filtroMesAno]);
+
+  const totaisComissao = useMemo(() => {
+    const totalVendido = filtrados.reduce((s, c) => s + c.valor_venda, 0);
+    const totalLucro = filtrados.reduce((s, c) => s + c.lucro_bruto, 0);
+    const totalComissao = filtrados.reduce((s, c) => s + c.comissao_valor, 0);
+    const totalPago = filtrados.filter((c) => c.status_comissao === 'pago').reduce((s, c) => s + c.comissao_valor, 0);
+    const totalPendente = totalComissao - totalPago;
+    const qtdVendas = filtrados.length;
+    const metaCarros = 10;
+    const progressoMeta = Math.min(100, Math.round((qtdVendas / metaCarros) * 100));
+
+    return { totalVendido, totalLucro, totalComissao, totalPago, totalPendente, qtdVendas, metaCarros, progressoMeta };
+  }, [filtrados]);
+
+  const mesesDisponiveis = useMemo(() => {
+    const setM = new Set(relatorio.map((r) => r.mesAno).filter(Boolean));
+    return Array.from(setM).sort().reverse();
+  }, [relatorio]);
 
   const handlePagar = async (item) => {
     if (!confirm(`Confirmar o pagamento de comissão de ${brl(item.comissao_valor)} para ${item.vendedor_nome}?`)) return;
@@ -1372,64 +1398,199 @@ function ComissoesView({ lista, veiculos, clientes, negociacoes, usuarios, recar
     }
   };
 
+  if (imprimindoExtrato) {
+    return (
+      <div>
+        <div className="topbar no-print" style={{ marginBottom: 16 }}>
+          <div>
+            <h1>Extrato Oficial de Comissões — DG Automóveis</h1>
+            <p>Fechamento financeiro para conferência e assinatura do vendedor.</p>
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button className="btn" onClick={() => setImprimindoExtrato(false)}>← Voltar</button>
+            <button className="btn btn-primary" onClick={() => window.print()}><Printer size={16} />Imprimir Extrato A4</button>
+          </div>
+        </div>
+
+        <div className="doc-preview" style={{ background: '#ffffff', color: '#111827', padding: '36px 42px', fontSize: '.92rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #111827', paddingBottom: 14, marginBottom: 20 }}>
+            <div>
+              <h2 style={{ fontSize: '1.3rem', fontWeight: 800, margin: 0 }}>DG AUTOMÓVEIS — FECHAMENTO DE COMISSÕES</h2>
+              <div style={{ fontSize: '.84rem', color: '#4b5563', marginTop: 4 }}>
+                Vendedor: <strong>{filtroVendedor || 'Todos os Vendedores'}</strong> · Período: <strong>{filtroMesAno || 'Geral Acumulado'}</strong>
+              </div>
+            </div>
+            <div style={{ textAlign: 'right', fontSize: '.84rem' }}>
+              Data de Emissão: {new Date().toLocaleDateString('pt-BR')}<br />
+              <strong>{totaisComissao.qtdVendas} veículo(s) faturado(s)</strong>
+            </div>
+          </div>
+
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.85rem', marginBottom: 20 }}>
+            <thead>
+              <tr style={{ background: '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
+                <th style={{ padding: '8px 10px', textAlign: 'left' }}>Data</th>
+                <th style={{ padding: '8px 10px', textAlign: 'left' }}>Negoc.</th>
+                <th style={{ padding: '8px 10px', textAlign: 'left' }}>Veículo</th>
+                <th style={{ padding: '8px 10px', textAlign: 'left' }}>Cliente</th>
+                <th style={{ padding: '8px 10px', textAlign: 'right' }}>Valor Venda</th>
+                <th style={{ padding: '8px 10px', textAlign: 'right' }}>Comissão</th>
+                <th style={{ padding: '8px 10px', textAlign: 'center' }}>Situação</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtrados.map((c, i) => (
+                <tr key={i} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                  <td style={{ padding: '8px 10px' }}>{dataBr(c.data)}</td>
+                  <td style={{ padding: '8px 10px' }}><strong>#{c.negociacao_id}</strong></td>
+                  <td style={{ padding: '8px 10px' }}>{c.veiculo_desc}</td>
+                  <td style={{ padding: '8px 10px' }}>{c.cliente_nome}</td>
+                  <td style={{ padding: '8px 10px', textAlign: 'right' }}>{brl(c.valor_venda)}</td>
+                  <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700 }}>{brl(c.comissao_valor)}</td>
+                  <td style={{ padding: '8px 10px', textAlign: 'center' }}>{c.status_comissao === 'pago' ? 'PAGO' : 'PENDENTE'}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr style={{ background: '#f8fafc', fontWeight: 800, borderTop: '2px solid #111827' }}>
+                <td colSpan={4} style={{ padding: '10px' }}>TOTAIS DO PERÍODO:</td>
+                <td style={{ padding: '10px', textAlign: 'right' }}>{brl(totaisComissao.totalVendido)}</td>
+                <td style={{ padding: '10px', textAlign: 'right', color: '#16a34a', fontSize: '1rem' }}>{brl(totaisComissao.totalComissao)}</td>
+                <td style={{ padding: '10px', textAlign: 'center' }}>{brl(totaisComissao.totalPago)} pago</td>
+              </tr>
+            </tfoot>
+          </table>
+
+          <div style={{ marginTop: 40, paddingTop: 20, borderTop: '1px solid #cbd5e1' }}>
+            <p style={{ fontSize: '.84rem', color: '#4b5563', textAlign: 'justify', lineHeight: 1.6 }}>
+              Declaro que conferi os valores discriminados acima correspondentes às comissões de intermediação de vendas e quitação dos respectivos montantes.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40, marginTop: 45 }}>
+              <div style={{ textAlign: 'center', borderTop: '1px solid #111827', paddingTop: 8 }}>
+                <strong>{filtroVendedor || 'Vendedor Responsável'}</strong><br />
+                <span style={{ fontSize: '.78rem', color: '#64748b' }}>Assinatura do Vendedor</span>
+              </div>
+              <div style={{ textAlign: 'center', borderTop: '1px solid #111827', paddingTop: 8 }}>
+                <strong>DG AUTOMÓVEIS COMÉRCIO DE VEÍCULOS LTDA</strong><br />
+                <span style={{ fontSize: '.78rem', color: '#64748b' }}>Gerência / Financeiro</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="card table-wrap" style={{ background: '#ffffff', borderRadius: 8, border: '1px solid var(--border)' }}>
-      <div style={{ padding: 14, borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h3 style={{ margin: 0, fontSize: '1rem' }}>Comissões da Equipe de Vendas</h3>
-        <select className="select" style={{ maxWidth: 220 }} value={filtroVendedor} onChange={(e) => setFiltroVendedor(e.target.value)}>
-          <option value="">Todos os Vendedores</option>
-          {usuarios.map((u) => <option key={u.id} value={u.nome}>{u.nome}</option>)}
-        </select>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* BARRA DE FILTROS E AÇÕES */}
+      <div className="card" style={{ padding: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <select className="select select-sm" style={{ minWidth: 200 }} value={filtroVendedor} onChange={(e) => setFiltroVendedor(e.target.value)}>
+            <option value="">Todos os Vendedores</option>
+            {usuarios.map((u) => <option key={u.id} value={u.nome}>{u.nome}</option>)}
+          </select>
+
+          <select className="select select-sm" style={{ minWidth: 170 }} value={filtroMesAno} onChange={(e) => setFiltroMesAno(e.target.value)}>
+            <option value="">Todos os Meses</option>
+            {mesesDisponiveis.map((m) => (
+              <option key={m} value={m}>Mês {m.split('-')[1]}/{m.split('-')[0]}</option>
+            ))}
+          </select>
+        </div>
+
+        <button type="button" className="btn btn-sm" onClick={() => setImprimindoExtrato(true)}>
+          <Printer size={14} /> Imprimir Extrato de Fechamento A4
+        </button>
       </div>
 
-      <table className="table" style={{ margin: 0 }}>
-        <thead>
-          <tr style={{ background: '#f8fafc' }}>
-            <th>Data</th>
-            <th>Negociação</th>
-            <th>Vendedor</th>
-            <th>Veículo</th>
-            <th>Cliente</th>
-            <th>Valor Venda</th>
-            <th>Custo Loja</th>
-            <th>Lucro do Veículo</th>
-            <th>Comissão</th>
-            <th>Status</th>
-            <th>Ação</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filtrados.length === 0 ? (
-            <tr><td colSpan={11} style={{ textAlign: 'center', padding: '30px 0', color: 'var(--muted)' }}>Nenhuma comissão encontrada.</td></tr>
-          ) : (
-            filtrados.map((c, i) => (
-              <tr key={i}>
-                <td>{dataBr(c.data)}</td>
-                <td><strong>#{c.negociacao_id}</strong></td>
-                <td><strong>{c.vendedor_nome}</strong></td>
-                <td>{c.veiculo_desc}</td>
-                <td>{c.cliente_nome}</td>
-                <td>{brl(c.valor_venda)}</td>
-                <td style={{ color: 'var(--muted)' }}>{brl(c.custo_loja)}</td>
-                <td><strong style={{ color: c.lucro_bruto >= 0 ? 'var(--success)' : 'var(--danger)' }}>{brl(c.lucro_bruto)}</strong></td>
-                <td><strong style={{ color: 'var(--primary)' }}>{brl(c.comissao_valor)}</strong></td>
-                <td>
-                  <span className={`badge ${c.status_comissao === 'pago' ? 'badge-success' : 'badge-warning'}`}>
-                    {c.status_comissao === 'pago' ? '✓ Paga' : '⏳ Pendente'}
-                  </span>
-                </td>
-                <td>
-                  {c.status_comissao !== 'pago' && (
-                    <button className="btn btn-sm btn-primary" onClick={() => handlePagar(c)} style={{ background: '#5d35b0' }}>
-                      Pagar
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+      {/* CARDS DE METAS E RESUMO */}
+      <div className="stats" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', marginBottom: 0 }}>
+        <div className="card stat">
+          <div className="stat-label">Carros Vendidos (Meta {totaisComissao.metaCarros})</div>
+          <div className="stat-value">{totaisComissao.qtdVendas} un.</div>
+          <div className="stat-sub" style={{ marginTop: 6 }}>
+            <div style={{ height: 6, background: '#e2e8f0', borderRadius: 99, overflow: 'hidden' }}>
+              <div style={{ width: `${totaisComissao.progressoMeta}%`, height: '100%', background: 'var(--primary)', transition: 'width .3s' }} />
+            </div>
+            <span style={{ fontSize: '.72rem', color: 'var(--muted)', marginTop: 2, display: 'block' }}>
+              {totaisComissao.progressoMeta}% da meta mensal atingida
+            </span>
+          </div>
+        </div>
+
+        <div className="card stat">
+          <div className="stat-label">Volume Total Faturado</div>
+          <div className="stat-value">{brl(totaisComissao.totalVendido)}</div>
+          <div className="stat-sub">Lucro da loja: <strong style={{ color: 'var(--success)' }}>{brl(totaisComissao.totalLucro)}</strong></div>
+        </div>
+
+        <div className="card stat">
+          <div className="stat-label">Comissão Total Gerada</div>
+          <div className="stat-value" style={{ color: 'var(--primary)' }}>{brl(totaisComissao.totalComissao)}</div>
+          <div className="stat-sub">Média por venda: {totaisComissao.qtdVendas ? brl(Math.round(totaisComissao.totalComissao / totaisComissao.qtdVendas)) : 'R$ 0'}</div>
+        </div>
+
+        <div className="card stat">
+          <div className="stat-label">Saldo Pendente a Pagar</div>
+          <div className="stat-value" style={{ color: totaisComissao.totalPendente > 0 ? '#ef4444' : '#10b981' }}>
+            {brl(totaisComissao.totalPendente)}
+          </div>
+          <div className="stat-sub">Já pago no período: {brl(totaisComissao.totalPago)}</div>
+        </div>
+      </div>
+
+      {/* TABELA DE COMISSÕES */}
+      <div className="card table-wrap" style={{ background: '#ffffff', borderRadius: 8, border: '1px solid var(--border)' }}>
+        <table className="table" style={{ margin: 0 }}>
+          <thead>
+            <tr style={{ background: '#f8fafc' }}>
+              <th>Data</th>
+              <th>Negociação</th>
+              <th>Vendedor</th>
+              <th>Veículo</th>
+              <th>Cliente</th>
+              <th>Valor Venda</th>
+              <th>Custo Loja</th>
+              <th>Lucro do Veículo</th>
+              <th>Comissão</th>
+              <th>Status</th>
+              <th>Ação</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtrados.length === 0 ? (
+              <tr><td colSpan={11} style={{ textAlign: 'center', padding: '30px 0', color: 'var(--muted)' }}>Nenhuma comissão encontrada para os filtros selecionados.</td></tr>
+            ) : (
+              filtrados.map((c, i) => (
+                <tr key={i}>
+                  <td>{dataBr(c.data)}</td>
+                  <td><strong>#{c.negociacao_id}</strong></td>
+                  <td><strong>{c.vendedor_nome}</strong></td>
+                  <td>{c.veiculo_desc}</td>
+                  <td>{c.cliente_nome}</td>
+                  <td>{brl(c.valor_venda)}</td>
+                  <td style={{ color: 'var(--muted)' }}>{brl(c.custo_loja)}</td>
+                  <td><strong style={{ color: c.lucro_bruto >= 0 ? 'var(--success)' : 'var(--danger)' }}>{brl(c.lucro_bruto)}</strong></td>
+                  <td><strong style={{ color: 'var(--primary)' }}>{brl(c.comissao_valor)}</strong></td>
+                  <td>
+                    <span className={`badge ${c.status_comissao === 'pago' ? 'badge-success' : 'badge-warning'}`}>
+                      {c.status_comissao === 'pago' ? '✓ Paga' : '⏳ Pendente'}
+                    </span>
+                  </td>
+                  <td>
+                    {c.status_comissao !== 'pago' && (
+                      <button className="btn btn-sm btn-primary" onClick={() => handlePagar(c)} style={{ background: '#16a34a', borderColor: '#16a34a' }}>
+                        Pagar
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import {
   Car, LayoutDashboard, LogOut, Users, Handshake, Wallet,
-  FileText, Settings, Contact, Menu, X, PlusCircle, Building2, Globe, KeyRound
+  FileText, Settings, Contact, Menu, X, PlusCircle, Building2, Globe, KeyRound, Calculator
 } from 'lucide-react';
 import { getUser, logout, alterarSenhaUsuario } from './store';
 import Login from './pages/Login';
@@ -15,11 +15,13 @@ import Financeiro from './pages/Financeiro';
 import Documentos from './pages/Documentos';
 import Configuracoes from './pages/Configuracoes';
 import IntegracaoSite from './pages/IntegracaoSite';
+import SimuladorFinanciamentoModal from './components/SimuladorFinanciamentoModal';
 
 function Shell({ user, onLogout }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [modalMinhaSenha, setModalMinhaSenha] = useState(false);
+  const [modalSimulador, setModalSimulador] = useState(false);
   const [novaMinhaSenha, setNovaMinhaSenha] = useState('');
   const [salvandoMinhaSenha, setSalvandoMinhaSenha] = useState(false);
   const location = useLocation();
@@ -100,6 +102,15 @@ function Shell({ user, onLogout }) {
               onClick={() => navigate('/documentos')}
             >
               <FileText size={15} /> Emitir Contrato
+            </button>
+            <button
+              type="button"
+              className="altimus-shortcut-btn"
+              style={{ color: '#0284c7', fontWeight: 700 }}
+              onClick={() => setModalSimulador(true)}
+              title="Simulador de Financiamento & Coeficientes de Bancos com Retorno"
+            >
+              <Calculator size={15} /> ⚡ Simular Financiamento
             </button>
           </div>
         </div>
@@ -282,6 +293,12 @@ function Shell({ user, onLogout }) {
           </div>
         </div>
       )}
+
+      {/* SIMULADOR GLOBAL DE FINANCIAMENTO & RETORNO DE LOJA */}
+      <SimuladorFinanciamentoModal
+        isOpen={modalSimulador}
+        onClose={() => setModalSimulador(false)}
+      />
     </div>
   );
 }

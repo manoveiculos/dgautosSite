@@ -4,7 +4,7 @@ import {
   Plus, Search, Car, X, Trash2, Gauge, Fuel, Calendar, LayoutGrid, List,
   CheckCircle2, AlertTriangle, Wrench, FileText, Image, BookmarkCheck,
   Sparkles, Printer, Handshake, ExternalLink, ShieldCheck, Edit3, ArrowLeft, ArrowRight, Globe,
-  Download, Eye, Upload, Settings, ShieldAlert, FileDown, ChevronDown, GripVertical, Clock, DollarSign
+  Download, Eye, Upload, Settings, ShieldAlert, FileDown, ChevronDown, GripVertical, Clock, DollarSign, Building2
 } from 'lucide-react';
 import {
   getVeiculos, saveVeiculo, deleteVeiculo, getClientes,
@@ -73,6 +73,25 @@ const ABAS_VEICULO = [
   { id: 'fotos', label: '9. Fotos e Vídeo' },
   { id: 'integracao_site', label: '10. Integração Site' },
 ];
+
+const ETAPAS_PREPARACAO = [
+  { id: 'entrada', label: '1. Entrada / Vistoria', cor: '#0284c7', icon: '📥' },
+  { id: 'mecanica', label: '2. Mecânica & Revisão', cor: '#d97706', icon: '🔧' },
+  { id: 'funilaria', label: '3. Funilaria / Pintura', cor: '#dc2626', icon: '🎨' },
+  { id: 'estetica', label: '4. Higienização & Polimento', cor: '#8b5cf6', icon: '✨' },
+  { id: 'showroom', label: '5. Showroom (Pronto)', cor: '#16a34a', icon: '📸' }
+];
+
+const getEtapaVeiculo = (v) => {
+  if (v.etapa_preparacao) return v.etapa_preparacao;
+  const sit = (v.situacao_patio || '').toLowerCase();
+  if (sit.includes('oficina') || sit.includes('mecânica') || sit.includes('revisão')) return 'mecanica';
+  if (sit.includes('funilaria') || sit.includes('pintura') || sit.includes('martelinho')) return 'funilaria';
+  if (sit.includes('higienização') || sit.includes('polimento') || sit.includes('estética') || sit.includes('lav')) return 'estetica';
+  if (sit.includes('entrada') || sit.includes('vistoria') || sit.includes('preparação')) return 'entrada';
+  if (v.status === 'disponivel') return 'showroom';
+  return 'entrada';
+};
 
 const EMPTY_VEICULO = {
   codigo_interno: '',
@@ -206,6 +225,23 @@ export default function Estoque({ user }) {
       setLista(Array.isArray(atualizados) ? atualizados : []);
     } catch (err) {
       console.warn('Erro ao atualizar status do site:', err);
+    }
+  };
+
+  const handleMoverEtapa = async (veiculo, novaEtapa, e) => {
+    if (e) e.stopPropagation();
+    const etapaObj = ETAPAS_PREPARACAO.find((et) => et.id === novaEtapa);
+    const atualizado = {
+      ...veiculo,
+      etapa_preparacao: novaEtapa,
+      situacao_patio: etapaObj ? etapaObj.label : veiculo.situacao_patio,
+      status: novaEtapa === 'showroom' ? 'disponivel' : (veiculo.status === 'vendido' ? 'vendido' : 'em_preparacao')
+    };
+    try {
+      const r = await saveVeiculo(atualizado);
+      setLista(Array.isArray(r) ? r : []);
+    } catch (err) {
+      alert('Erro ao mover veículo: ' + err.message);
     }
   };
 
@@ -368,6 +404,9 @@ export default function Estoque({ user }) {
             </button>
             <button className={`tab ${modo === 'tabela' ? 'active' : ''}`} onClick={() => setModo('tabela')}>
               <List size={15} />Tabela Detalhada
+            </button>
+            <button className={`tab ${modo === 'preparacao' ? 'active' : ''}`} onClick={() => setModo('preparacao')}>
+              <Wrench size={15} />Fluxo de Preparação (Kanban)
             </button>
           </div>
           <button
@@ -876,7 +915,7 @@ export default function Estoque({ user }) {
             );
           })}
         </div>
-      ) : (
+      ) : modo === 'tabela' ? (
         <div className="card table-wrap">
           <table className="table">
             <thead>
@@ -1081,6 +1120,133 @@ export default function Estoque({ user }) {
               })}
             </tbody>
           </table>
+        </div>
+      ) : (
+        /* ========================================================================= */
+        /* FLUXO DE PREPARAÇÃO DE PÁTIO (KANBAN ALTIMUS) */
+        /* ========================================================================= */
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14, alignItems: 'start' }}>
+          {ETAPAS_PREPARACAO.map((etapa, idxEtapa) => {
+            const veiculosNaEtapa = filtrados.filter((v) => getEtapaVeiculo(v) === etapa.id);
+            return (
+              <div
+                key={etapa.id}
+                style={{
+                  background: 'var(--color-neutral-80)',
+                  borderRadius: 12,
+                  border: '1px solid var(--border)',
+                  padding: 12,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 12,
+                  minHeight: 480
+                }}
+              >
+                {/* CABEÇALHO DA ETAPA */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `3px solid ${etapa.cor}`, paddingBottom: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: '1.1rem' }}>{etapa.icon}</span>
+                    <strong style={{ fontSize: '.88rem', color: 'var(--text)' }}>{etapa.label}</strong>
+                  </div>
+                  <span className="badge" style={{ background: etapa.cor, color: '#fff', fontWeight: 800, fontSize: '.72rem', borderRadius: 99 }}>
+                    {veiculosNaEtapa.length}
+                  </span>
+                </div>
+
+                {/* LISTAGEM DOS CARDS DESTA ETAPA */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {veiculosNaEtapa.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '30px 10px', color: 'var(--muted)', fontSize: '.8rem', fontStyle: 'italic' }}>
+                      Nenhum veículo nesta etapa.
+                    </div>
+                  ) : (
+                    veiculosNaEtapa.map((v) => {
+                      const dias = diasEmEstoque(v.entrada, v.venda);
+                      const corGiro = dias <= 30 ? '#10b981' : dias <= 60 ? '#f59e0b' : dias <= 90 ? '#f97316' : '#ef4444';
+                      const despTotal = Number(v.despesas_veiculo || 0);
+
+                      return (
+                        <div
+                          key={v.id}
+                          className="card"
+                          style={{
+                            padding: 12,
+                            borderRadius: 10,
+                            border: '1px solid var(--border)',
+                            background: '#ffffff',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 8,
+                            boxShadow: '0 2px 6px rgba(0,0,0,.04)',
+                            transition: 'all .15s ease'
+                          }}
+                          onClick={() => setEditando(v)}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: 8 }}>
+                            <div>
+                              <strong style={{ fontSize: '.9rem', display: 'block' }}>{v.marca} {v.modelo}</strong>
+                              <span style={{ fontSize: '.74rem', color: 'var(--muted)' }}>{v.ano} · {v.cor}</span>
+                            </div>
+                            <span className="badge" style={{ fontSize: '.68rem', fontWeight: 700 }}>
+                              {v.placa || 'S/ PLACA'}
+                            </span>
+                          </div>
+
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '.76rem', background: '#f8fafc', padding: '6px 8px', borderRadius: 6 }}>
+                            <span style={{ color: corGiro, fontWeight: 700 }}>⏱ {dias}d no pátio</span>
+                            <span style={{ color: despTotal > 0 ? '#d97706' : 'var(--muted)', fontWeight: 600 }}>
+                              {despTotal > 0 ? `Desp: ${brl(despTotal)}` : 'Sem desp.'}
+                            </span>
+                          </div>
+
+                          <div style={{ fontSize: '.72rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <Building2 size={12} /> {v.localizacao_patio || 'Showroom DG'}
+                          </div>
+
+                          {/* BOTÕES DE AVANÇO / RETROCESSO DE ETAPA */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 6, borderTop: '1px solid #f1f5f9', marginTop: 4 }} onClick={(e) => e.stopPropagation()}>
+                            {idxEtapa > 0 ? (
+                              <button
+                                type="button"
+                                className="btn btn-sm"
+                                style={{ padding: '2px 8px', fontSize: '.72rem' }}
+                                title={`Voltar para ${ETAPAS_PREPARACAO[idxEtapa - 1].label}`}
+                                onClick={(e) => handleMoverEtapa(v, ETAPAS_PREPARACAO[idxEtapa - 1].id, e)}
+                              >
+                                ← Voltar
+                              </button>
+                            ) : <div />}
+
+                            {idxEtapa < ETAPAS_PREPARACAO.length - 1 ? (
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-primary"
+                                style={{ padding: '2px 8px', fontSize: '.72rem' }}
+                                title={`Avançar para ${ETAPAS_PREPARACAO[idxEtapa + 1].label}`}
+                                onClick={(e) => handleMoverEtapa(v, ETAPAS_PREPARACAO[idxEtapa + 1].id, e)}
+                              >
+                                Avançar →
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                className={`badge ${v.publicar_site !== false ? 'badge-disponivel' : 'badge-vendido'}`}
+                                style={{ cursor: 'pointer', border: 'none', padding: '3px 7px', fontSize: '.7rem', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                                onClick={(e) => handleTogglePublicarSite(v, e)}
+                              >
+                                <Globe size={10} /> {v.publicar_site !== false ? 'Publicado' : 'Oculto'}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </>
