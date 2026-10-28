@@ -324,6 +324,17 @@ export default function Negociacoes({ user }) {
                   <button type="button" className="btn btn-sm" title="Laudo e Checklist de Vistoria" onClick={() => navigate(`/documentos?negociacao=${n.id}&modelo=checklist_vistoria`)}>
                     <ShieldCheck size={13} /> Vistoria
                   </button>
+                  {n.status === 'concluida' && (
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      title="Abrir chamado de garantia ou pós-venda CDC para este veículo"
+                      style={{ color: '#0284c7', background: '#f0f9ff', borderColor: '#bae6fd' }}
+                      onClick={() => navigate(`/pos-venda?novo=1&veiculo_id=${n.veiculo_id || ''}&cliente_id=${n.cliente_id || ''}`)}
+                    >
+                      <ShieldAlert size={13} /> Pós-Venda
+                    </button>
+                  )}
                   {n.status !== 'concluida' && (
                     <button
                       type="button"
@@ -429,6 +440,17 @@ export default function Negociacoes({ user }) {
                       >
                         <ShieldCheck size={13} />Vistoria
                       </button>
+                      {n.status === 'concluida' && (
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          title="Abrir chamado de pós-venda CDC para este veículo"
+                          style={{ color: '#0284c7', background: '#f0f9ff', borderColor: '#bae6fd' }}
+                          onClick={() => navigate(`/pos-venda?novo=1&veiculo_id=${n.veiculo_id || ''}&cliente_id=${n.cliente_id || ''}`)}
+                        >
+                          <ShieldAlert size={13} />Pós-Venda
+                        </button>
+                      )}
                       {(n.status === 'cancelada' || user?.perfil === 'admin' || user?.email?.toLowerCase() === 'admin@dgautos.com.br') && (
                         <button
                           type="button"

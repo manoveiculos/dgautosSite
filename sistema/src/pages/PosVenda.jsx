@@ -53,11 +53,45 @@ export default function PosVenda({ user }) {
         getNegociacoes(),
         getConfig()
       ]);
-      setChamados(Array.isArray(chs) ? chs : []);
-      setVeiculos(Array.isArray(vs) ? vs : []);
-      setClientes(Array.isArray(cs) ? cs : []);
-      setNegociacoes(Array.isArray(ns) ? ns : []);
+      const listaChs = Array.isArray(chs) ? chs : [];
+      const listaVs = Array.isArray(vs) ? vs : [];
+      const listaCs = Array.isArray(cs) ? cs : [];
+      const listaNs = Array.isArray(ns) ? ns : [];
+
+      setChamados(listaChs);
+      setVeiculos(listaVs);
+      setClientes(listaCs);
+      setNegociacoes(listaNs);
       if (cfg?.loja) setLoja(cfg.loja);
+
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('novo') === '1') {
+        const vId = params.get('veiculo_id');
+        const cId = params.get('cliente_id');
+        const v = listaVs.find((x) => String(x.id) === String(vId));
+        const neg = listaNs.find((n) => String(n.veiculo_id) === String(vId));
+        const c = listaCs.find((cli) => String(cli.id) === String(cId || neg?.cliente_id));
+
+        setEditando({
+          protocolo: `GAR-${Math.floor(1000 + Math.random() * 9000)}`,
+          data_abertura: new Date().toISOString().slice(0, 10),
+          veiculo_id: vId || '',
+          veiculo_desc: v ? `${v.marca} ${v.modelo} (${v.ano})` : '',
+          placa: v?.placa || '',
+          data_venda: neg?.data_fechamento || neg?.data_negociacao || v?.venda || '',
+          cliente_id: cId || c?.id || '',
+          cliente_nome: c?.nome || neg?.cliente_nome || '',
+          cliente_telefone: c?.whatsapp || c?.telefone || neg?.cliente_telefone || '',
+          sistema: SISTEMAS_VEICULO[0],
+          km_entrada: Number(v?.km || 0),
+          status: 'aberto',
+          reclamacao: '',
+          oficina_nome: '',
+          custo_reparo: 0,
+          responsavel_custo: 'Loja',
+          servicos_executados: ''
+        });
+      }
     } catch (e) {
       console.warn('Erro ao carregar pós-venda:', e);
     }
