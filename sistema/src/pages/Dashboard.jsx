@@ -83,10 +83,10 @@ export default function Dashboard({ user }) {
       passo: '4',
       cor: 'hsla(265, 85%, 65%, .18)',
       corTexto: '#a78bfa',
-      titulo: 'Imprimir Contrato e Recibo',
-      desc: 'Gere o Contrato de Compra e Venda com garantia de 90 dias, Recibo de Sinal e Termo de Entrega.',
+      titulo: 'Imprimir Contratos & Laudos',
+      desc: 'Gere Contratos Oficiais, Checklist de Vistoria CDC, Recibo de Sinal (Arras) e Termo de Transferência ATPV-e.',
       link: '/documentos',
-      cta: 'Gerar Contrato →'
+      cta: 'Gerar Documento →'
     },
   ];
 
@@ -189,7 +189,7 @@ export default function Dashboard({ user }) {
               <div>
                 <div style={{ fontWeight: 700 }}>{v.marca} {v.modelo} <span style={{ color: 'var(--muted)', fontWeight: 500 }}>({v.ano})</span></div>
                 <small style={{ color: 'var(--muted)' }}>
-                  {STATUS[v.status]} · <strong style={{ color: 'var(--warning)' }}>{dias(v.entrada)} dias no pátio</strong> · Placa {v.placa || '—'}
+                  {STATUS[v.status]} · <strong style={{ color: dias(v.entrada) > 60 ? '#ef4444' : '#f59e0b' }}>{dias(v.entrada)} dias no pátio {dias(v.entrada) > 60 ? '(Atenção Giro)' : ''}</strong> · Placa {v.placa || '—'}
                 </small>
               </div>
               <div style={{ textAlign: 'right' }}>

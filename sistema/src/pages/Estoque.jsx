@@ -4,7 +4,7 @@ import {
   Plus, Search, Car, X, Trash2, Gauge, Fuel, Calendar, LayoutGrid, List,
   CheckCircle2, AlertTriangle, Wrench, FileText, Image, BookmarkCheck,
   Sparkles, Printer, Handshake, ExternalLink, ShieldCheck, Edit3, ArrowLeft, ArrowRight, Globe,
-  Download, Eye, Upload, Settings, ShieldAlert, FileDown, ChevronDown, GripVertical
+  Download, Eye, Upload, Settings, ShieldAlert, FileDown, ChevronDown, GripVertical, Clock, DollarSign
 } from 'lucide-react';
 import {
   getVeiculos, saveVeiculo, deleteVeiculo, getClientes,
@@ -172,6 +172,7 @@ export default function Estoque({ user }) {
   const [status, setStatus] = useState('');
   const [propriedade, setPropriedade] = useState('');
   const [cambio, setCambio] = useState('');
+  const [filtroTempoPatio, setFiltroTempoPatio] = useState('');
   const [editando, setEditando] = useState(null);
   const [fichaImpressao, setFichaImpressao] = useState(null);
   const [modalEntrada, setModalEntrada] = useState(false);
@@ -223,16 +224,26 @@ export default function Estoque({ user }) {
       if (status && v.status !== status) return false;
       if (propriedade && (v.propriedade || 'PROPRIO') !== propriedade) return false;
       if (cambio && v.cambio !== cambio) return false;
+      if (filtroTempoPatio) {
+        const d = diasEmEstoque(v.entrada, v.venda);
+        if (filtroTempoPatio === 'ate30' && d > 30) return false;
+        if (filtroTempoPatio === '31a60' && (d <= 30 || d > 60)) return false;
+        if (filtroTempoPatio === '61a90' && (d <= 60 || d > 90)) return false;
+        if (filtroTempoPatio === 'mais90' && d <= 90) return false;
+      }
       const texto = `${v.marca || ''} ${v.modelo || ''} ${v.modelo_complemento || ''} ${v.placa || ''} ${v.cor || ''} ${v.chassi || ''} ${v.renavam || ''} ${v.codigo_interno || ''}`.toLowerCase();
       return texto.includes(busca.toLowerCase());
     });
-  }, [lista, busca, status, propriedade, cambio]);
+  }, [lista, busca, status, propriedade, cambio, filtroTempoPatio]);
 
   const totais = useMemo(() => {
     const ativos = filtrados.filter((v) => v.status !== 'vendido');
     const custoTotal = ativos.reduce((s, v) => s + Number(v.custo || 0) + Number(v.despesas_veiculo || 0), 0);
     const vendaTotal = ativos.reduce((s, v) => s + Number(v.preco || 0), 0);
-    return { qtd: ativos.length, custoTotal, vendaTotal, margem: vendaTotal - custoTotal };
+    const totalDias = ativos.reduce((s, v) => s + diasEmEstoque(v.entrada, v.venda), 0);
+    const mediaDias = ativos.length ? Math.round(totalDias / ativos.length) : 0;
+    const criticosQtd = ativos.filter((v) => diasEmEstoque(v.entrada, v.venda) > 60).length;
+    return { qtd: ativos.length, custoTotal, vendaTotal, margem: vendaTotal - custoTotal, mediaDias, criticosQtd };
   }, [filtrados]);
 
   if (fichaImpressao) {
@@ -527,6 +538,19 @@ export default function Estoque({ user }) {
           <div className="stat-value">{brl(totais.vendaTotal)}</div>
           <div className="stat-sub">Margem projetada: <strong style={{ color: 'var(--success)' }}>{brl(totais.margem)}</strong></div>
         </div>
+        <div className="card stat">
+          <div className="stat-label"><Clock size={15} />Tempo Médio de Pátio</div>
+          <div className="stat-value" style={{ color: totais.mediaDias > 60 ? '#ef4444' : totais.mediaDias > 30 ? '#f59e0b' : '#10b981' }}>
+            {totais.mediaDias} dias
+          </div>
+          <div className="stat-sub">
+            {totais.criticosQtd > 0 ? (
+              <span style={{ color: '#ef4444', fontWeight: 700 }}>⚠️ {totais.criticosQtd} carro(s) &gt; 60 dias no pátio</span>
+            ) : (
+              <span style={{ color: '#10b981', fontWeight: 600 }}>✓ Estoque com giro excelente</span>
+            )}
+          </div>
+        </div>
       </section>
 
       <div className="toolbar">
@@ -553,6 +577,13 @@ export default function Estoque({ user }) {
           <option value="">Todos os câmbios</option>
           {['Automático', 'Manual', 'CVT', 'Automatizado'].map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
+        <select className="select" style={{ maxWidth: 205 }} value={filtroTempoPatio} onChange={(e) => setFiltroTempoPatio(e.target.value)}>
+          <option value="">Todos os tempos de giro</option>
+          <option value="ate30">🟢 Até 30 dias (Giro Rápido)</option>
+          <option value="31a60">🟡 31 a 60 dias (Giro Médio)</option>
+          <option value="61a90">🟠 61 a 90 dias (Alerta Giro)</option>
+          <option value="mais90">🔴 Mais de 90 dias (Pátio Crítico)</option>
+        </select>
       </div>
 
       {filtrados.length === 0 ? (
@@ -565,6 +596,8 @@ export default function Estoque({ user }) {
             const margemLiquida = Number(v.preco || 0) - custoReal;
             const pendAbertas = (v.pendencias || []).filter((p) => !p.concluida).length;
             const dias = diasEmEstoque(v.entrada, v.venda);
+            const corGiro = dias <= 30 ? '#10b981' : dias <= 60 ? '#f59e0b' : dias <= 90 ? '#f97316' : '#ef4444';
+            const labelGiro = dias <= 30 ? 'Giro Rápido' : dias <= 60 ? 'Giro Médio' : dias <= 90 ? 'Alerta Giro' : 'Pátio Crítico (+90d)';
             return (
               <article key={v.id} id={`veiculo-${v.id}`} className="card vehicle" style={{ animationDelay: `${i * 45}ms` }} onClick={() => setEditando(v)}>
                 <div className="vehicle-photo">
@@ -613,8 +646,9 @@ export default function Estoque({ user }) {
                       {v.placa}
                     </span>
                   )}
-                  <span style={{ position: 'absolute', bottom: 10, left: 10, background: 'rgba(10,14,25,.82)', padding: '3px 9px', borderRadius: 6, fontSize: '.72rem', fontWeight: 600, color: '#e2e8f0' }}>
-                    ⏱ {dias} dias no pátio
+                  <span style={{ position: 'absolute', bottom: 10, left: 10, background: 'rgba(10,14,25,.90)', padding: '3px 9px', borderRadius: 6, fontSize: '.72rem', fontWeight: 700, color: '#ffffff', borderLeft: `4px solid ${corGiro}`, display: 'inline-flex', alignItems: 'center', gap: 6, boxShadow: '0 2px 8px rgba(0,0,0,.4)' }}>
+                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: corGiro, display: 'inline-block' }} />
+                    ⏱ {dias}d · {labelGiro}
                   </span>
                 </div>
 
@@ -748,10 +782,43 @@ export default function Estoque({ user }) {
                           style={{ justifyContent: 'flex-start' }}
                           onClick={() => {
                             setMenuAbertoId(null);
-                            navigate('/documentos');
+                            navigate(`/documentos?veiculo=${v.id}&modelo=checklist_vistoria`);
                           }}
                         >
-                          <FileText size={13} /> Minutas & Contratos
+                          <FileText size={13} /> 📋 Checklist de Vistoria
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          style={{ justifyContent: 'flex-start' }}
+                          onClick={() => {
+                            setMenuAbertoId(null);
+                            navigate(`/documentos?veiculo=${v.id}&modelo=recibo_sinal`);
+                          }}
+                        >
+                          <DollarSign size={13} /> 💵 Recibo de Sinal & Reserva
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          style={{ justifyContent: 'flex-start' }}
+                          onClick={() => {
+                            setMenuAbertoId(null);
+                            navigate(`/documentos?veiculo=${v.id}&modelo=autorizacao_transf`);
+                          }}
+                        >
+                          <ShieldCheck size={13} /> 📑 Termo Transf. (ATPV-e)
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          style={{ justifyContent: 'flex-start' }}
+                          onClick={() => {
+                            setMenuAbertoId(null);
+                            navigate(`/documentos?veiculo=${v.id}`);
+                          }}
+                        >
+                          <FileText size={13} /> Todas Minutas & Contratos
                         </button>
                         <button
                           type="button"
@@ -850,7 +917,19 @@ export default function Estoque({ user }) {
                       {PROPRIEDADES[v.propriedade] || 'Próprio'}
                       <div style={{ fontSize: '.74rem', color: 'var(--muted)' }}>{v.localizacao_patio || 'Showroom'}</div>
                     </td>
-                    <td>{diasEmEstoque(v.entrada, v.venda)}d</td>
+                    <td>
+                      {(() => {
+                        const d = diasEmEstoque(v.entrada, v.venda);
+                        const c = d <= 30 ? '#10b981' : d <= 60 ? '#f59e0b' : d <= 90 ? '#f97316' : '#ef4444';
+                        const lbl = d <= 30 ? 'Giro Rápido' : d <= 60 ? 'Giro Médio' : d <= 90 ? 'Atenção' : 'Crítico';
+                        return (
+                          <span className="badge" style={{ background: `${c}18`, color: c, border: `1px solid ${c}55`, fontWeight: 700, fontSize: '.70rem', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: c }} />
+                            {d}d · {lbl}
+                          </span>
+                        );
+                      })()}
+                    </td>
                     <td>
                       {brl(custoReal)}
                       {v.despesas_veiculo > 0 && <div style={{ fontSize: '.72rem', color: 'var(--warning)' }}>+{brl(v.despesas_veiculo)} desp.</div>}
@@ -1146,6 +1225,7 @@ function VeiculoModal({ inicial, clientes, onClose, onSave, onCancelarVeiculo, o
   const lucroEstimado = Number(f.preco || 0) - custoTotalReal;
   const percMargem = f.preco > 0 ? ((lucroEstimado / Number(f.preco)) * 100).toFixed(1) : '0.0';
   const diffFipe = f.fipe > 0 ? (((Number(f.preco || 0) - Number(f.fipe)) / Number(f.fipe)) * 100).toFixed(1) : null;
+  const custoPatioEstimado = Math.round(Number(f.custo || 0) * (0.01 / 30) * diasPatio);
   const pendenciasAbertas = (f.pendencias || []).filter((p) => !p.concluida);
 
   const toggleItemLista = (chave, item) => {
@@ -1771,7 +1851,7 @@ function VeiculoModal({ inicial, clientes, onClose, onSave, onCancelarVeiculo, o
         {/* ABA 3: VALORES, FIPE E DESPESAS DO VEÍCULO */}
         {aba === 'valores' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-            <div className="stats" style={{ marginBottom: 0 }}>
+            <div className="stats" style={{ marginBottom: 0, gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
               <div className="card stat">
                 <div className="stat-label">Custo de Entrada + Despesas</div>
                 <div className="stat-value">{brl(custoTotalReal)}</div>
@@ -1789,6 +1869,15 @@ function VeiculoModal({ inicial, clientes, onClose, onSave, onCancelarVeiculo, o
                 </div>
                 <div className="stat-sub">
                   {diffFipe !== null ? `Relação FIPE: ${diffFipe > 0 ? `+${diffFipe}% acima` : `${diffFipe}% abaixo`} da FIPE` : 'Informe a FIPE abaixo'}
+                </div>
+              </div>
+              <div className="card stat">
+                <div className="stat-label"><Clock size={14} /> Giro e Custo de Pátio</div>
+                <div className="stat-value" style={{ color: diasPatio > 60 ? '#ef4444' : diasPatio > 30 ? '#f59e0b' : '#10b981' }}>
+                  {diasPatio} dias
+                </div>
+                <div className="stat-sub">
+                  Custo capital (~1% a.m.): <strong style={{ color: '#ef4444' }}>{brl(custoPatioEstimado)}</strong>
                 </div>
               </div>
             </div>

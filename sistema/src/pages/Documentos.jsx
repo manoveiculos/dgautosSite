@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Printer, FileText, CheckCircle2, ShieldCheck, DollarSign, Handshake, Save } from 'lucide-react';
-import { getNegociacoes, getConfig, saveContratoGerado, getContratosGerados, brl, dataBr } from '../store';
+import { Printer, FileText, CheckCircle2, ShieldCheck, DollarSign, Handshake, Save, Car, Calendar, User, CheckSquare, Bookmark, AlertCircle } from 'lucide-react';
+import { getNegociacoes, getVeiculos, getConfig, saveContratoGerado, getContratosGerados, brl, dataBr } from '../store';
 
 const MODELOS_CONTRATO = [
   { id: 'venda_padrao', label: '1. Venda Padrão (LGPD)', sub: '10 Cláusulas · Transf. 30d, Comunicação, LGPD' },
@@ -11,17 +11,36 @@ const MODELOS_CONTRATO = [
   { id: 'consignacao', label: '5. Consignação & Serviços', sub: '8 Cláusulas · Tabela de Despesas, Prazo 60d, Exclusividade' },
   { id: 'recibo', label: '6. Recibo de Pagamento', sub: 'Quitação e discriminação de valores recebidos' },
   { id: 'entrega', label: '7. Termo de Entrega', sub: 'Responsabilidade Civil/Criminal pós-saída' },
+  { id: 'checklist_vistoria', label: '8. Checklist de Vistoria', sub: 'Inspeção física, itens de bordo, pneus e 90d CDC' },
+  { id: 'recibo_sinal', label: '9. Recibo de Sinal & Reserva', sub: 'Arras (Art. 418/420 CC), prazo de retenção e quitação' },
+  { id: 'autorizacao_transf', label: '10. Termo Transf. ATPV-e', sub: 'Prazo 30d DETRAN, multas pós-saída e comunicação oficial' },
 ];
 
 export default function Documentos({ user }) {
   const [params] = useSearchParams();
   const [negociacoes, setNegociacoes] = useState([]);
+  const [veiculos, setVeiculos] = useState([]);
   const [loja, setLoja] = useState(null);
+  
+  const [origemDoc, setOrigemDoc] = useState(params.get('veiculo') && !params.get('negociacao') ? 'veiculo' : 'negociacao');
   const [negId, setNegId] = useState(params.get('negociacao') || '');
-  const [modelo, setModelo] = useState('venda_padrao');
+  const [veicId, setVeicId] = useState(params.get('veiculo') || '');
+  const [modelo, setModelo] = useState(params.get('modelo') || 'venda_padrao');
   const [autorizaImagem, setAutorizaImagem] = useState(true);
   const [salvandoContrato, setSalvandoContrato] = useState(false);
   const [contratoGravado, setContratoGravado] = useState(null);
+
+  // Estados dinâmicos para personalização de Sinal / Reserva / Checklist Avulso
+  const [clienteManualNome, setClienteManualNome] = useState('');
+  const [clienteManualCpf, setClienteManualCpf] = useState('');
+  const [clienteManualTel, setClienteManualTel] = useState('');
+  const [clienteManualEnd, setClienteManualEnd] = useState('');
+  const [valorSinal, setValorSinal] = useState(2000);
+  const [dataLimiteReserva, setDataLimiteReserva] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 5);
+    return d.toISOString().slice(0, 10);
+  });
 
   useEffect(() => {
     getNegociacoes().then((ns) => {
@@ -29,6 +48,13 @@ export default function Documentos({ user }) {
       setNegociacoes(arr);
       if (!negId && arr.length) setNegId(String(arr[0].id));
     }).catch(() => {});
+
+    getVeiculos().then((vs) => {
+      const arr = Array.isArray(vs) ? vs : [];
+      setVeiculos(arr);
+      if (!veicId && arr.length) setVeicId(String(arr[0].id));
+    }).catch(() => {});
+
     getConfig().then((c) => {
       if (c?.loja) setLoja(c.loja);
     }).catch(() => {});
@@ -39,15 +65,21 @@ export default function Documentos({ user }) {
     return arr.find((n) => String(n.id) === String(negId)) || arr[0] || null;
   }, [negociacoes, negId]);
 
+  const veicSelecionado = useMemo(() => {
+    const arr = Array.isArray(veiculos) ? veiculos : [];
+    return arr.find((v) => String(v.id) === String(veicId)) || arr[0] || null;
+  }, [veiculos, veicId]);
+
   useEffect(() => {
-    if (neg) {
+    if (params.get('modelo')) return; // Preserva o modelo enviado explicitamente via query string
+    if (origemDoc === 'negociacao' && neg) {
       if (neg.tipo === 'compra') setModelo('compra_estoque');
       else if (neg.tipo === 'consignacao') setModelo('consignacao');
     }
-  }, [neg?.id, neg?.tipo]);
+  }, [neg?.id, neg?.tipo, origemDoc]);
 
   useEffect(() => {
-    if (neg?.id) {
+    if (neg?.id && origemDoc === 'negociacao') {
       getContratosGerados(neg.id).then((regs) => {
         if (Array.isArray(regs) && regs.length > 0) {
           setContratoGravado(regs[0]);
@@ -56,12 +88,27 @@ export default function Documentos({ user }) {
         }
       }).catch(() => {});
     }
-  }, [neg?.id]);
+  }, [neg?.id, origemDoc]);
 
   const veicObj = useMemo(() => {
+    if (origemDoc === 'veiculo' && veicSelecionado) {
+      return {
+        id: veicSelecionado.id,
+        marca: veicSelecionado.marca || '',
+        modelo: veicSelecionado.modelo || '',
+        ano: veicSelecionado.ano || '',
+        placa: veicSelecionado.placa || '',
+        cor: veicSelecionado.cor || 'Não informada',
+        chassi: veicSelecionado.chassi || '—',
+        renavam: veicSelecionado.renavam || '—',
+        km: veicSelecionado.km || 0,
+        preco: Number(veicSelecionado.preco || 0),
+      };
+    }
     if (!neg) return {};
     const isCompraOuConsig = neg.tipo === 'compra' || neg.tipo === 'consignacao';
     return {
+      id: neg.veiculo_id,
       marca: isCompraOuConsig ? (neg.troca_marca || neg.veic_marca || '') : (neg.veic_marca || neg.troca_marca || ''),
       modelo: isCompraOuConsig ? (neg.troca_modelo || neg.veic_modelo || '') : (neg.veic_modelo || neg.troca_modelo || ''),
       ano: isCompraOuConsig ? (neg.troca_ano || neg.veic_ano || '') : (neg.veic_ano || neg.troca_ano || ''),
@@ -70,45 +117,65 @@ export default function Documentos({ user }) {
       chassi: neg.veic_chassi || '—',
       renavam: neg.veic_renavam || '—',
       km: isCompraOuConsig ? (neg.troca_km || neg.veic_km || 0) : (neg.veic_km || 0),
+      preco: Number(neg.valor_veiculo || 0),
     };
-  }, [neg]);
+  }, [origemDoc, veicSelecionado, neg]);
 
-  const gravarContrato = async () => {
-    if (!neg) return alert('Selecione uma negociação antes de gerar o contrato.');
-    setSalvandoContrato(true);
-    try {
-      const docElement = document.querySelector('.doc-preview');
-      const texto = docElement ? docElement.innerText : '';
-      const salvo = await saveContratoGerado({
-        negociacao_id: neg.id,
-        veiculo_id: neg.veiculo_id || null,
-        cliente_id: neg.cliente_id || null,
-        modelo_codigo: modelo,
-        texto_integral: texto,
-        autorizacao_lgpd_imagem: autorizaImagem,
-        hodometro_comprado: Number(veicObj.km) || 0,
-        hodometro_troca: Number(neg.troca_km) || 0,
-        status: 'emitido'
-      });
-      setContratoGravado(salvo);
-      alert(`✓ Contrato gravado com sucesso em contratos_gerados_DGAUTOS (Registro #${salvo?.id || 'OK'})!`);
-    } catch (err) {
-      alert(`Erro ao gravar contrato: ${err.message || 'Erro de conexão'}`);
-    } finally {
-      setSalvandoContrato(false);
-    }
-  };
+  const valorLiquido = origemDoc === 'veiculo'
+    ? Number(veicObj.preco || 0)
+    : (neg ? Number(neg.valor_veiculo || 0) - Number(neg.desconto || 0) : 0);
 
-  const valorLiquido = neg ? Number(neg.valor_veiculo || 0) - Number(neg.desconto || 0) : 0;
+  const nomCli = origemDoc === 'veiculo'
+    ? (clienteManualNome.trim() || 'Comprador(a) / Adquirente')
+    : (neg?.cliente_nome || 'Cliente');
+
+  const cpfCli = origemDoc === 'veiculo'
+    ? (clienteManualCpf.trim() || '___.___.___-__')
+    : (neg?.cliente_cpf_cnpj || '___.___.___-__');
+
+  const telCli = origemDoc === 'veiculo'
+    ? (clienteManualTel.trim() || '(47) 99999-9999')
+    : (neg?.cliente_telefone || '__________');
+
+  const endCli = origemDoc === 'veiculo'
+    ? (clienteManualEnd.trim() || 'Rua Central, Bairro')
+    : (neg?.cliente_endereco || '________________');
+
   const cidEmp = loja?.cidade || 'Rio do Sul';
   const sigEmp = loja?.uf || 'SC';
-  const nomCli = neg?.cliente_nome || 'Cliente';
-  const kmPrincipal = veicObj.km || neg?.veic_km || (neg?.tipo === 'compra' ? neg?.troca_km : 0);
+  const kmPrincipal = veicObj.km || (neg?.tipo === 'compra' ? neg?.troca_km : 0);
   const qvnAut = kmPrincipal ? `${Number(kmPrincipal).toLocaleString('pt-BR')} km` : 'Não informado';
   const qcmvTr = neg?.tipo === 'troca'
     ? (neg?.troca_km ? `${Number(neg.troca_km).toLocaleString('pt-BR')} km` : (neg?.troca_modelo ? 'Hodômetro não informado' : 'Não se aplica (Sem veículo na troca)'))
     : 'Não se aplica (Operação direta)';
   const pagamentosLista = Array.isArray(neg?.pagamentos) ? neg.pagamentos : [];
+
+  const gravarContrato = async () => {
+    if (origemDoc === 'negociacao' && !neg) return alert('Selecione uma negociação antes de gerar o contrato.');
+    if (origemDoc === 'veiculo' && !veicSelecionado) return alert('Selecione um veículo do estoque antes de gerar o documento.');
+    setSalvandoContrato(true);
+    try {
+      const docElement = document.querySelector('.doc-preview');
+      const texto = docElement ? docElement.innerText : '';
+      const salvo = await saveContratoGerado({
+        negociacao_id: origemDoc === 'negociacao' ? (neg?.id || null) : null,
+        veiculo_id: veicObj.id || null,
+        cliente_id: neg?.cliente_id || null,
+        modelo_codigo: modelo,
+        texto_integral: texto,
+        autorizacao_lgpd_imagem: autorizaImagem,
+        hodometro_comprado: Number(veicObj.km) || 0,
+        hodometro_troca: Number(neg?.troca_km) || 0,
+        status: 'emitido'
+      });
+      setContratoGravado(salvo);
+      alert(`✓ Documento gravado com sucesso no sistema (Registro #${salvo?.id || 'OK'})!`);
+    } catch (err) {
+      alert(`Erro ao gravar documento: ${err.message || 'Erro de conexão'}`);
+    } finally {
+      setSalvandoContrato(false);
+    }
+  };
 
   return (
     <>
@@ -116,16 +183,16 @@ export default function Documentos({ user }) {
       <header className="topbar no-print">
         <div>
           <h1>Minutas & Contratos Oficiais — DG Automóveis</h1>
-          <p>Emissão jurídica preenchida em tempo real com substituição de cláusulas, hodômetro, LGPD e foro.</p>
+          <p>Emissão jurídica preenchida em tempo real com substituição de cláusulas, checklist de vistoria, reserva, LGPD e foro.</p>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           <button
             type="button"
             className="btn btn-primary"
-            disabled={salvandoContrato || !neg}
+            disabled={salvandoContrato || (!neg && !veicSelecionado)}
             onClick={gravarContrato}
           >
-            <FileText size={16} /> {salvandoContrato ? 'Gravando...' : 'Gerar & Gravar Contrato'}
+            <FileText size={16} /> {salvandoContrato ? 'Gravando...' : 'Gerar & Gravar Documento'}
           </button>
           <button className="btn" onClick={() => window.print()}>
             <Printer size={16} />Imprimir / Salvar PDF
@@ -135,24 +202,58 @@ export default function Documentos({ user }) {
 
       {/* PAINEL DE CONTROLE DE EMISSÃO E MODELOS (SEM SOBREPOSIÇÃO) */}
       <div className="card no-print" style={{ padding: 18, marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {/* SELETOR DE ORIGEM: NEGOCIAÇÃO OU VEÍCULO DIRETO */}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: 12 }}>
+          <span style={{ fontSize: '.84rem', fontWeight: 700, color: 'var(--muted)' }}>Origem dos Dados:</span>
+          <button
+            type="button"
+            className={`tab ${origemDoc === 'negociacao' ? 'active' : ''}`}
+            onClick={() => setOrigemDoc('negociacao')}
+          >
+            <Handshake size={14} /> Vincular Negociação / Venda
+          </button>
+          <button
+            type="button"
+            className={`tab ${origemDoc === 'veiculo' ? 'active' : ''}`}
+            onClick={() => setOrigemDoc('veiculo')}
+          >
+            <Car size={14} /> Veículo do Estoque (Avulso / Reserva / Vistoria)
+          </button>
+        </div>
+
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-          <div className="field" style={{ minWidth: 320, flex: 1, margin: 0 }}>
-            <label style={{ fontWeight: 700, fontSize: '.88rem', marginBottom: 6, display: 'block' }}>
-              Selecionar Negociação Vinculada
-            </label>
-            <select className="select" value={neg?.id || ''} onChange={(e) => setNegId(e.target.value)}>
-              {(Array.isArray(negociacoes) ? negociacoes : []).map((n) => (
-                <option key={n.id} value={n.id}>
-                  #{n.id} — {n.cliente_nome || 'Cliente'} · {n.veic_marca || ''} {n.veic_modelo || ''} ({brl(Number(n.valor_veiculo || 0) - Number(n.desconto || 0))}) [{n.tipo?.toUpperCase()}]
-                </option>
-              ))}
-            </select>
-          </div>
+          {origemDoc === 'negociacao' ? (
+            <div className="field" style={{ minWidth: 320, flex: 1, margin: 0 }}>
+              <label style={{ fontWeight: 700, fontSize: '.88rem', marginBottom: 6, display: 'block' }}>
+                Selecionar Negociação Vinculada
+              </label>
+              <select className="select" value={neg?.id || ''} onChange={(e) => setNegId(e.target.value)}>
+                {(Array.isArray(negociacoes) ? negociacoes : []).map((n) => (
+                  <option key={n.id} value={n.id}>
+                    #{n.id} — {n.cliente_nome || 'Cliente'} · {n.veic_marca || ''} {n.veic_modelo || ''} ({brl(Number(n.valor_veiculo || 0) - Number(n.desconto || 0))}) [{n.tipo?.toUpperCase()}]
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div className="field" style={{ minWidth: 320, flex: 1, margin: 0 }}>
+              <label style={{ fontWeight: 700, fontSize: '.88rem', marginBottom: 6, display: 'block' }}>
+                Selecionar Veículo do Estoque
+              </label>
+              <select className="select" value={veicId || ''} onChange={(e) => setVeicId(e.target.value)}>
+                {(Array.isArray(veiculos) ? veiculos : []).map((v) => (
+                  <option key={v.id} value={v.id}>
+                    #{v.id} — {v.marca} {v.modelo} · {v.ano} · Placa: {v.placa || 'S/ PLACA'} ({brl(v.preco)})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             {contratoGravado ? (
               <span className="badge badge-success" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <CheckCircle2 size={14} /> Contrato Emitido e Gravado (#{contratoGravado.id})
+                <CheckCircle2 size={14} /> Documento Emitido e Gravado (#{contratoGravado.id})
               </span>
             ) : (
               <span className="badge badge-warning" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -161,6 +262,52 @@ export default function Documentos({ user }) {
             )}
           </div>
         </div>
+
+        {/* CAMPOS COMPLEMENTARES PARA ORIGEM VEÍCULO OU RECIBO DE SINAL */}
+        {(origemDoc === 'veiculo' || modelo === 'recibo_sinal') && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, padding: 12, background: 'var(--color-neutral-80)', borderRadius: 8 }}>
+            <div className="field" style={{ margin: 0 }}>
+              <label style={{ fontSize: '.78rem', fontWeight: 700 }}>Nome do Comprador / Interessado</label>
+              <input
+                className="input input-sm"
+                placeholder="Ex: Carlos Eduardo de Oliveira"
+                value={clienteManualNome}
+                onChange={(e) => setClienteManualNome(e.target.value)}
+              />
+            </div>
+            <div className="field" style={{ margin: 0 }}>
+              <label style={{ fontSize: '.78rem', fontWeight: 700 }}>CPF / CNPJ</label>
+              <input
+                className="input input-sm"
+                placeholder="000.000.000-00"
+                value={clienteManualCpf}
+                onChange={(e) => setClienteManualCpf(e.target.value)}
+              />
+            </div>
+            {modelo === 'recibo_sinal' && (
+              <>
+                <div className="field" style={{ margin: 0 }}>
+                  <label style={{ fontSize: '.78rem', fontWeight: 700 }}>Valor do Sinal / Reserva (R$)</label>
+                  <input
+                    type="number"
+                    className="input input-sm"
+                    value={valorSinal}
+                    onChange={(e) => setValorSinal(Number(e.target.value) || 0)}
+                  />
+                </div>
+                <div className="field" style={{ margin: 0 }}>
+                  <label style={{ fontSize: '.78rem', fontWeight: 700 }}>Data Limite da Reserva</label>
+                  <input
+                    type="date"
+                    className="input input-sm"
+                    value={dataLimiteReserva}
+                    onChange={(e) => setDataLimiteReserva(e.target.value)}
+                  />
+                </div>
+              </>
+            )}
+          </div>
+        )}
 
         <div>
           <label style={{ fontWeight: 700, fontSize: '.88rem', marginBottom: 8, display: 'block' }}>
@@ -198,8 +345,8 @@ export default function Documentos({ user }) {
         </div>
       </div>
 
-      {!neg ? (
-        <div className="card empty">Nenhuma negociação cadastrada para gerar documentos.</div>
+      {(!neg && !veicSelecionado) ? (
+        <div className="card empty">Nenhuma negociação ou veículo cadastrado para gerar documentos.</div>
       ) : (
         <div className="doc-preview" style={{ background: '#ffffff', color: '#111827', padding: '36px 42px', fontSize: '.92rem', lineHeight: 1.6 }}>
           {/* CABEÇALHO DO DOCUMENTO COM IDENTIFICAÇÃO DA EMPRESA E LOGO OFICIAL */}
@@ -225,22 +372,27 @@ export default function Documentos({ user }) {
               </div>
             </div>
             <div style={{ textAlign: 'right', fontSize: '.84rem' }}>
-              <strong>CONTRATO Nº #{neg.id}</strong><br />
-              Data: {dataBr(neg.data_fechamento || neg.data_negociacao)}<br />
+              <strong>{modelo.startsWith('recibo') ? 'RECIBO' : modelo.startsWith('checklist') ? 'LAUDO' : 'CONTRATO'} Nº #{neg?.id || (veicObj?.id ? `VEIC-${veicObj.id}` : '01')}</strong><br />
+              Data: {dataBr(neg?.data_fechamento || neg?.data_negociacao || new Date())}<br />
               <span className="badge badge-disponivel" style={{ textTransform: 'uppercase', fontSize: '.72rem', marginTop: 4 }}>
-                Operação: {neg.tipo || 'Venda'}
+                Operação: {origemDoc === 'veiculo' ? (modelo === 'recibo_sinal' ? 'Reserva de Veículo' : modelo === 'checklist_vistoria' ? 'Vistoria e Entrega' : 'Estoque') : (neg?.tipo || 'Venda')}
               </span>
             </div>
           </div>
 
           {/* DADOS DAS PARTES */}
           <div className="doc-box" style={{ background: '#f8fafc', border: '1px solid #cbd5e1', padding: 12, borderRadius: 6, marginBottom: 16 }}>
-            {neg.tipo === 'compra' ? (
+            {origemDoc === 'veiculo' ? (
+              <>
+                <strong>VENDEDORA / LOJA:</strong> {loja?.razao_social || 'DG Automóveis Comércio de Veículos Ltda'}, CNPJ nº {loja?.cnpj || '35.236.994/0001-24'}, com sede em {loja?.endereco || 'Rua Dom Pedro II, 461 - Canoas'}, {cidEmp}/{sigEmp}.<br />
+                <strong>COMPRADOR(A) / CLIENTE:</strong> <strong>{nomCli}</strong>, inscrito(a) no CPF/CNPJ sob nº <strong>{cpfCli}</strong>, telefone {telCli}, residente em {endCli}.
+              </>
+            ) : neg?.tipo === 'compra' ? (
               <>
                 <strong>VENDEDOR(A) / PROPRIETÁRIO(A):</strong> <strong>{nomCli}</strong>, inscrito(a) no CPF/CNPJ sob nº <strong>{neg.cliente_cpf_cnpj || '___.___.___-__'}</strong>, telefone {neg.cliente_telefone || '__________'}, residente e domiciliado(a) em {neg.cliente_endereco || '________________'}, {neg.cliente_cidade || cidEmp}/{neg.cliente_uf || sigEmp}.<br />
                 <strong>COMPRADORA / REVENDEDORA:</strong> {loja?.razao_social || 'DG Automóveis Comércio de Veículos Ltda'}, CNPJ nº {loja?.cnpj || '35.236.994/0001-24'}, com sede em {loja?.endereco || 'Rua Dom Pedro II, 461 - Canoas'}, {cidEmp}/{sigEmp}.
               </>
-            ) : neg.tipo === 'consignacao' ? (
+            ) : neg?.tipo === 'consignacao' ? (
               <>
                 <strong>CONSIGNANTE / PROPRIETÁRIO(A):</strong> <strong>{nomCli}</strong>, inscrito(a) no CPF/CNPJ sob nº <strong>{neg.cliente_cpf_cnpj || '___.___.___-__'}</strong>, telefone {neg.cliente_telefone || '__________'}, residente e domiciliado(a) em {neg.cliente_endereco || '________________'}, {neg.cliente_cidade || cidEmp}/{neg.cliente_uf || sigEmp}.<br />
                 <strong>CONSIGNATÁRIA / INTERMEDIADORA:</strong> {loja?.razao_social || 'DG Automóveis Comércio de Veículos Ltda'}, CNPJ nº {loja?.cnpj || '35.236.994/0001-24'}, com sede em {loja?.endereco || 'Rua Dom Pedro II, 461 - Canoas'}, {cidEmp}/{sigEmp}.
@@ -248,7 +400,7 @@ export default function Documentos({ user }) {
             ) : (
               <>
                 <strong>VENDEDOR(A) / LOJA:</strong> {loja?.razao_social || 'DG Automóveis Comércio de Veículos Ltda'}, CNPJ nº {loja?.cnpj || '35.236.994/0001-24'}, com sede em {loja?.endereco || 'Rua Dom Pedro II, 461 - Canoas'}, {cidEmp}/{sigEmp}.<br />
-                <strong>COMPRADOR(A) / CLIENTE:</strong> <strong>{nomCli}</strong>, inscrito(a) no CPF/CNPJ sob nº <strong>{neg.cliente_cpf_cnpj || '___.___.___-__'}</strong>, telefone {neg.cliente_telefone || '__________'}, residente e domiciliado(a) em {neg.cliente_endereco || '________________'}, {neg.cliente_cidade || cidEmp}/{neg.cliente_uf || sigEmp}.
+                <strong>COMPRADOR(A) / CLIENTE:</strong> <strong>{nomCli}</strong>, inscrito(a) no CPF/CNPJ sob nº <strong>{neg?.cliente_cpf_cnpj || '___.___.___-__'}</strong>, telefone {neg?.cliente_telefone || '__________'}, residente e domiciliado(a) em {neg?.cliente_endereco || '________________'}, {neg?.cliente_cidade || cidEmp}/{neg?.cliente_uf || sigEmp}.
               </>
             )}
           </div>
@@ -591,6 +743,177 @@ export default function Documentos({ user }) {
             </div>
           )}
 
+          {/* ========================================================================= */}
+          {/* MODELO 8: LAUDO & CHECKLIST DE VISTORIA DE ENTREGA (ALTIMUS) */}
+          {/* ========================================================================= */}
+          {modelo === 'checklist_vistoria' && (
+            <div>
+              <h3 style={{ textAlign: 'center', textTransform: 'uppercase', marginBottom: 8, borderBottom: '2px solid #111827', paddingBottom: 8 }}>
+                LAUDO & CHECKLIST DE VISTORIA DE ENTREGA DE VEÍCULO
+              </h3>
+              <p style={{ fontSize: '.84rem', color: '#4b5563', textAlign: 'center', marginBottom: 16 }}>
+                Conferência física obrigatória de itens de série, acessórios, integridade mecânica, lataria, pneus e termos de garantia legal (Art. 26 CDC).
+              </p>
+
+              {/* SEÇÃO 1: ITENS DE BORDO E FERRAMENTAS */}
+              <div style={{ marginBottom: 16 }}>
+                <h4 style={{ background: '#f1f5f9', padding: '6px 10px', margin: '0 0 8px 0', borderLeft: '4px solid #111827', fontSize: '.86rem', textTransform: 'uppercase' }}>
+                  1. Acessórios de Bordo, Documentação & Ferramentas
+                </h4>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.82rem' }}>
+                  <thead>
+                    <tr style={{ background: '#f8fafc', borderBottom: '1px solid #cbd5e1' }}>
+                      <th style={{ padding: '6px 8px', textAlign: 'left' }}>Item Inspecionado</th>
+                      <th style={{ padding: '6px 8px', textAlign: 'center', width: 110 }}>Situação</th>
+                      <th style={{ padding: '6px 8px', textAlign: 'left' }}>Item Inspecionado</th>
+                      <th style={{ padding: '6px 8px', textAlign: 'center', width: 110 }}>Situação</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '6px 8px' }}>Manual do Proprietário</td>
+                      <td style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 700, color: '#16a34a' }}>✓ Presente</td>
+                      <td style={{ padding: '6px 8px' }}>Chave Reserva / Presencial</td>
+                      <td style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 700, color: '#16a34a' }}>✓ Presente</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '6px 8px' }}>Macaco Hidráulico/Mecânico</td>
+                      <td style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 700, color: '#16a34a' }}>✓ Presente</td>
+                      <td style={{ padding: '6px 8px' }}>Chave de Roda</td>
+                      <td style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 700, color: '#16a34a' }}>✓ Presente</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '6px 8px' }}>Triângulo de Sinalização</td>
+                      <td style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 700, color: '#16a34a' }}>✓ Presente</td>
+                      <td style={{ padding: '6px 8px' }}>Estepe / Roda Sobressalente</td>
+                      <td style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 700, color: '#16a34a' }}>✓ Calibrado</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '6px 8px' }}>Jogo de Tapetes</td>
+                      <td style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 700, color: '#16a34a' }}>✓ Conforme</td>
+                      <td style={{ padding: '6px 8px' }}>Antena de Teto</td>
+                      <td style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 700, color: '#16a34a' }}>✓ Instalada</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {/* SEÇÃO 2: EQUIPAMENTOS, CONFORTO & ELÉTRICA */}
+              <div style={{ marginBottom: 16 }}>
+                <h4 style={{ background: '#f1f5f9', padding: '6px 10px', margin: '0 0 8px 0', borderLeft: '4px solid #111827', fontSize: '.86rem', textTransform: 'uppercase' }}>
+                  2. Funcionamento de Cabine, Iluminação & Equipamentos
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, fontSize: '.82rem' }}>
+                  <div style={{ border: '1px solid #e2e8f0', padding: 8, borderRadius: 4, background: '#f8fafc' }}>
+                    [ X ] Ar Condicionado (Gelando)<br />
+                    [ X ] Ar Quente / Desembaçador<br />
+                    [ X ] Direção Hidráulica / Elétrica
+                  </div>
+                  <div style={{ border: '1px solid #e2e8f0', padding: 8, borderRadius: 4, background: '#f8fafc' }}>
+                    [ X ] Vidros Elétricos (Subida/Descida)<br />
+                    [ X ] Travas Elétricas e Alarme<br />
+                    [ X ] Sistema de Som / Multimídia
+                  </div>
+                  <div style={{ border: '1px solid #e2e8f0', padding: 8, borderRadius: 4, background: '#f8fafc' }}>
+                    [ X ] Faróis Altos, Baixos e Milha<br />
+                    [ X ] Lanternas, Luz de Freio e Piscas<br />
+                    [ X ] Limpadores e Buzina
+                  </div>
+                </div>
+              </div>
+
+              {/* SEÇÃO 3: PNEUS, COMBUSTÍVEL E HODÔMETRO */}
+              <div style={{ marginBottom: 16 }}>
+                <h4 style={{ background: '#f1f5f9', padding: '6px 10px', margin: '0 0 8px 0', borderLeft: '4px solid #111827', fontSize: '.86rem', textTransform: 'uppercase' }}>
+                  3. Rodagem, Pneus, Combustível e Hodômetro
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr', gap: 12, fontSize: '.82rem' }}>
+                  <div style={{ border: '1px solid #e2e8f0', padding: 8, borderRadius: 4, background: '#f8fafc' }}>
+                    <strong>Pneus Inspecionados:</strong> Dianteiro Esq: <em>Bom</em> · Dianteiro Dir: <em>Bom</em><br />
+                    Traseiro Esq: <em>Bom</em> · Traseiro Dir: <em>Bom</em> · Estepe: <em>Apto</em><br />
+                    Rodas de liga leve / ferro sem amassados, trincas ou soldas aparentes.
+                  </div>
+                  <div style={{ border: '1px solid #e2e8f0', padding: 8, borderRadius: 4, background: '#f8fafc' }}>
+                    <strong>Nível de Tanque na Saída:</strong><br />
+                    [  ] Reserva &nbsp; [  ] 1/4 &nbsp; [ X ] 1/2 &nbsp; [  ] 3/4 &nbsp; [  ] Cheio<br />
+                    <strong>Hodômetro Conferido:</strong> <u>{qvnAut}</u>
+                  </div>
+                </div>
+              </div>
+
+              {/* SEÇÃO 4: DECLARAÇÃO DE CIÊNCIA E GARANTIA CDC */}
+              <div className="doc-box" style={{ background: '#f8fafc', border: '1px solid #cbd5e1', padding: 12, borderRadius: 6, fontSize: '.82rem', lineHeight: 1.6 }}>
+                <strong>TERMO DE RECEBIMENTO E GARANTIA LEGAL DE 90 DIAS (CDC):</strong><br />
+                1. O(A) COMPRADOR(A) declara que vistoriou pessoalmente o veículo objeto deste laudo, testou seus itens essenciais e conferiu a documentação, recebendo-o no estado de conservação em que se encontra.<br />
+                2. Em cumprimento ao art. 26, inciso II do Código de Defesa do Consumidor (Lei 8.078/90), a Loja concede garantia legal de <strong>90 (noventa) dias</strong> ou <strong>3.000 km</strong> (o que primeiro ocorrer), restrita e exclusivamente para o <strong>MOTOR</strong> e a <strong>CAIXA DE CÂMBIO</strong>.<br />
+                3. A garantia NÃO contempla peças e componentes de desgaste natural pelo tempo ou quilometragem rodada, tais como lâmpadas, fusíveis, palhetas de limpador, pneus, pastilhas e discos de freio, amortecedores, buchas e coxins, embreagem, correias dentada/acessórios, velas de ignição, carga de bateria, alinhamento, balanceamento, fluidos, filtros e higienizações, cuja manutenção preventiva e reposição cabem exclusivamente ao adquirente.
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* MODELO 9: RECIBO DE SINAL DE NEGÓCIO & RESERVA (ARRAS) */}
+          {/* ========================================================================= */}
+          {modelo === 'recibo_sinal' && (
+            <div>
+              <h3 style={{ textAlign: 'center', textTransform: 'uppercase', marginBottom: 18, borderBottom: '2px solid #111827', paddingBottom: 8 }}>
+                RECIBO DE SINAL DE NEGÓCIO E RESERVA DE VEÍCULO (ARRAS)
+              </h3>
+              <p style={{ textAlign: 'justify', lineHeight: 1.8 }}>
+                Recebemos de <strong>{nomCli}</strong>, inscrito(a) no CPF/CNPJ sob nº <strong>{cpfCli}</strong>, a importância de <strong>{brl(valorSinal || 2000)}</strong> a título de <strong>SINAL DE NEGÓCIO E PRINCÍPIO DE PAGAMENTO (ARRAS)</strong>, destinado a garantir a prioridade exclusiva e a reserva temporária de venda sobre o veículo:
+              </p>
+
+              <div className="doc-box" style={{ background: '#f8fafc', border: '1px solid #cbd5e1', padding: 14, borderRadius: 6, marginBottom: 16 }}>
+                <strong>VEÍCULO RESERVADO:</strong> {veicObj.marca} {veicObj.modelo} · Ano: {veicObj.ano || '—'} · Cor: {veicObj.cor || 'Não informada'}<br />
+                Placa: <strong>{veicObj.placa || '—'}</strong> · Renavam: <strong>{veicObj.renavam || '—'}</strong> · Chassi: <strong>{veicObj.chassi || '—'}</strong><br />
+                Preço Total de Venda Ajustado: <strong>{brl(valorLiquido || veicObj.preco || 0)}</strong> · Saldo Remanescente: <strong>{brl(Math.max(0, (valorLiquido || veicObj.preco || 0) - (valorSinal || 2000)))}</strong>
+              </div>
+
+              <div style={{ lineHeight: 1.7, fontSize: '.88rem' }}>
+                <p>
+                  <strong>CLÁUSULA 1ª — DO PRAZO DE RESERVA:</strong> O veículo acima descrito fica retirado de anúncio e bloqueado para terceiros até o dia <strong>{dataLimiteReserva ? dataBr(dataLimiteReserva) : 'em 5 dias'}</strong>, período no qual o COMPRADOR deverá quitar o saldo remanescente ou apresentar a carta de crédito/aprovação definitiva de financiamento bancário.
+                </p>
+                <p>
+                  <strong>CLÁUSULA 2ª — DAS ARRAS PENITENCIAIS (CÓDIGO CIVIL):</strong> Conforme expressamente estipulado nos artigos 418 a 420 do Código Civil Brasileiro:
+                  <br />a) Se o COMPRADOR desistir imotivadamente do negócio ou não efetuar o pagamento do saldo no prazo acordado, <em>perderá integralmente o valor do sinal dado</em> a favor da VENDEDORA, como compensação por retenção do produto, custos de pátio e perda de negócio com outros pretendentes;
+                  <br />b) Se a inexecução for de responsabilidade comprovada e exclusiva da VENDEDORA (caso de impedimento documental insuperável), o valor do sinal será devolvido ao COMPRADOR.
+                </p>
+                <p>
+                  <strong>CLÁUSULA 3ª — FORMA DE PAGAMENTO DO SINAL:</strong> O sinal é considerado quitado mediante compensação regular de Pix / Transferência Bancária na conta oficial da loja.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* MODELO 10: TERMO DE COMPROMISSO DE TRANSFERÊNCIA (ATPV-e) */}
+          {/* ========================================================================= */}
+          {modelo === 'autorizacao_transf' && (
+            <div>
+              <h3 style={{ textAlign: 'center', textTransform: 'uppercase', marginBottom: 18, borderBottom: '2px solid #111827', paddingBottom: 8 }}>
+                TERMO DE COMPROMISSO DE TRANSFERÊNCIA DE PROPRIEDADE E CIÊNCIA DE ATPV-e
+              </h3>
+              <p style={{ textAlign: 'justify', lineHeight: 1.8 }}>
+                Pelo presente instrumento, a VENDEDORA e o(a) COMPRADOR(A) acima qualificados ajustam entre si o compromisso solene e irrevogável de regularização cadastral do veículo <strong>{veicObj.marca} {veicObj.modelo}</strong>, Placa <strong>{veicObj.placa || '—'}</strong>, Renavam <strong>{veicObj.renavam || '—'}</strong>, Chassi <strong>{veicObj.chassi || '—'}</strong>, mediante as seguintes cláusulas:
+              </p>
+
+              <div style={{ lineHeight: 1.8, fontSize: '.88rem' }}>
+                <p>
+                  <strong>1ª PRAZO LEGAL DE TRANSFERÊNCIA:</strong> O(A) COMPRADOR(A) obriga-se expressamente a concluir a transferência do Certificado de Registro de Veículo (CRV / ATPV-e) para o seu nome perante o órgão de trânsito (DETRAN) no prazo máximo e improrrogável de <strong>30 (trinta) dias corridos</strong> a contar da assinatura deste termo ou emissão da ATPV-e digital, em estrito cumprimento ao <strong>Artigo 233 do Código de Trânsito Brasileiro (CTB)</strong>.
+                </p>
+                <p>
+                  <strong>2ª COMUNICAÇÃO DE VENDA:</strong> Fica a VENDEDORA desde já autorizada a registrar a Comunicação de Venda eletrônica junto ao DETRAN/SENATRAN imediatamente após a entrega, visando resguardar a cadeia dominial do registro automotivo.
+                </p>
+                <p>
+                  <strong>3ª RESPONSABILIDADE POR MULTAS, PONTUAÇÃO E SINISTROS:</strong> A partir da entrega do veículo na data e hora presentes, toda e qualquer infração de trânsito (pontos na CNH e valores pecuniários), despesas de licenciamento/IPVA futuros, pedágios, sinistros e danos contra terceiros serão de <strong>responsabilidade integral e exclusiva do(a) COMPRADOR(A)</strong>, respondendo este regressivamente caso qualquer autuação venha a recair indevidamente sobre a loja ou antigo proprietário.
+                </p>
+                <p>
+                  <strong>4ª CUSTAS DE TRANSFERÊNCIA:</strong> Todas as despesas de taxa de vistoria ECV, placas Mercosul (se exigidas) e emissão de novo documento correm por conta exclusiva do(a) COMPRADOR(A).
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* DATA E ASSINATURAS OFICIAIS */}
           <div style={{ marginTop: 28, paddingTop: 16, borderTop: '1px solid #cbd5e1' }}>
             <p style={{ textAlign: 'right', margin: '0 0 24px 0', fontSize: '.9rem' }}>
@@ -598,22 +921,41 @@ export default function Documentos({ user }) {
             </p>
 
             <div className="doc-sign-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 30, marginTop: 20 }}>
-              <div className="doc-sign-line" style={{ textAlign: 'center', borderTop: '1px solid #111827', paddingTop: 8 }}>
-                <strong>{neg.tipo === 'compra' ? nomCli : (loja?.nome_fantasia || 'DG Automóveis')}</strong><br />
-                <span style={{ fontSize: '.78rem', color: '#4b5563' }}>
-                  {neg.tipo === 'compra'
-                    ? `Vendedor(a) / Proprietário(a) (${neg.cliente_cpf_cnpj || 'CPF/CNPJ'})`
-                    : `Vendedora / Loja (${loja?.cnpj || '35.236.994/0001-24'})`}
-                </span>
-              </div>
-              <div className="doc-sign-line" style={{ textAlign: 'center', borderTop: '1px solid #111827', paddingTop: 8 }}>
-                <strong>{neg.tipo === 'compra' ? (loja?.nome_fantasia || 'DG Automóveis') : nomCli}</strong><br />
-                <span style={{ fontSize: '.78rem', color: '#4b5563' }}>
-                  {neg.tipo === 'compra'
-                    ? `Compradora / Loja (${loja?.cnpj || '35.236.994/0001-24'})`
-                    : `Comprador(a) / Consignante (${neg.cliente_cpf_cnpj || 'CPF/CNPJ'})`}
-                </span>
-              </div>
+              {origemDoc === 'veiculo' ? (
+                <>
+                  <div className="doc-sign-line" style={{ textAlign: 'center', borderTop: '1px solid #111827', paddingTop: 8 }}>
+                    <strong>{loja?.nome_fantasia || 'DG Automóveis'}</strong><br />
+                    <span style={{ fontSize: '.78rem', color: '#4b5563' }}>
+                      Vendedora / Loja ({loja?.cnpj || '35.236.994/0001-24'})
+                    </span>
+                  </div>
+                  <div className="doc-sign-line" style={{ textAlign: 'center', borderTop: '1px solid #111827', paddingTop: 8 }}>
+                    <strong>{nomCli}</strong><br />
+                    <span style={{ fontSize: '.78rem', color: '#4b5563' }}>
+                      Comprador(a) / Adquirente ({cpfCli})
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="doc-sign-line" style={{ textAlign: 'center', borderTop: '1px solid #111827', paddingTop: 8 }}>
+                    <strong>{neg?.tipo === 'compra' ? nomCli : (loja?.nome_fantasia || 'DG Automóveis')}</strong><br />
+                    <span style={{ fontSize: '.78rem', color: '#4b5563' }}>
+                      {neg?.tipo === 'compra'
+                        ? `Vendedor(a) / Proprietário(a) (${neg?.cliente_cpf_cnpj || 'CPF/CNPJ'})`
+                        : `Vendedora / Loja (${loja?.cnpj || '35.236.994/0001-24'})`}
+                    </span>
+                  </div>
+                  <div className="doc-sign-line" style={{ textAlign: 'center', borderTop: '1px solid #111827', paddingTop: 8 }}>
+                    <strong>{neg?.tipo === 'compra' ? (loja?.nome_fantasia || 'DG Automóveis') : nomCli}</strong><br />
+                    <span style={{ fontSize: '.78rem', color: '#4b5563' }}>
+                      {neg?.tipo === 'compra'
+                        ? `Compradora / Loja (${loja?.cnpj || '35.236.994/0001-24'})`
+                        : `Comprador(a) / Consignante (${neg?.cliente_cpf_cnpj || 'CPF/CNPJ'})`}
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
 
             <div style={{ marginTop: 24, textAlign: 'center', fontSize: '.74rem', color: '#94a3b8' }}>

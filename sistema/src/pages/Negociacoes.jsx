@@ -197,9 +197,9 @@ export default function Negociacoes({ user }) {
           setEditando(null);
           alert('✓ Negociação/Contrato cancelado com sucesso.');
         }}
-        onContrato={(id) => {
+        onContrato={(id, mod) => {
           setEditando(null);
-          navigate(`/documentos?negociacao=${id}`);
+          navigate(`/documentos?negociacao=${id}${mod ? `&modelo=${mod}` : ''}`);
         }}
       />
     );
@@ -317,8 +317,11 @@ export default function Negociacoes({ user }) {
                   <button type="button" className="btn btn-sm" onClick={() => setEditando(n)}>
                     <Edit3 size={13} /> Abrir
                   </button>
-                  <button type="button" className="btn btn-sm" onClick={() => navigate(`/documentos?negociacao=${n.id}`)}>
+                  <button type="button" className="btn btn-sm" title="Contrato Oficial de Venda" onClick={() => navigate(`/documentos?negociacao=${n.id}&modelo=venda_padrao`)}>
                     <FileText size={13} /> Contrato
+                  </button>
+                  <button type="button" className="btn btn-sm" title="Laudo e Checklist de Vistoria" onClick={() => navigate(`/documentos?negociacao=${n.id}&modelo=checklist_vistoria`)}>
+                    <ShieldCheck size={13} /> Vistoria
                   </button>
                   {n.status !== 'concluida' && (
                     <button
@@ -413,9 +416,17 @@ export default function Negociacoes({ user }) {
                       )}
                       <button
                         className="btn btn-sm"
-                        onClick={() => navigate(`/documentos?negociacao=${n.id}`)}
+                        title="Contrato Oficial de Venda"
+                        onClick={() => navigate(`/documentos?negociacao=${n.id}&modelo=venda_padrao`)}
                       >
                         <FileText size={13} />Contrato
+                      </button>
+                      <button
+                        className="btn btn-sm"
+                        title="Laudo e Checklist de Vistoria de Entrega"
+                        onClick={() => navigate(`/documentos?negociacao=${n.id}&modelo=checklist_vistoria`)}
+                      >
+                        <ShieldCheck size={13} />Vistoria
                       </button>
                       {(n.status === 'cancelada' || user?.perfil === 'admin' || user?.email?.toLowerCase() === 'admin@dgautos.com.br') && (
                         <button
@@ -1590,7 +1601,7 @@ function NegociacaoWizardModal({ inicial, clientes, veiculos, onClose, onSave, o
                     Transferência 30 dias, comunicação de venda, LGPD e foro da comarca.
                   </span>
                   {f.id && (
-                    <button type="button" className="btn btn-sm btn-primary" style={{ marginTop: 10 }} onClick={() => onContrato(f.id)}>
+                    <button type="button" className="btn btn-sm btn-primary" style={{ marginTop: 10 }} onClick={() => onContrato(f.id, 'venda_padrao')}>
                       <FileText size={13} /> Emitir Modelo 1
                     </button>
                   )}
@@ -1604,7 +1615,7 @@ function NegociacaoWizardModal({ inicial, clientes, veiculos, onClose, onSave, o
                     Hodômetro conferido, isenção de vícios por desconto, correia dentada e multa 20%.
                   </span>
                   {f.id && (
-                    <button type="button" className="btn btn-sm btn-primary" style={{ marginTop: 10 }} onClick={() => onContrato(f.id)}>
+                    <button type="button" className="btn btn-sm btn-primary" style={{ marginTop: 10 }} onClick={() => onContrato(f.id, 'venda_desconto')}>
                       <FileText size={13} /> Emitir Modelo 2
                     </button>
                   )}
@@ -1618,7 +1629,7 @@ function NegociacaoWizardModal({ inicial, clientes, veiculos, onClose, onSave, o
                     Vistoria prévia, garantia CDC 90 dias / 5.000 km, correia dentada e Lei 13.111.
                   </span>
                   {f.id && (
-                    <button type="button" className="btn btn-sm btn-primary" style={{ marginTop: 10 }} onClick={() => onContrato(f.id)}>
+                    <button type="button" className="btn btn-sm btn-primary" style={{ marginTop: 10 }} onClick={() => onContrato(f.id, 'venda_completa')}>
                       <FileText size={13} /> Emitir Modelo 3
                     </button>
                   )}
@@ -1632,7 +1643,7 @@ function NegociacaoWizardModal({ inicial, clientes, veiculos, onClose, onSave, o
                     Aquisição para o estoque da loja, quitação, procedência e garantia.
                   </span>
                   {f.id && (
-                    <button type="button" className="btn btn-sm btn-primary" style={{ marginTop: 10 }} onClick={() => onContrato(f.id)}>
+                    <button type="button" className="btn btn-sm btn-primary" style={{ marginTop: 10 }} onClick={() => onContrato(f.id, 'compra_estoque')}>
                       <FileText size={13} /> Emitir Modelo 4
                     </button>
                   )}
@@ -1646,8 +1657,78 @@ function NegociacaoWizardModal({ inicial, clientes, veiculos, onClose, onSave, o
                     Prazo de 60 dias, tabela de serviços/despesas de preparação e repasse líquido.
                   </span>
                   {f.id && (
-                    <button type="button" className="btn btn-sm btn-primary" style={{ marginTop: 10 }} onClick={() => onContrato(f.id)}>
+                    <button type="button" className="btn btn-sm btn-primary" style={{ marginTop: 10 }} onClick={() => onContrato(f.id, 'consignacao')}>
                       <FileText size={13} /> Emitir Modelo 5
+                    </button>
+                  )}
+                </div>
+
+                <div className="card" style={{ background: '#fff', padding: 14, borderRadius: 8, border: '1px solid var(--border)' }}>
+                  <strong style={{ fontSize: '.92rem', display: 'block', color: '#0284c7' }}>
+                    Modelo 6: Recibo de Pagamento & Quitação
+                  </strong>
+                  <span style={{ fontSize: '.78rem', color: 'var(--muted)', display: 'block', marginTop: 4 }}>
+                    Discriminação dos pagamentos recebidos (Pix, TED, Financiamento) e quitação condicionada.
+                  </span>
+                  {f.id && (
+                    <button type="button" className="btn btn-sm btn-primary" style={{ marginTop: 10 }} onClick={() => onContrato(f.id, 'recibo')}>
+                      <FileText size={13} /> Emitir Modelo 6
+                    </button>
+                  )}
+                </div>
+
+                <div className="card" style={{ background: '#fff', padding: 14, borderRadius: 8, border: '1px solid var(--border)' }}>
+                  <strong style={{ fontSize: '.92rem', display: 'block', color: '#475569' }}>
+                    Modelo 7: Termo de Entrega & Responsabilidade
+                  </strong>
+                  <span style={{ fontSize: '.78rem', color: 'var(--muted)', display: 'block', marginTop: 4 }}>
+                    Responsabilidade civil, administrativa e criminal a partir da saída da loja.
+                  </span>
+                  {f.id && (
+                    <button type="button" className="btn btn-sm btn-primary" style={{ marginTop: 10 }} onClick={() => onContrato(f.id, 'entrega')}>
+                      <FileText size={13} /> Emitir Modelo 7
+                    </button>
+                  )}
+                </div>
+
+                <div className="card" style={{ background: '#fff', padding: 14, borderRadius: 8, border: '2px solid #16a34a' }}>
+                  <strong style={{ fontSize: '.92rem', display: 'block', color: '#16a34a' }}>
+                    Modelo 8: Laudo & Checklist de Vistoria (Altimus)
+                  </strong>
+                  <span style={{ fontSize: '.78rem', color: 'var(--muted)', display: 'block', marginTop: 4 }}>
+                    Conferência de itens de bordo, ferramentas, pneus, lataria, nível de combustível e 90d CDC.
+                  </span>
+                  {f.id && (
+                    <button type="button" className="btn btn-sm btn-success" style={{ marginTop: 10 }} onClick={() => onContrato(f.id, 'checklist_vistoria')}>
+                      <ShieldCheck size={13} /> Emitir Modelo 8
+                    </button>
+                  )}
+                </div>
+
+                <div className="card" style={{ background: '#fff', padding: 14, borderRadius: 8, border: '1px solid var(--border)' }}>
+                  <strong style={{ fontSize: '.92rem', display: 'block', color: '#8b5cf6' }}>
+                    Modelo 9: Recibo de Sinal & Reserva (Arras)
+                  </strong>
+                  <span style={{ fontSize: '.78rem', color: 'var(--muted)', display: 'block', marginTop: 4 }}>
+                    Bloqueio do veículo com arras confirmatórias/penitenciais (Arts. 418 a 420 do Código Civil).
+                  </span>
+                  {f.id && (
+                    <button type="button" className="btn btn-sm btn-primary" style={{ marginTop: 10 }} onClick={() => onContrato(f.id, 'recibo_sinal')}>
+                      <DollarSign size={13} /> Emitir Modelo 9
+                    </button>
+                  )}
+                </div>
+
+                <div className="card" style={{ background: '#fff', padding: 14, borderRadius: 8, border: '1px solid var(--border)' }}>
+                  <strong style={{ fontSize: '.92rem', display: 'block', color: '#dc2626' }}>
+                    Modelo 10: Termo de Transferência (ATPV-e DETRAN)
+                  </strong>
+                  <span style={{ fontSize: '.78rem', color: 'var(--muted)', display: 'block', marginTop: 4 }}>
+                    Compromisso formal de transferência em 30 dias pelo adquirente e ciência de comunicação de venda.
+                  </span>
+                  {f.id && (
+                    <button type="button" className="btn btn-sm btn-primary" style={{ marginTop: 10 }} onClick={() => onContrato(f.id, 'autorizacao_transf')}>
+                      <FileText size={13} /> Emitir Modelo 10
                     </button>
                   )}
                 </div>
